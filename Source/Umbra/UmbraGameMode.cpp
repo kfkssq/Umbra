@@ -2,7 +2,9 @@
 
 #include "UmbraGameMode.h"
 
+#include "Player/UmbraPlayerState.h"
+
 AUmbraGameMode::AUmbraGameMode()
 {
-	// stub
+	PlayerStateClass = AUmbraPlayerState::StaticClass();
 }
