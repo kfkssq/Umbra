@@ -49,6 +49,24 @@ public:
 	/** Applies movement input toward a world-space location. */
 	void MoveTowardWorldLocation(const FVector& WorldLocation);
 
+	/** Maximum two-dimensional distance at which a basic attack may begin. */
+	float GetPrimaryAttackRange() const { return PrimaryAttackRange; }
+
+	/** Requests the existing GAS basic-attack ability against the selected target. */
+	bool TryActivatePrimaryAttack(AActor* TargetActor);
+
+	/** Target consumed by the active basic-attack ability for facing. */
+	AActor* GetPrimaryAttackTarget() const { return PrimaryAttackTarget.Get(); }
+	void ClearPrimaryAttackTarget() { PrimaryAttackTarget.Reset(); }
+
+	/** Whether movement input is accepted. False while the initial spawn animation is playing. */
+	UFUNCTION(BlueprintPure, Category = "Movement")
+	bool IsMovementEnabled() const { return bMovementEnabled; }
+
+	/** Backward-compatible animation hook. Movement now starts enabled, so this normally has no work to do. */
+	UFUNCTION(BlueprintCallable, Category = "Animation|Spawn")
+	void FinishSpawnAnimation();
+
 	/** Returns the fixed top-down camera boom. */
 	USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 
@@ -71,6 +89,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Abilities")
 	TArray<FUmbraTaggedInputAction> AbilityInputActions;
 
+	/** Maximum two-dimensional distance to the selected target before attacking. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Basic Attack", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float PrimaryAttackRange = 200.0f;
+
 private:
 	void Move(const FInputActionValue& Value);
 	void AbilityInputTagPressed(FGameplayTag InputTag);
@@ -80,6 +102,8 @@ private:
 
 	float DesiredFacingYaw = 0.0f;
 	bool bHasDesiredFacing = false;
+	bool bMovementEnabled = true;
+	TWeakObjectPtr<AActor> PrimaryAttackTarget;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USpringArmComponent> CameraBoom;

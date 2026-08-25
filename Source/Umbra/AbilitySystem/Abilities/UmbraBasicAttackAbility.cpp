@@ -3,12 +3,16 @@
 #include "AbilitySystem/Abilities/UmbraBasicAttackAbility.h"
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+#include "Abilities/Tasks/AbilityTask_WaitDelay.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
+#include "Characters/UmbraPlayerCharacter.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "GameFramework/Character.h"
+#include "Engine/HitResult.h"
 #include "GameplayTags/UmbraGameplayTags.h"
-#include "UmbraPlayerController.h"
+#include "Umbra.h"
 
 UUmbraBasicAttackAbility::UUmbraBasicAttackAbility()
 {
@@ -35,52 +39,123 @@ void UUmbraBasicAttackAbility::ActivateAbility(
 
 	ACharacter* Character = ActorInfo ? Cast<ACharacter>(ActorInfo->AvatarActor.Get()) : nullptr;
 	UAnimInstance* AnimInstance = Character && Character->GetMesh() ? Character->GetMesh()->GetAnimInstance() : nullptr;
-	if (!AttackMontage || !AnimInstance || !CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (AttackMontages.IsEmpty() || !AnimInstance || !CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
 		FinishAbility(true);
 		return;
 	}
 
-	FaceCursorGroundLocation();
+	CurrentComboIndex = 0;
+	bComboInputQueued = false;
+	ComboInputTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+		this,
+		UmbraGameplayTags::Event_Attack_ComboInput,
+		nullptr,
+		false,
+		true);
+	if (!ComboInputTask)
+	{
+		FinishAbility(true);
+		return;
+	}
+	ComboInputTask->EventReceived.AddDynamic(this, &UUmbraBasicAttackAbility::HandleComboInput);
+	ComboInputTask->ReadyForActivation();
 
-	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
+	AttackHitWindowTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+		this,
+		UmbraGameplayTags::Event_Attack_HitWindow,
+		nullptr,
+		false,
+		false);
+	if (!AttackHitWindowTask)
+	{
+		FinishAbility(true);
+		return;
+	}
+	AttackHitWindowTask->EventReceived.AddDynamic(this, &UUmbraBasicAttackAbility::HandleAttackHitWindow);
+	AttackHitWindowTask->ReadyForActivation();
+
+	if (!PlayCurrentAttackMontage())
+	{
+		FinishAbility(true);
+	}
+}
+
+bool UUmbraBasicAttackAbility::PlayCurrentAttackMontage()
+{
+	if (!AttackMontages.IsValidIndex(CurrentComboIndex) || !AttackMontages[CurrentComboIndex])
+	{
+		return false;
+	}
+
+	FacePrimaryAttackTarget();
+	ActiveMontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 		this,
 		NAME_None,
-		AttackMontage,
+		AttackMontages[CurrentComboIndex],
 		1.0f,
 		NAME_None,
 		true);
-	if (!MontageTask)
+	if (!ActiveMontageTask)
 	{
-		FinishAbility(true);
-		return;
+		return false;
 	}
 
-	MontageTask->OnCompleted.AddDynamic(this, &UUmbraBasicAttackAbility::HandleMontageCompleted);
-	MontageTask->OnInterrupted.AddDynamic(this, &UUmbraBasicAttackAbility::HandleMontageInterrupted);
-	MontageTask->OnCancelled.AddDynamic(this, &UUmbraBasicAttackAbility::HandleMontageCancelled);
-	MontageTask->ReadyForActivation();
+	ActiveMontageTask->OnCompleted.AddDynamic(this, &UUmbraBasicAttackAbility::HandleMontageCompleted);
+	ActiveMontageTask->OnInterrupted.AddDynamic(this, &UUmbraBasicAttackAbility::HandleMontageInterrupted);
+	ActiveMontageTask->OnCancelled.AddDynamic(this, &UUmbraBasicAttackAbility::HandleMontageCancelled);
+	ActiveMontageTask->ReadyForActivation();
+	HitActorsThisComboStep.Reset();
+	bHasPreviousHitSocketLocation = false;
+	return true;
 }
 
-void UUmbraBasicAttackAbility::FaceCursorGroundLocation()
+bool UUmbraBasicAttackAbility::StartNextComboStep()
 {
-	ACharacter* Character = Cast<ACharacter>(GetAvatarActorFromActorInfo());
-	const FGameplayAbilityActorInfo* ActorInfo = GetCurrentActorInfo();
-	const AUmbraPlayerController* PlayerController = ActorInfo
-		? Cast<AUmbraPlayerController>(ActorInfo->PlayerController.Get())
-		: nullptr;
-	if (!Character || !PlayerController)
+	if (!AttackMontages.IsValidIndex(CurrentComboIndex + 1))
+	{
+		return false;
+	}
+
+	if (ComboWindowTask)
+	{
+		ComboWindowTask->EndTask();
+		ComboWindowTask = nullptr;
+	}
+
+	bComboInputQueued = false;
+	++CurrentComboIndex;
+	return PlayCurrentAttackMontage();
+}
+
+bool UUmbraBasicAttackAbility::StartComboGraceWindow()
+{
+	if (ComboWindowDuration <= 0.0f || !AttackMontages.IsValidIndex(CurrentComboIndex + 1))
+	{
+		return false;
+	}
+
+	ComboWindowTask = UAbilityTask_WaitDelay::WaitDelay(this, ComboWindowDuration);
+	if (!ComboWindowTask)
+	{
+		return false;
+	}
+
+	ComboWindowTask->OnFinish.AddDynamic(this, &UUmbraBasicAttackAbility::HandleComboWindowExpired);
+	ComboWindowTask->ReadyForActivation();
+	return true;
+}
+
+void UUmbraBasicAttackAbility::FacePrimaryAttackTarget()
+{
+	AUmbraPlayerCharacter* Character = Cast<AUmbraPlayerCharacter>(GetAvatarActorFromActorInfo());
+	const AActor* TargetActor = Character ? Character->GetPrimaryAttackTarget() : nullptr;
+	if (!Character || !TargetActor)
 	{
 		return;
 	}
 
-	FHitResult CursorHit;
-	if (!PlayerController->GetCursorGroundHit(CursorHit))
-	{
-		return;
-	}
-
-	FVector FacingDirection = CursorHit.ImpactPoint - Character->GetActorLocation();
+	FVector FacingDirection = TargetActor->GetActorLocation() - Character->GetActorLocation();
 	FacingDirection.Z = 0.0f;
 	if (!FacingDirection.IsNearlyZero())
 	{
@@ -90,6 +165,20 @@ void UUmbraBasicAttackAbility::FaceCursorGroundLocation()
 
 void UUmbraBasicAttackAbility::FinishAbility(bool bWasCancelled)
 {
+	CurrentComboIndex = INDEX_NONE;
+	bComboInputQueued = false;
+	HitActorsThisComboStep.Reset();
+	bHasPreviousHitSocketLocation = false;
+	ActiveMontageTask = nullptr;
+	ComboInputTask = nullptr;
+	AttackHitWindowTask = nullptr;
+	ComboWindowTask = nullptr;
+
+	if (AUmbraPlayerCharacter* Character = Cast<AUmbraPlayerCharacter>(GetAvatarActorFromActorInfo()))
+	{
+		Character->ClearPrimaryAttackTarget();
+	}
+
 	if (IsActive())
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bWasCancelled);
@@ -98,6 +187,19 @@ void UUmbraBasicAttackAbility::FinishAbility(bool bWasCancelled)
 
 void UUmbraBasicAttackAbility::HandleMontageCompleted()
 {
+	ActiveMontageTask = nullptr;
+	if (bComboInputQueued)
+	{
+		if (StartNextComboStep())
+		{
+			return;
+		}
+	}
+	else if (StartComboGraceWindow())
+	{
+		return;
+	}
+
 	FinishAbility(false);
 }
 
@@ -109,4 +211,103 @@ void UUmbraBasicAttackAbility::HandleMontageInterrupted()
 void UUmbraBasicAttackAbility::HandleMontageCancelled()
 {
 	FinishAbility(true);
+}
+
+void UUmbraBasicAttackAbility::HandleComboInput(FGameplayEventData Payload)
+{
+	(void)Payload;
+	if (IsActive() && AttackMontages.IsValidIndex(CurrentComboIndex + 1))
+	{
+		if (!ActiveMontageTask && ComboWindowTask)
+		{
+			if (!StartNextComboStep())
+			{
+				FinishAbility(true);
+			}
+			return;
+		}
+
+		bComboInputQueued = true;
+	}
+}
+
+void UUmbraBasicAttackAbility::HandleComboWindowExpired()
+{
+	ComboWindowTask = nullptr;
+	FinishAbility(false);
+}
+
+void UUmbraBasicAttackAbility::HandleAttackHitWindow(FGameplayEventData Payload)
+{
+	AUmbraPlayerCharacter* Character = Cast<AUmbraPlayerCharacter>(GetAvatarActorFromActorInfo());
+	AActor* TargetActor = Character ? Character->GetPrimaryAttackTarget() : nullptr;
+	USkeletalMeshComponent* CharacterMesh = Character ? Character->GetMesh() : nullptr;
+	if (!IsValid(TargetActor)
+		|| TargetActor->IsActorBeingDestroyed()
+		|| HitActorsThisComboStep.Contains(TargetActor)
+		|| !CharacterMesh)
+	{
+		return;
+	}
+
+	if (Payload.EventTag == UmbraGameplayTags::Event_Attack_HitWindowEnd)
+	{
+		bHasPreviousHitSocketLocation = false;
+		return;
+	}
+	if (HitDetectionSocketName.IsNone() || !CharacterMesh->DoesSocketExist(HitDetectionSocketName))
+	{
+		UE_LOG(LogUmbra, Warning,
+			TEXT("Cannot detect a basic-attack hit for %s: socket '%s' does not exist on mesh %s."),
+			*GetNameSafe(Character),
+			*HitDetectionSocketName.ToString(),
+			*GetNameSafe(CharacterMesh));
+		return;
+	}
+
+	const FVector CurrentSocketLocation = CharacterMesh->GetSocketLocation(HitDetectionSocketName);
+	if (Payload.EventTag == UmbraGameplayTags::Event_Attack_HitWindowBegin)
+	{
+		PreviousHitSocketLocation = CurrentSocketLocation;
+		bHasPreviousHitSocketLocation = true;
+		return;
+	}
+	if (Payload.EventTag != UmbraGameplayTags::Event_Attack_HitWindowTick)
+	{
+		return;
+	}
+
+	const FVector SweepStart = bHasPreviousHitSocketLocation ? PreviousHitSocketLocation : CurrentSocketLocation;
+	PreviousHitSocketLocation = CurrentSocketLocation;
+	bHasPreviousHitSocketLocation = true;
+
+	TArray<FHitResult> Hits;
+	FCollisionObjectQueryParams ObjectQuery;
+	ObjectQuery.AddObjectTypesToQuery(ECC_Pawn);
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(UmbraBasicAttackHit), false, Character);
+	const bool bFoundPawn = Character->GetWorld()->SweepMultiByObjectType(
+		Hits,
+		SweepStart,
+		CurrentSocketLocation,
+		FQuat::Identity,
+		ObjectQuery,
+		FCollisionShape::MakeSphere(HitDetectionRadius),
+		QueryParams);
+	if (!bFoundPawn || !Hits.ContainsByPredicate([TargetActor](const FHitResult& Hit)
+		{
+			return Hit.GetActor() == TargetActor;
+		}))
+	{
+		return;
+	}
+
+	HitActorsThisComboStep.Add(TargetActor);
+	FGameplayEventData HitReactEvent;
+	HitReactEvent.EventTag = UmbraGameplayTags::Event_Combat_HitReceived;
+	HitReactEvent.Instigator = Character;
+	HitReactEvent.Target = TargetActor;
+	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(
+		TargetActor,
+		UmbraGameplayTags::Event_Combat_HitReceived,
+		HitReactEvent);
 }

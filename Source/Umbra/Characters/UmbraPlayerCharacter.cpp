@@ -3,11 +3,15 @@
 #include "Characters/UmbraPlayerCharacter.h"
 
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "Camera/CameraComponent.h"
+#include "Components/MeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputActionValue.h"
+#include "GameplayTags/UmbraGameplayTags.h"
 #include "Player/UmbraPlayerState.h"
 #include "Umbra.h"
 #include "UmbraPlayerController.h"
@@ -24,6 +28,8 @@ AUmbraPlayerCharacter::AUmbraPlayerCharacter()
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 720.0f, 0.0f);
 	GetCharacterMovement()->MaxWalkSpeed = 500.0f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.0f;
+	GetMesh()->SetRenderCustomDepth(false);
+	GetMesh()->SetCustomDepthStencilValue(0);
 
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
@@ -50,6 +56,20 @@ void AUmbraPlayerCharacter::BeginPlay()
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 	GetCharacterMovement()->bOrientRotationToMovement = false;
+
+	// The player and all owned presentation meshes are never part of the enemy-hover stencil mask.
+	TInlineComponentArray<UMeshComponent*> OwnedMeshComponents(this);
+	for (UMeshComponent* MeshComponent : OwnedMeshComponents)
+	{
+		MeshComponent->SetRenderCustomDepth(false);
+		MeshComponent->SetCustomDepthStencilValue(0);
+	}
+
+	bMovementEnabled = true;
+	if (GetCharacterMovement()->MovementMode == MOVE_None)
+	{
+		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	}
 }
 
 void AUmbraPlayerCharacter::Tick(float DeltaSeconds)
@@ -111,6 +131,10 @@ void AUmbraPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 		{
 			continue;
 		}
+		if (TaggedInputAction.InputTag.MatchesTagExact(UmbraGameplayTags::Input_Attack_Primary))
+		{
+			continue;
+		}
 
 		EnhancedInputComponent->BindAction(
 			TaggedInputAction.InputAction,
@@ -133,8 +157,46 @@ void AUmbraPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 	}
 }
 
+bool AUmbraPlayerCharacter::TryActivatePrimaryAttack(AActor* TargetActor)
+{
+	UUmbraAbilitySystemComponent* AbilitySystemComponent = Cast<UUmbraAbilitySystemComponent>(GetAbilitySystemComponent());
+	if (!IsValid(TargetActor) || !AbilitySystemComponent)
+	{
+		return false;
+	}
+
+	PrimaryAttackTarget = TargetActor;
+	if (AbilitySystemComponent->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking))
+	{
+		FGameplayEventData ComboInputEvent;
+		ComboInputEvent.EventTag = UmbraGameplayTags::Event_Attack_ComboInput;
+		ComboInputEvent.Instigator = this;
+		ComboInputEvent.Target = TargetActor;
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(
+			this,
+			UmbraGameplayTags::Event_Attack_ComboInput,
+			ComboInputEvent);
+		return true;
+	}
+
+	FGameplayTagContainer AbilityTags;
+	AbilityTags.AddTag(UmbraGameplayTags::Ability_Attack_Basic);
+	if (AbilitySystemComponent->TryActivateAbilitiesByTag(AbilityTags))
+	{
+		return true;
+	}
+
+	PrimaryAttackTarget.Reset();
+	return false;
+}
+
 void AUmbraPlayerCharacter::Move(const FInputActionValue& Value)
 {
+	if (!bMovementEnabled)
+	{
+		return;
+	}
+
 	const FVector2D MovementInput = Value.Get<FVector2D>();
 	if (MovementInput.IsNearlyZero())
 	{
@@ -178,6 +240,11 @@ void AUmbraPlayerCharacter::SetFacingTargetLocation(const FVector& WorldLocation
 
 void AUmbraPlayerCharacter::MoveTowardWorldLocation(const FVector& WorldLocation)
 {
+	if (!bMovementEnabled)
+	{
+		return;
+	}
+
 	FVector MovementDirection = WorldLocation - GetActorLocation();
 	MovementDirection.Z = 0.0f;
 	MovementDirection = MovementDirection.GetSafeNormal();
@@ -189,6 +256,15 @@ void AUmbraPlayerCharacter::MoveTowardWorldLocation(const FVector& WorldLocation
 	DesiredFacingYaw = MovementDirection.Rotation().Yaw;
 	bHasDesiredFacing = true;
 	AddMovementInput(MovementDirection);
+}
+
+void AUmbraPlayerCharacter::FinishSpawnAnimation()
+{
+	bMovementEnabled = true;
+	if (GetCharacterMovement()->MovementMode == MOVE_None)
+	{
+		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	}
 }
 
 void AUmbraPlayerCharacter::AbilityInputTagPressed(FGameplayTag InputTag)

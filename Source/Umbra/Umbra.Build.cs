@@ -27,22 +27,7 @@ public class Umbra : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
-		PublicIncludePaths.AddRange(new string[] {
-			"Umbra",
-			"Umbra/Variant_Platforming",
-			"Umbra/Variant_Platforming/Animation",
-			"Umbra/Variant_Combat",
-			"Umbra/Variant_Combat/AI",
-			"Umbra/Variant_Combat/Animation",
-			"Umbra/Variant_Combat/Gameplay",
-			"Umbra/Variant_Combat/Interfaces",
-			"Umbra/Variant_Combat/UI",
-			"Umbra/Variant_SideScrolling",
-			"Umbra/Variant_SideScrolling/AI",
-			"Umbra/Variant_SideScrolling/Gameplay",
-			"Umbra/Variant_SideScrolling/Interfaces",
-			"Umbra/Variant_SideScrolling/UI"
-		});
+		PublicIncludePaths.Add("Umbra");
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

@@ -1,10 +1,55 @@
-Binaries/
-DerivedDataCache/
-Intermediate/
-Saved/
-.vs/
-.idea/
+# Unreal Engine generated directories (project and plugins)
+**/Binaries/
+**/DerivedDataCache/
+**/Intermediate/
+**/Saved/
+
+# Local backups and generated upgrade reports
+/Backup/
+/UpgradeLog*.htm
+/UpgradeLog*.xml
+
+# Visual Studio / Rider / VS Code user data
+/.vs/
+/.idea/
+/.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.opendb
+*.opensdf
+*.sdf
+
+# Generated IDE and Unreal project files
 *.sln
 *.slnx
 *.vcxproj
 *.vcxproj.filters
+*.vcxproj.user
+*.xcodeproj
+*.xcworkspace
+*.code-workspace
+
+# Local build artifacts and diagnostics
+*.log
+*.pdb
+*.obj
+*.ipch
+*.tmp
+*.temp
+*.bak
+*.old
+*.cache
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Keep Content tracked. Unreal binary assets are handled by Git LFS in
+# .gitattributes; do not ignore *.uasset or *.umap here.
+
+# Paragon Minions FX are kept locally but excluded from source control.
+/Content/ParagonMinions/FX/

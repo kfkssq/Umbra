@@ -29,6 +29,16 @@ class AUmbraPlayerController : public APlayerController
 public:
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** Enables the fixed-key on-screen diagnostics for cursor attack highlighting. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bShowAttackHighlightDebug = true;
+
+	/** Forces the Pawn currently under the cursor to write stencil 1 for isolation testing. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bForceHighlightDebug = false;
+
+	bool ShouldShowAttackHighlightDebug() const { return bShowAttackHighlightDebug; }
+
 	/** Returns the current visibility-channel hit under the mouse cursor. */
 	bool GetCursorGroundHit(FHitResult& OutHitResult) const;
 
@@ -39,9 +49,15 @@ public:
 	bool TryBeginManualMovement();
 
 protected:
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 	/** Context-sensitive primary action, configured as left mouse button in the mapping context. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Primary Action")
 	TObjectPtr<UInputAction> PrimaryAction;
+
+	/** Existing IA_Attack_Primary action used to select and attack cursor targets. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Primary Action")
+	TObjectPtr<UInputAction> PrimaryAttackAction;
 
 	/** Time in seconds before primary action input becomes a hold. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Primary Action", meta = (ClampMin = "0.0", UIMin = "0.0"))
@@ -95,9 +111,18 @@ protected:
 private:
 	void PrimaryActionStarted();
 	void PrimaryActionCompleted();
+	void PrimaryAttackStarted();
 	void UpdateHeldMovement(float DeltaSeconds);
 	void UpdateAutoMove();
+	void UpdatePendingAttack();
+	void UpdateAttackHover();
+	void UpdateAttackHighlightDebug();
+	void ClearAttackHighlightDebugMessages() const;
 	void StartAutoMoveToCursor();
+	bool StartAutoMoveToLocation(const FVector& Destination);
+	void BeginAttackTarget(AActor* TargetActor);
+	void CancelPendingAttack();
+	bool GetAttackableUnderCursor(AActor*& OutTargetActor, FHitResult* OutCursorHit = nullptr) const;
 	bool GetNavigableCursorLocation(FVector& OutLocation) const;
 	void MovePawnToward(const FVector& WorldLocation);
 	void ResetPrimaryActionState();
@@ -110,6 +135,10 @@ private:
 	bool bPrimaryActionHeld = false;
 	bool bPrimaryActionIsHold = false;
 	bool bAutoMoving = false;
+	TWeakObjectPtr<AActor> PendingAttackTarget;
+	TWeakObjectPtr<AActor> HoveredAttackTarget;
+	FHitResult AttackHighlightDebugHit;
+	bool bAttackHighlightDebugHasPawnHit = false;
 	EUmbraPrimaryActionContext ActivePrimaryActionContext = EUmbraPrimaryActionContext::Ground;
 
 };

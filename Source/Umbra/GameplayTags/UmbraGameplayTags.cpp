@@ -12,5 +12,15 @@ namespace UmbraGameplayTags
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Input_Attack_Primary, "Input.Attack.Primary", "Primary attack input.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Attack_Basic, "Ability.Attack.Basic", "Basic attack ability.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_HitReact, "Ability.HitReact", "Cosmetic hit-reaction ability.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Attacking, "State.Attacking", "Actor is performing an attack.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_HitReact, "State.HitReact", "Actor is playing a hit reaction.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Dead, "State.Dead", "Actor is dead and cannot react to hits.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_SuperArmor, "State.SuperArmor", "Actor ignores ordinary hit reactions.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_ComboInput, "Event.Attack.ComboInput", "Queues the next basic-attack combo step.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_HitWindow, "Event.Attack.HitWindow", "Root event for melee weapon sweep windows.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_HitWindowBegin, "Event.Attack.HitWindow.Begin", "Begins a melee weapon sweep window.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_HitWindowTick, "Event.Attack.HitWindow.Tick", "Advances a melee weapon sweep window.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_HitWindowEnd, "Event.Attack.HitWindow.End", "Ends a melee weapon sweep window.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Combat_HitReceived, "Event.Combat.HitReceived", "Reports a confirmed combat hit to the target ASC.");
 }
