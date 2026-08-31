@@ -12,6 +12,7 @@ namespace UmbraGameplayTags
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Input_Attack_Primary, "Input.Attack.Primary", "Primary attack input.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Attack_Basic, "Ability.Attack.Basic", "Basic attack ability.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Attack_EnemyBasic, "Ability.Attack.EnemyBasic", "Enemy basic attack ability.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_HitReact, "Ability.HitReact", "Cosmetic hit-reaction ability.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Attacking, "State.Attacking", "Actor is performing an attack.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_HitReact, "State.HitReact", "Actor is playing a hit reaction.");

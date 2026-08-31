@@ -14,6 +14,7 @@ namespace UmbraGameplayTags
 
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Attack_Primary);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Attack_Basic);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Attack_EnemyBasic);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_HitReact);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Attacking);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_HitReact);

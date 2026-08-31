@@ -7,7 +7,12 @@
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "Components/MeshComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameplayTags/UmbraGameplayTags.h"
+#include "Net/UnrealNetwork.h"
+#include "TimerManager.h"
 #include "Engine/Engine.h"
 #include "Umbra.h"
 #include "UmbraPlayerController.h"
@@ -28,10 +33,17 @@ AUmbraEnemyCharacter::AUmbraEnemyCharacter()
 void AUmbraEnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	GetCharacterMovement()->MaxWalkSpeed = EnemyMoveSpeed;
 	AbilitySystemComponent->InitAbilityActorInfo(this, this);
+	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UUmbraAttributeSet::GetHealthAttribute())
+		.AddUObject(this, &AUmbraEnemyCharacter::HandleHealthChanged);
 	if (HasAuthority())
 	{
 		AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(UUmbraHitReactAbility::StaticClass(), 1));
+		if (BasicAttackAbilityClass)
+		{
+			AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(BasicAttackAbilityClass, 1));
+		}
 	}
 
 	// Blueprint and imported-asset defaults must not highlight the body, weapons, or ShadowCylinder at startup.
@@ -50,11 +62,12 @@ UAbilitySystemComponent* AUmbraEnemyCharacter::GetAbilitySystemComponent() const
 
 bool AUmbraEnemyCharacter::CanBeAttacked_Implementation() const
 {
-	return true;
+	return !bIsDead;
 }
 
 void AUmbraEnemyCharacter::SetAttackHighlighted_Implementation(bool bHighlighted)
 {
+	bHighlighted = bHighlighted && !bIsDead;
 	USkeletalMeshComponent* EnemyMesh = GetMesh();
 	if (!EnemyMesh)
 	{
@@ -86,4 +99,103 @@ void AUmbraEnemyCharacter::SetAttackHighlighted_Implementation(bool bHighlighted
 			EnemyMesh->CustomDepthStencilValue);
 		GEngine->AddOnScreenDebugMessage(1010, 2.5f, MessageColor, DebugText);
 	}
+}
+
+bool AUmbraEnemyCharacter::TryActivateBasicAttack()
+{
+	if (bIsDead || !IsValid(CombatTarget.Get()) || !AbilitySystemComponent)
+	{
+		return false;
+	}
+
+	FGameplayTagContainer AbilityTags;
+	AbilityTags.AddTag(UmbraGameplayTags::Ability_Attack_EnemyBasic);
+	return AbilitySystemComponent->TryActivateAbilitiesByTag(AbilityTags);
+}
+
+void AUmbraEnemyCharacter::HandleHealthChanged(const FOnAttributeChangeData& ChangeData)
+{
+	if (ChangeData.NewValue <= 0.0f && ChangeData.OldValue > 0.0f)
+	{
+		Die();
+	}
+}
+
+void AUmbraEnemyCharacter::Die()
+{
+	if (bIsDead || !HasAuthority())
+	{
+		return;
+	}
+
+	bIsDead = true;
+	ApplyDeathState();
+	ForceNetUpdate();
+}
+
+void AUmbraEnemyCharacter::ApplyDeathState()
+{
+	if (bDeathStateApplied)
+	{
+		return;
+	}
+	bDeathStateApplied = true;
+	CombatTarget.Reset();
+	SetAttackHighlighted_Implementation(false);
+
+	if (AbilitySystemComponent)
+	{
+		AbilitySystemComponent->AddLooseGameplayTag(UmbraGameplayTags::State_Dead);
+		AbilitySystemComponent->CancelAllAbilities();
+	}
+	if (AAIController* AIController = Cast<AAIController>(GetController()))
+	{
+		AIController->StopMovement();
+	}
+	GetCharacterMovement()->DisableMovement();
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	if (DeathMontage)
+	{
+		const float DeathDuration = PlayAnimMontage(DeathMontage);
+		if (DeathDuration > 0.0f)
+		{
+			const float FreezeDelay = FMath::Max(DeathDuration - DeathPoseFreezeLeadTime, 0.0f);
+			GetWorldTimerManager().SetTimer(
+				DeathPoseTimerHandle,
+				this,
+				&AUmbraEnemyCharacter::FreezeDeathPose,
+				FreezeDelay,
+				false);
+		}
+	}
+	OnDeathStarted();
+
+	if (HasAuthority() && CorpseLifetime > 0.0f)
+	{
+		SetLifeSpan(CorpseLifetime);
+	}
+}
+
+void AUmbraEnemyCharacter::FreezeDeathPose()
+{
+	if (bIsDead && GetMesh())
+	{
+		GetMesh()->bPauseAnims = true;
+	}
+}
+
+void AUmbraEnemyCharacter::OnRep_IsDead()
+{
+	if (bIsDead)
+	{
+		ApplyDeathState();
+	}
+}
+
+void AUmbraEnemyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AUmbraEnemyCharacter, bIsDead);
 }

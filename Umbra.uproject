@@ -17,6 +17,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "Fab",
+			"Enabled": false
+		},
+		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,
 			"TargetAllowList": [

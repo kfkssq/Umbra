@@ -10,6 +10,7 @@ class UAnimMontage;
 class UAbilityTask_PlayMontageAndWait;
 class UAbilityTask_WaitGameplayEvent;
 class UAbilityTask_WaitDelay;
+class UGameplayEffect;
 
 /** Plays the player's basic attack montage and owns the attacking state. */
 UCLASS(Blueprintable)
@@ -42,6 +43,10 @@ protected:
 	/** Radius of the Pawn overlap sphere centered on HitDetectionSocketName. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Hit Detection", meta = (ClampMin = "1.0", UIMin = "1.0"))
 	float HitDetectionRadius = 100.0f;
+
+	/** Instant Gameplay Effect applied to a confirmed target hit. Configure negative Health magnitude. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Damage")
+	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
 private:
 	void FacePrimaryAttackTarget();

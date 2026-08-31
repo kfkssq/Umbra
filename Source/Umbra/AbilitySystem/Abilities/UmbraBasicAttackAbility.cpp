@@ -6,6 +6,7 @@
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Characters/UmbraPlayerCharacter.h"
@@ -302,6 +303,15 @@ void UUmbraBasicAttackAbility::HandleAttackHitWindow(FGameplayEventData Payload)
 	}
 
 	HitActorsThisComboStep.Add(TargetActor);
+	if (DamageEffectClass)
+	{
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+		const FGameplayEffectSpecHandle DamageSpec = MakeOutgoingGameplayEffectSpec(DamageEffectClass, GetAbilityLevel());
+		if (TargetASC && DamageSpec.IsValid())
+		{
+			GetAbilitySystemComponentFromActorInfo()->ApplyGameplayEffectSpecToTarget(*DamageSpec.Data.Get(), TargetASC);
+		}
+	}
 	FGameplayEventData HitReactEvent;
 	HitReactEvent.EventTag = UmbraGameplayTags::Event_Combat_HitReceived;
 	HitReactEvent.Instigator = Character;
