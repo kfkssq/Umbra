@@ -36,3 +36,8 @@ void AUmbraPlayerState::GrantInitialAbilities()
 
 	bInitialAbilitiesGranted = true;
 }
+
+void AUmbraPlayerState::InitializeAttributes()
+{
+	AbilitySystemComponent->InitializeAttributes(InitialAttributesEffect, bUseDebugInitialAttributes ? &DebugInitialAttributes : nullptr);
+}

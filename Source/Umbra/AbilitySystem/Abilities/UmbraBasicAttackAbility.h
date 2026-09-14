@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystem/UmbraGameplayAbility.h"
+#include "AbilitySystem/Damage/UmbraPhysicalDamage.h"
 #include "UmbraBasicAttackAbility.generated.h"
 
 class UAnimMontage;
@@ -44,9 +45,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Hit Detection", meta = (ClampMin = "1.0", UIMin = "1.0"))
 	float HitDetectionRadius = 100.0f;
 
-	/** Instant Gameplay Effect applied to a confirmed target hit. Configure negative Health magnitude. */
+	/** Instant GE with one UmbraPhysicalDamageExecution and no Modifiers. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Damage")
 	TSubclassOf<UGameplayEffect> DamageEffectClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Damage")
+	FUmbraPhysicalDamageConfig DamageConfig;
 
 private:
 	void FacePrimaryAttackTarget();

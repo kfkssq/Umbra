@@ -3,6 +3,7 @@
 #include "Characters/UmbraPlayerCharacter.h"
 
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
+#include "Interfaces/UmbraAttackable.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "Camera/CameraComponent.h"
 #include "Components/MeshComponent.h"
@@ -166,6 +167,11 @@ bool AUmbraPlayerCharacter::TryActivatePrimaryAttack(AActor* TargetActor)
 	}
 
 	PrimaryAttackTarget = TargetActor;
+	if (!HasAuthority())
+	{
+		AbilitySystemComponent->ServerReceivePrimaryAttackIntent(TargetActor,
+			AbilitySystemComponent->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking));
+	}
 	if (AbilitySystemComponent->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking))
 	{
 		FGameplayEventData ComboInputEvent;
@@ -188,6 +194,39 @@ bool AUmbraPlayerCharacter::TryActivatePrimaryAttack(AActor* TargetActor)
 
 	PrimaryAttackTarget.Reset();
 	return false;
+}
+
+void AUmbraPlayerCharacter::ReceivePrimaryAttackIntent(AActor* TargetActor, bool bCombo)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	if (!IsValid(TargetActor) || TargetActor == this || TargetActor->GetWorld() != GetWorld()
+		|| !TargetActor->Implements<UUmbraAttackable>() || !IUmbraAttackable::Execute_CanBeAttacked(TargetActor)
+		|| FVector::DistSquared2D(GetActorLocation(), TargetActor->GetActorLocation()) > FMath::Square(PrimaryAttackRange + 100.f))
+	{
+		PrimaryAttackTarget.Reset();
+		return;
+	}
+	PrimaryAttackTarget = TargetActor;
+	// The authoritative montage/sweep still decides whether a hit actually occurs.
+	if (bCombo && GetAbilitySystemComponent()
+		&& GetAbilitySystemComponent()->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking))
+	{
+		FGameplayEventData Event;
+		Event.EventTag = UmbraGameplayTags::Event_Attack_ComboInput;
+		Event.Instigator = this;
+		Event.Target = TargetActor;
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(this, Event.EventTag, Event);
+	}
+	else if (!bCombo && GetAbilitySystemComponent()
+		&& !GetAbilitySystemComponent()->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking))
+	{
+		// The client-predicted activation does not replicate this transient target pointer.
+		// Start the authoritative ability once the owned ASC RPC arrives.
+		TryActivatePrimaryAttack(TargetActor);
+	}
 }
 
 void AUmbraPlayerCharacter::Move(const FInputActionValue& Value)
@@ -312,5 +351,6 @@ void AUmbraPlayerCharacter::InitializeAbilitySystem()
 
 	AbilitySystemComponent->ClearAbilityInput();
 	AbilitySystemComponent->InitAbilityActorInfo(UmbraPlayerState, this);
+	UmbraPlayerState->InitializeAttributes();
 	UmbraPlayerState->GrantInitialAbilities();
 }

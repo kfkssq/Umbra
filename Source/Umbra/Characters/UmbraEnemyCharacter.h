@@ -4,12 +4,15 @@
 
 #include "AbilitySystemInterface.h"
 #include "CoreMinimal.h"
+#include "AbilitySystem/UmbraDebugInitialAttributes.h"
 #include "GameFramework/Character.h"
 #include "Interfaces/UmbraAttackable.h"
 #include "UmbraEnemyCharacter.generated.h"
 
 class UAnimMontage;
+class UUmbraEnemyHealthBarComponent;
 class UGameplayAbility;
+class UGameplayEffect;
 class UUmbraAbilitySystemComponent;
 class UUmbraAttributeSet;
 struct FOnAttributeChangeData;
@@ -23,9 +26,16 @@ class UMBRA_API AUmbraEnemyCharacter : public ACharacter, public IUmbraAttackabl
 public:
 	AUmbraEnemyCharacter();
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+	/** Enemy-owned ASC. Use it to bind attribute change delegates or apply Gameplay Effects. */
+	UFUNCTION(BlueprintPure, Category = "Ability System")
+	UUmbraAbilitySystemComponent* GetUmbraAbilitySystemComponent() const { return AbilitySystemComponent; }
+	/** Read-only shared attribute set for Blueprint UI/inspection. Mutate through Gameplay Effects. */
+	UFUNCTION(BlueprintPure, Category = "Ability System|Attributes")
+	UUmbraAttributeSet* GetAttributeSet() const { return AttributeSet; }
 	UAnimMontage* GetHitReactMontage() const { return HitReactMontage; }
 	UAnimMontage* GetDeathMontage() const { return DeathMontage; }
 	bool IsDead() const { return bIsDead; }
+	bool IsAIBehaviorEnabled() const { return bAIBehaviorEnabled; }
 	AActor* GetCombatTarget() const { return CombatTarget.Get(); }
 	void SetCombatTarget(AActor* NewTarget) { CombatTarget = NewTarget; }
 	bool TryActivateBasicAttack();
@@ -33,6 +43,24 @@ public:
 	virtual void SetAttackHighlighted_Implementation(bool bHighlighted) override;
 
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<UUmbraEnemyHealthBarComponent> HealthBarComponent;
+
+	/** Spawn-time setting. Disable for a passive test target; GAS, hit reactions and death remain active. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI", meta = (DisplayName = "Enable AI Behavior"))
+	bool bAIBehaviorEnabled = true;
+
+	/** Enemy-specific Instant GE; Health/Resource are filled after initialization. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ability System")
+	TSubclassOf<UGameplayEffect> InitialAttributesEffect;
+
+	/** Development tuning override applied after InitialAttributesEffect, once on authority. */
+	UPROPERTY(EditAnywhere, Category = "Ability System|Debug Attributes")
+	bool bUseDebugInitialAttributes = false;
+
+	UPROPERTY(EditAnywhere, Category = "Ability System|Debug Attributes", meta = (EditCondition = "bUseDebugInitialAttributes"))
+	FUmbraDebugInitialAttributes DebugInitialAttributes;
+
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -89,3 +117,4 @@ private:
 	TWeakObjectPtr<AActor> CombatTarget;
 	FTimerHandle DeathPoseTimerHandle;
 };
+

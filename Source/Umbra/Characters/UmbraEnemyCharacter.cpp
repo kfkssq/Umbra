@@ -16,6 +16,7 @@
 #include "Engine/Engine.h"
 #include "Umbra.h"
 #include "UmbraPlayerController.h"
+#include "UI/UmbraEnemyHealthBarComponent.h"
 
 AUmbraEnemyCharacter::AUmbraEnemyCharacter()
 {
@@ -25,6 +26,9 @@ AUmbraEnemyCharacter::AUmbraEnemyCharacter()
 	AbilitySystemComponent->SetIsReplicated(true);
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 	AttributeSet = CreateDefaultSubobject<UUmbraAttributeSet>(TEXT("AttributeSet"));
+	HealthBarComponent = CreateDefaultSubobject<UUmbraEnemyHealthBarComponent>(TEXT("HealthBarComponent"));
+	HealthBarComponent->SetupAttachment(GetRootComponent());
+	HealthBarComponent->SetRelativeLocation(FVector(0.f, 0.f, 120.f));
 
 	GetMesh()->SetRenderCustomDepth(false);
 	GetMesh()->SetCustomDepthStencilValue(AttackHighlightStencilValue);
@@ -35,6 +39,7 @@ void AUmbraEnemyCharacter::BeginPlay()
 	Super::BeginPlay();
 	GetCharacterMovement()->MaxWalkSpeed = EnemyMoveSpeed;
 	AbilitySystemComponent->InitAbilityActorInfo(this, this);
+	AbilitySystemComponent->InitializeAttributes(InitialAttributesEffect, bUseDebugInitialAttributes ? &DebugInitialAttributes : nullptr);
 	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UUmbraAttributeSet::GetHealthAttribute())
 		.AddUObject(this, &AUmbraEnemyCharacter::HandleHealthChanged);
 	if (HasAuthority())
@@ -103,7 +108,7 @@ void AUmbraEnemyCharacter::SetAttackHighlighted_Implementation(bool bHighlighted
 
 bool AUmbraEnemyCharacter::TryActivateBasicAttack()
 {
-	if (bIsDead || !IsValid(CombatTarget.Get()) || !AbilitySystemComponent)
+	if (!bAIBehaviorEnabled || bIsDead || !IsValid(CombatTarget.Get()) || !AbilitySystemComponent)
 	{
 		return false;
 	}

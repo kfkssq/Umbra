@@ -54,6 +54,8 @@ public:
 
 	/** Requests the existing GAS basic-attack ability against the selected target. */
 	bool TryActivatePrimaryAttack(AActor* TargetActor);
+	/** Authority-side target validation for the owned ASC's attack intent RPC. */
+	void ReceivePrimaryAttackIntent(AActor* TargetActor, bool bCombo);
 
 	/** Target consumed by the active basic-attack ability for facing. */
 	AActor* GetPrimaryAttackTarget() const { return PrimaryAttackTarget.Get(); }

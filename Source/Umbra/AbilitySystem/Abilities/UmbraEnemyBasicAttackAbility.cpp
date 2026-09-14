@@ -29,7 +29,7 @@ void UUmbraEnemyBasicAttackAbility::ActivateAbility(FGameplayAbilitySpecHandle H
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 	AUmbraEnemyCharacter* Enemy = ActorInfo ? Cast<AUmbraEnemyCharacter>(ActorInfo->AvatarActor.Get()) : nullptr;
-	if (!Enemy || Enemy->IsDead() || !IsValid(Enemy->GetCombatTarget()) || !AttackMontage
+	if (!Enemy || !Enemy->IsAIBehaviorEnabled() || Enemy->IsDead() || !IsValid(Enemy->GetCombatTarget()) || !AttackMontage
 		|| !DamageEffectClass || !CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
 		FinishAttack(true);
@@ -68,7 +68,8 @@ void UUmbraEnemyBasicAttackAbility::HandleHitWindow(FGameplayEventData Payload)
 	}
 	AUmbraEnemyCharacter* Enemy = Cast<AUmbraEnemyCharacter>(GetAvatarActorFromActorInfo());
 	AActor* Target = Enemy ? Enemy->GetCombatTarget() : nullptr;
-	if (!IsValid(Target) || FVector::DistSquared2D(Enemy->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(HitRadius))
+	if (!Enemy || !Enemy->IsAIBehaviorEnabled() || !IsValid(Target)
+		|| FVector::DistSquared2D(Enemy->GetActorLocation(), Target->GetActorLocation()) > FMath::Square(HitRadius))
 	{
 		return;
 	}
@@ -77,12 +78,10 @@ void UUmbraEnemyBasicAttackAbility::HandleHitWindow(FGameplayEventData Payload)
 	{
 		return;
 	}
-	const FGameplayEffectSpecHandle DamageSpec = MakeOutgoingGameplayEffectSpec(DamageEffectClass, GetAbilityLevel());
-	if (DamageSpec.IsValid())
-	{
-		GetAbilitySystemComponentFromActorInfo()->ApplyGameplayEffectSpecToTarget(*DamageSpec.Data.Get(), TargetASC);
-		bDamageApplied = true;
-	}
+	// Mark the confirmed hit before application, including blocked/rejected effects.
+	bDamageApplied = true;
+	UmbraPhysicalDamage::Apply(GetAbilitySystemComponentFromActorInfo(), TargetASC,
+		DamageEffectClass, DamageConfig, GetAbilityLevel());
 }
 
 void UUmbraEnemyBasicAttackAbility::FinishAttack(bool bCancelled)

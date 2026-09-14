@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AbilitySystem/UmbraGameplayAbility.h"
+#include "AbilitySystem/Damage/UmbraPhysicalDamage.h"
 #include "CoreMinimal.h"
 #include "UmbraEnemyBasicAttackAbility.generated.h"
 
@@ -28,6 +29,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Damage")
 	TSubclassOf<UGameplayEffect> DamageEffectClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Damage")
+	FUmbraPhysicalDamageConfig DamageConfig;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Hit Detection", meta = (ClampMin = "1.0"))
 	float HitRadius = 300.0f;

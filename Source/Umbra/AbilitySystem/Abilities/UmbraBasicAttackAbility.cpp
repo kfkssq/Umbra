@@ -303,15 +303,9 @@ void UUmbraBasicAttackAbility::HandleAttackHitWindow(FGameplayEventData Payload)
 	}
 
 	HitActorsThisComboStep.Add(TargetActor);
-	if (DamageEffectClass)
-	{
-		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
-		const FGameplayEffectSpecHandle DamageSpec = MakeOutgoingGameplayEffectSpec(DamageEffectClass, GetAbilityLevel());
-		if (TargetASC && DamageSpec.IsValid())
-		{
-			GetAbilitySystemComponentFromActorInfo()->ApplyGameplayEffectSpecToTarget(*DamageSpec.Data.Get(), TargetASC);
-		}
-	}
+	UmbraPhysicalDamage::Apply(GetAbilitySystemComponentFromActorInfo(),
+		UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor),
+		DamageEffectClass, DamageConfig, GetAbilityLevel());
 	FGameplayEventData HitReactEvent;
 	HitReactEvent.EventTag = UmbraGameplayTags::Event_Combat_HitReceived;
 	HitReactEvent.Instigator = Character;

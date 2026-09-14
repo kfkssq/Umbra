@@ -4,11 +4,24 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "GameplayEffectTypes.h"
 #include "UmbraPlayerController.generated.h"
 
 class UInputMappingContext;
 class UInputAction;
 class UUserWidget;
+class UUmbraDamageNumber;
+class UUmbraAttributeDebugPanel;
+class UAbilitySystemComponent;
+
+UENUM()
+enum class EUmbraAttributeDebugOperation : uint8
+{
+	AddEffect,
+	RemoveEffect,
+	Damage,
+	Heal
+};
 
 UENUM(BlueprintType)
 enum class EUmbraPrimaryActionContext : uint8
@@ -27,7 +40,18 @@ class AUmbraPlayerController : public APlayerController
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(Client, Unreliable)
+	void ClientShowDamageNumber(FVector WorldPosition, float Damage, uint8 Type, bool bCritical);
+	void ReleaseDamageNumber(UUmbraDamageNumber* Number);
 	virtual void Tick(float DeltaSeconds) override;
+
+	void RequestAttributeDebugOperation(AActor* Target, EUmbraAttributeDebugOperation Operation);
+	void StopPointerActionsForDebugUI();
+	bool IsPointerOverAttributeDebugPanel() const;
+	void AttributeDebugPanelRemoved(UUmbraAttributeDebugPanel* RemovedPanel);
+
+	UFUNCTION(BlueprintCallable, Category = "Debug|Attributes", meta = (DevelopmentOnly))
+	void RemoveAttributeDebugPanel();
 
 	/** Enables the fixed-key on-screen diagnostics for cursor attack highlighting. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
@@ -49,7 +73,26 @@ public:
 	bool TryBeginManualMovement();
 
 protected:
+	UPROPERTY(EditDefaultsOnly, Category="UI|Damage Numbers")
+	TSubclassOf<UUmbraDamageNumber> DamageNumberClass;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void OnRep_PlayerState() override;
+
+	/** Must also be enabled on the server's controller class. Ignored in Shipping/Test. */
+	UPROPERTY(EditDefaultsOnly, Category = "Debug|Attributes")
+	bool bEnableAttributeDebugPanel = false;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Debug|Attributes")
+	TSubclassOf<UUmbraAttributeDebugPanel> AttributeDebugPanelClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Debug|Attributes")
+	TObjectPtr<UInputMappingContext> AttributeDebugMappingContext;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Debug|Attributes")
+	TObjectPtr<UInputAction> ViewPlayerAttributesAction;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Debug|Attributes")
+	TObjectPtr<UInputAction> LockHoveredAttributesAction;
 
 	/** Context-sensitive primary action, configured as left mouse button in the mapping context. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Primary Action")
@@ -109,6 +152,32 @@ protected:
 	bool ShouldUseTouchControls() const;
 
 private:
+	void ClearDamageNumbers();
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UUmbraDamageNumber>> ActiveDamageNumbers;
+	void CreateAttributeDebugPanel();
+	void SetupAttributeDebugInput();
+	void CleanupAttributeDebugInput();
+	void ViewPlayerAttributes();
+	void LockHoveredAttributes();
+	void ClearAttributeDebugEffects();
+	static bool IsAttackableTarget(AActor* Target);
+
+	UFUNCTION(Server, Reliable)
+	void ServerAttributeDebugOperation(AActor* Target, EUmbraAttributeDebugOperation Operation);
+
+	UFUNCTION(Server, Reliable)
+	void ServerClearAttributeDebugEffects();
+
+	UPROPERTY(Transient)
+	TObjectPtr<UUmbraAttributeDebugPanel> AttributeDebugPanel;
+
+	// Authority-only handles; each controller can remove only its own effects.
+	TMap<TWeakObjectPtr<UAbilitySystemComponent>, FActiveGameplayEffectHandle> AttributeDebugEffects;
+	TArray<uint32> AttributeDebugInputBindingHandles;
+	bool bAddedAttributeDebugMapping = false;
+	bool bEndingPlay = false;
+
 	void PrimaryActionStarted();
 	void PrimaryActionCompleted();
 	void PrimaryAttackStarted();

@@ -4,6 +4,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "Characters/UmbraEnemyCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameplayTags/UmbraGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
 #include "Umbra.h"
@@ -40,6 +41,14 @@ void AUmbraAIController::Tick(float DeltaSeconds)
 	if (!Enemy || Enemy->IsDead())
 	{
 		StopMovement();
+		return;
+	}
+	if (!Enemy->IsAIBehaviorEnabled())
+	{
+		// Remain possessed so the normal controller can resume on the next play session.
+		// Do not disable character/GAS ticking: passive targets still receive hits and die.
+		ClearCombatTarget(false);
+		Enemy->GetCharacterMovement()->StopMovementImmediately();
 		return;
 	}
 	if (Enemy->GetAbilitySystemComponent()->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking))

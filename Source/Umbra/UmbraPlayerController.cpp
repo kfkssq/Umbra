@@ -16,6 +16,7 @@
 #include "NavigationSystem.h"
 #include "Umbra.h"
 #include "Widgets/Input/SVirtualJoystick.h"
+#include "UI/UmbraAttributeDebugPanel.h"
 
 namespace UmbraAttackHighlightDebug
 {
@@ -53,6 +54,7 @@ void AUmbraPlayerController::BeginPlay()
 			UE_LOG(LogUmbra, Error, TEXT("Could not spawn mobile controls widget."));
 		}
 	}
+	CreateAttributeDebugPanel();
 }
 
 void AUmbraPlayerController::Tick(float DeltaSeconds)
@@ -83,6 +85,10 @@ void AUmbraPlayerController::Tick(float DeltaSeconds)
 
 void AUmbraPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	ClearDamageNumbers();
+	bEndingPlay = true;
+	RemoveAttributeDebugPanel();
+	ClearAttributeDebugEffects();
 	ClearAttackHighlightDebugMessages();
 	if (AActor* HoveredActor = HoveredAttackTarget.Get())
 	{
@@ -96,6 +102,7 @@ void AUmbraPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 bool AUmbraPlayerController::GetCursorGroundHit(FHitResult& OutHitResult) const
 {
 	return IsLocalPlayerController()
+		&& !IsPointerOverAttributeDebugPanel()
 		&& GetHitResultUnderCursor(ECC_Visibility, false, OutHitResult)
 		&& OutHitResult.bBlockingHit;
 }
@@ -103,6 +110,7 @@ bool AUmbraPlayerController::GetCursorGroundHit(FHitResult& OutHitResult) const
 void AUmbraPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
+	SetupAttributeDebugInput();
 
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
 	{
@@ -170,6 +178,11 @@ void AUmbraPlayerController::HandlePrimaryAbilityReleased()
 
 void AUmbraPlayerController::PrimaryActionStarted()
 {
+	if (IsPointerOverAttributeDebugPanel())
+	{
+		StopPointerActionsForDebugUI();
+		return;
+	}
 	bPrimaryActionHeld = false;
 	bPrimaryActionIsHold = false;
 	PrimaryActionHeldTime = 0.0f;
@@ -212,6 +225,10 @@ void AUmbraPlayerController::PrimaryActionStarted()
 
 void AUmbraPlayerController::PrimaryAttackStarted()
 {
+	if (IsPointerOverAttributeDebugPanel())
+	{
+		return;
+	}
 	AActor* AttackableActor = nullptr;
 	if (GetAttackableUnderCursor(AttackableActor))
 	{
@@ -221,6 +238,11 @@ void AUmbraPlayerController::PrimaryAttackStarted()
 
 void AUmbraPlayerController::PrimaryActionCompleted()
 {
+	if (IsPointerOverAttributeDebugPanel())
+	{
+		StopPointerActionsForDebugUI();
+		return;
+	}
 	if (ActivePrimaryActionContext == EUmbraPrimaryActionContext::Ability)
 	{
 		HandlePrimaryAbilityReleased();
@@ -498,6 +520,10 @@ void AUmbraPlayerController::CancelPendingAttack()
 bool AUmbraPlayerController::GetAttackableUnderCursor(AActor*& OutTargetActor, FHitResult* OutCursorHit) const
 {
 	OutTargetActor = nullptr;
+	if (IsPointerOverAttributeDebugPanel())
+	{
+		return false;
+	}
 	FHitResult CursorHit;
 	TArray<TEnumAsByte<EObjectTypeQuery>> AttackableObjectTypes;
 	AttackableObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
@@ -514,9 +540,7 @@ bool AUmbraPlayerController::GetAttackableUnderCursor(AActor*& OutTargetActor, F
 	}
 
 	AActor* HitActor = CursorHit.GetActor();
-	if (!IsValid(HitActor)
-		|| !HitActor->Implements<UUmbraAttackable>()
-		|| !IUmbraAttackable::Execute_CanBeAttacked(HitActor))
+	if (!IsAttackableTarget(HitActor))
 	{
 		return false;
 	}
