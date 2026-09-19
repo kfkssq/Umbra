@@ -23,5 +23,6 @@ public:
 		const FAnimNotifyEventReference& EventReference) override;
 
 private:
-	static void SendHitWindowEvent(USkeletalMeshComponent* MeshComp, const FGameplayTag& EventTag);
+	static void SendHitWindowEvent(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
+		const FGameplayTag& EventTag);
 };

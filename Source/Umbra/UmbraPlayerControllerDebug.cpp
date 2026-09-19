@@ -43,12 +43,7 @@ void AUmbraPlayerController::CreateAttributeDebugPanel()
 	AttributeDebugPanel = CreateWidget<UUmbraAttributeDebugPanel>(this, AttributeDebugPanelClass);
 	if (AttributeDebugPanel)
 	{
-		// A bounded viewport slot, not a fullscreen hit-test surface.
 		AttributeDebugPanel->AddToPlayerScreen(20);
-		AttributeDebugPanel->SetAnchorsInViewport(FAnchors(0.f, 0.f));
-		AttributeDebugPanel->SetAlignmentInViewport(FVector2D::ZeroVector);
-		AttributeDebugPanel->SetPositionInViewport(FVector2D(16.f, 64.f), false);
-		AttributeDebugPanel->SetDesiredSizeInViewport(FVector2D(360.f, 640.f));
 	}
 	// The existing controller already uses GameAndUI and a visible cursor.
 	// We do not replace its input mode or capture settings.
@@ -168,7 +163,7 @@ void AUmbraPlayerController::ViewPlayerAttributes()
 	if (AttributeDebugPanel)
 	{
 		AttributeDebugPanel->ViewPlayer();
-		AttributeDebugPanel->SetSelectionFeedback(FText::FromString(TEXT("正在查看本地玩家")));
+		AttributeDebugPanel->SetSelectionFeedback(EUmbraAttributeDebugFeedback::ViewingPlayer);
 		UE_LOG(LogUmbra, Log, TEXT("Attribute debug: F1 selected local player."));
 	}
 #endif
@@ -193,12 +188,12 @@ void AUmbraPlayerController::LockHoveredAttributes()
 	if (bHasPawnHit && Cast<AUmbraEnemyCharacter>(Candidate) && !bOccluded)
 	{
 		AttributeDebugPanel->ViewEnemy(Candidate);
-		AttributeDebugPanel->SetSelectionFeedback(FText::FromString(TEXT("已锁定敌人，移开鼠标仍保持查看")));
+		AttributeDebugPanel->SetSelectionFeedback(EUmbraAttributeDebugFeedback::EnemyLocked);
 		UE_LOG(LogUmbra, Log, TEXT("Attribute debug: F2 locked enemy %s."), *GetNameSafe(Candidate));
 	}
 	else
 	{
-		AttributeDebugPanel->SetSelectionFeedback(FText::FromString(TEXT("未命中可查看的敌人，保持当前目标")));
+		AttributeDebugPanel->SetSelectionFeedback(EUmbraAttributeDebugFeedback::EnemyLockFailed);
 		UE_LOG(LogUmbra, Log, TEXT("Attribute debug: F2 kept target. Pawn=%s, Visibility=%s, Occluded=%s."),
 			*GetNameSafe(Candidate), *GetNameSafe(VisibilityHit.GetActor()), bOccluded ? TEXT("true") : TEXT("false"));
 	}
@@ -239,16 +234,29 @@ void AUmbraPlayerController::ServerAttributeDebugOperation_Implementation(AActor
 	}
 	for (auto It = AttributeDebugEffects.CreateIterator(); It; ++It)
 	{
-		if (!It.Key().IsValid() || !It.Key()->GetActiveGameplayEffect(It.Value()))
+		UAbilitySystemComponent* TrackedASC = It.Key().Get();
+		if (!IsValid(TrackedASC))
+		{
+			It.RemoveCurrent();
+			continue;
+		}
+		It.Value().RemoveAll([TrackedASC](const FActiveGameplayEffectHandle& Handle)
+		{
+			return !TrackedASC->GetActiveGameplayEffect(Handle);
+		});
+		if (It.Value().IsEmpty())
 		{
 			It.RemoveCurrent();
 		}
 	}
 	if (Operation == EUmbraAttributeDebugOperation::RemoveEffect)
 	{
-		if (FActiveGameplayEffectHandle* Handle = AttributeDebugEffects.Find(ASC))
+		if (TArray<FActiveGameplayEffectHandle>* Handles = AttributeDebugEffects.Find(ASC))
 		{
-			ASC->RemoveActiveGameplayEffect(*Handle);
+			for (const FActiveGameplayEffectHandle& Handle : *Handles)
+			{
+				ASC->RemoveActiveGameplayEffect(Handle);
+			}
 			AttributeDebugEffects.Remove(ASC);
 		}
 		return;
@@ -257,10 +265,6 @@ void AUmbraPlayerController::ServerAttributeDebugOperation_Implementation(AActor
 	switch (Operation)
 	{
 	case EUmbraAttributeDebugOperation::AddEffect:
-		if (AttributeDebugEffects.Contains(ASC))
-		{
-			return;
-		}
 		EffectClass = UUmbraDebugAttributeEffect::StaticClass();
 		break;
 	case EUmbraAttributeDebugOperation::Damage:
@@ -280,7 +284,7 @@ void AUmbraPlayerController::ServerAttributeDebugOperation_Implementation(AActor
 		const FActiveGameplayEffectHandle Handle = ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 		if (Operation == EUmbraAttributeDebugOperation::AddEffect && Handle.IsValid())
 		{
-			AttributeDebugEffects.Add(ASC, Handle);
+			AttributeDebugEffects.FindOrAdd(ASC).Add(Handle);
 		}
 	}
 #endif
@@ -295,7 +299,10 @@ void AUmbraPlayerController::ClearAttributeDebugEffects()
 		{
 			if (UAbilitySystemComponent* ASC = Entry.Key.Get())
 			{
-				ASC->RemoveActiveGameplayEffect(Entry.Value);
+				for (const FActiveGameplayEffectHandle& Handle : Entry.Value)
+				{
+					ASC->RemoveActiveGameplayEffect(Handle);
+				}
 			}
 		}
 		AttributeDebugEffects.Reset();

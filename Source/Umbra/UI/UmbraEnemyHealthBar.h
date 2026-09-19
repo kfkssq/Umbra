@@ -4,10 +4,29 @@
 #include "UmbraEnemyHealthBar.generated.h"
 class AUmbraEnemyCharacter;
 class UUmbraAbilitySystemComponent;
-class UProgressBar;
 struct FOnAttributeChangeData;
 
-/** Presentation only; listens to replicated GAS attributes. */
+/** Read-only presentation state produced from the enemy's replicated GAS attributes. */
+USTRUCT(BlueprintType)
+struct UMBRA_API FUmbraEnemyHealthBarViewState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Enemy Health Bar")
+	float Health = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Enemy Health Bar")
+	float MaxHealth = 0.f;
+
+	/** Safe Health / MaxHealth ratio in the [0, 1] range. */
+	UPROPERTY(BlueprintReadOnly, Category = "Enemy Health Bar")
+	float HealthNormalized = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Enemy Health Bar")
+	bool bVisible = false;
+};
+
+/** Observes replicated GAS attributes and sends widget-agnostic state to Blueprint presentation. */
 UCLASS(Abstract, Blueprintable, meta = (DisableNativeTick))
 class UMBRA_API UUmbraEnemyHealthBar : public UUserWidget
 {
@@ -18,8 +37,10 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UProgressBar> HealthProgressBar;
+
+	/** Implement in the WBP to update any native, material-driven, or composite health-bar control. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Enemy Health Bar", meta = (DisplayName = "Apply Enemy Health Bar State"))
+	void BP_ApplyViewState(const FUmbraEnemyHealthBarViewState& State);
 private:
 	void Bind();
 	void UnbindASC();
@@ -34,4 +55,3 @@ private:
 	FDelegateHandle MaxHealthHandle;
 	FDelegateHandle LifecycleHandle;
 };
-

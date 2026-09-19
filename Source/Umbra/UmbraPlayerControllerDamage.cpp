@@ -6,7 +6,7 @@
 void AUmbraPlayerController::ClientShowDamageNumber_Implementation(FVector WorldPosition, float Damage, uint8 Type, bool bCritical)
 {
  if (!IsLocalController() || GetNetMode() == NM_DedicatedServer || !DamageNumberClass
-  || !FMath::IsFinite(Damage) || Damage <= 0.f || Type > 1) return;
+  || !FMath::IsFinite(Damage) || Damage <= 0.f || Type > 1 || WorldPosition.ContainsNaN()) return;
  FVector2D Pixels;
  if (!ProjectWorldLocationToScreen(WorldPosition,Pixels,true)) return;
  int32 Width, Height;
@@ -20,7 +20,7 @@ void AUmbraPlayerController::ClientShowDamageNumber_Implementation(FVector World
  if (!Number) return;
  ActiveDamageNumbers.Add(Number);
  Number->AddToPlayerScreen(20);
- Number->Start(Damage,Type == 1,bCritical,Pixels / DPI);
+ Number->Start(Damage,Type == 1,bCritical,WorldPosition);
 }
 void AUmbraPlayerController::ReleaseDamageNumber(UUmbraDamageNumber* Number)
 {

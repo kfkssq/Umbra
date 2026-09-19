@@ -1,5 +1,7 @@
 # Umbra 物理伤害未生效：原因与修复
 
+本文保留历史故障与迁移步骤；2026-09-16 未重验资产内部，当前两个 GE 是否已符合契约待编辑器确认。当前公式参数见 [MagicalDamage](MagicalDamage.md)，整体入口见 [EditorSetup](EditorSetup.md)。
+
 ## 已确认的直接原因
 
 Output Log 已记录：
@@ -38,9 +40,9 @@ Physical damage GE GE_Damage_PlayerBasic_C must be Instant, have no Modifiers, a
 
 umbra.Damage.Log 1
 
-攻击命中时应看到 [PhysicalDamage]，包括 Base、AP、Coefficient、Chance、CanCrit、Crit、Armor、Raw、Final。生命结算时应看到 [DamageHealth]。
+攻击命中时应看到 [Damage]，包括 Type、AD、ADCoefficient、AP、APCoefficient、Chance、CriticalMultiplier、Crit、ResistanceType、Resistance、Raw、Final。生命结算时应看到 [DamageHealth]。当前没有 Base/CanCrit 字段。
 
-若只看到 Physical damage GE ... must be Instant，说明资产仍未迁移。若看到 missing source/target Umbra attributes，说明攻击方或目标 ASC 没有 UUmbraAttributeSet，或 ActorInfo 尚未就绪。若完全没有 [PhysicalDamage]，检查攻击能力命中窗口和 Damage Effect Class。
+若只看到 Physical damage GE ... must be Instant，说明资产不符合当前契约。若看到 missing source/target Umbra attributes，检查双方 AttributeSet 和 ActorInfo。若完全没有 [Damage]，检查攻击能力命中窗口、Damage Effect Class 和日志开关。
 
 ## PIE 验收顺序
 
@@ -48,14 +50,14 @@ umbra.Damage.Log 1
 2. 迁移两个 GE 并保存。
 3. 确认玩家/敌人初始 GE 设置 AttackPower、CriticalChance、CriticalDamageMultiplier、Armor。
 4. 执行 umbra.Damage.Log 1。
-5. 玩家攻击敌人；预期顺序是命中窗口、[PhysicalDamage]、[DamageHealth]，生命只减少一次。
-6. 设 CriticalChance=1、CriticalDamageMultiplier=2，确认允许暴击时最终伤害翻倍。
+5. 玩家攻击敌人；预期顺序是命中窗口、[Damage]、[DamageHealth]，生命只减少一次。
+6. 设 CriticalChance=1、CriticalDamageMultiplier=2，确认最终伤害翻倍。
 7. 提高 Armor，确认伤害按 100/(100+Armor) 降低。
 8. 调试面板“受到10点伤害”仍固定扣10，不经过护甲和暴击。
 9. 敌人反击时重复检查敌人 GE 和 GA_EnemyBasicAttack。
 10. 最后执行 umbra.Damage.Log 0。
 
-本次已完成代码检查和服务器目标兜底，但最终链接和真实地图 PIE 尚未重新验证。
+历史修复记录：当时完成代码检查和服务器目标兜底，最终链接和真实地图 PIE 未重新验证；当前状态统一见 [Progress](Progress.md)。
 
 当前 C++ 后备值为 AttackPower=10、AttackPowerCoefficient=1（基础伤害字段已移除），因此调试面板显示的攻击力与默认普攻 10 点一致。若初始 GE 或攻击能力蓝图显式覆盖这些值，则以蓝图配置为准。
 

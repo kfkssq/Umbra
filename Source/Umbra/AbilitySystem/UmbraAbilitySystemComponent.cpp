@@ -4,36 +4,275 @@
 
 #include "AbilitySystem/UmbraGameplayAbility.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "GameplayEffect.h"
 #include "AbilitySystem/UmbraDebugInitialAttributes.h"
 #include "Characters/UmbraPlayerCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameplayTags/UmbraGameplayTags.h"
+#include "HAL/IConsoleManager.h"
+#include "TimerManager.h"
+#include "Umbra.h"
 
-void UUmbraAbilitySystemComponent::ServerReceivePrimaryAttackIntent_Implementation(AActor* Target, bool bCombo)
+static TAutoConsoleVariable<float> CVarUmbraAttackMeasureSeconds(
+	TEXT("umbra.Attack.MeasureSeconds"), 0.f,
+	TEXT("Server: set to N>0 to measure actual basic-attack Health damage for N seconds from the next attack start; one shot."));
+
+void UUmbraAbilitySystemComponent::ServerReceivePrimaryAttackIntent_Implementation(
+	AActor* Target, bool bCombo, bool bContinueAttacking)
 {
 	if (AUmbraPlayerCharacter* Character = Cast<AUmbraPlayerCharacter>(GetAvatarActor()))
 	{
-		Character->ReceivePrimaryAttackIntent(Target, bCombo);
+		Character->ReceivePrimaryAttackIntent(Target, bCombo, bContinueAttacking);
 	}
+}
+
+void UUmbraAbilitySystemComponent::ServerCancelPrimaryAttackContinuation_Implementation()
+{
+	if (AUmbraPlayerCharacter* Character = Cast<AUmbraPlayerCharacter>(GetAvatarActor()))
+	{
+		Character->StopPrimaryAttackContinuation();
+	}
+}
+
+void UUmbraAbilitySystemComponent::RequestPrimaryAttackMovementCancellation()
+{
+	if (AActor* Avatar = GetAvatarActor())
+	{
+		FGameplayEventData Event;
+		Event.EventTag = UmbraGameplayTags::Event_Attack_MovementCommand;
+		Event.Instigator = Avatar;
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Avatar, Event.EventTag, Event);
+	}
+	if (!IsOwnerActorAuthoritative())
+	{
+		ServerRequestPrimaryAttackMovementCancellation();
+	}
+}
+
+void UUmbraAbilitySystemComponent::ServerRequestPrimaryAttackMovementCancellation_Implementation()
+{
+	if (AUmbraPlayerCharacter* Character = Cast<AUmbraPlayerCharacter>(GetAvatarActor()))
+	{
+		Character->StopPrimaryAttackContinuation();
+	}
+	if (AActor* Avatar = GetAvatarActor())
+	{
+		FGameplayEventData Event;
+		Event.EventTag = UmbraGameplayTags::Event_Attack_MovementCommand;
+		Event.Instigator = Avatar;
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Avatar, Event.EventTag, Event);
+	}
+}
+
+uint32 UUmbraAbilitySystemComponent::BeginPrimaryAttackInstance(float EffectivePeriodSeconds)
+{
+	++PrimaryAttackInstanceSerial;
+	if (PrimaryAttackInstanceSerial == 0)
+	{
+		++PrimaryAttackInstanceSerial;
+	}
+	ActivePrimaryAttackInstanceId = PrimaryAttackInstanceSerial;
+	ActivePrimaryAttackStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	ActivePrimaryAttackPeriod = FMath::IsFinite(EffectivePeriodSeconds)
+		? FMath::Max(0.f, EffectivePeriodSeconds) : 0.f;
+	if (IsOwnerActorAuthoritative())
+	{
+		if (bPrimaryAttackDamageMeasurementActive
+			&& ActivePrimaryAttackStartTime >= PrimaryAttackDamageMeasurementEnd)
+		{
+			FinishPrimaryAttackDamageMeasurement();
+		}
+		if (!bPrimaryAttackDamageMeasurementActive)
+		{
+			const float RequestedSeconds = CVarUmbraAttackMeasureSeconds.GetValueOnGameThread();
+			if (FMath::IsFinite(RequestedSeconds) && RequestedSeconds > 0.f)
+			{
+				StartPrimaryAttackDamageMeasurement(FMath::Min(RequestedSeconds, 3600.f));
+				CVarUmbraAttackMeasureSeconds->Set(0.f, ECVF_SetByConsole);
+			}
+		}
+		if (bPrimaryAttackDamageMeasurementActive
+			&& ActivePrimaryAttackStartTime < PrimaryAttackDamageMeasurementEnd)
+		{
+			++PrimaryAttackDamageMeasurementStarts;
+		}
+	}
+	return ActivePrimaryAttackInstanceId;
+}
+
+void UUmbraAbilitySystemComponent::StartPrimaryAttackDamageMeasurement(float DurationSeconds)
+{
+	UWorld* World = GetWorld();
+	if (!World || !IsOwnerActorAuthoritative() || !FMath::IsFinite(DurationSeconds) || DurationSeconds <= 0.f)
+	{
+		return;
+	}
+	PrimaryAttackDamageMeasurementStart = World->GetTimeSeconds();
+	PrimaryAttackDamageMeasurementDuration = DurationSeconds;
+	PrimaryAttackDamageMeasurementEnd = PrimaryAttackDamageMeasurementStart + DurationSeconds;
+	PrimaryAttackDamageMeasurementAvatar = GetNameSafe(GetAvatarActor());
+	PrimaryAttackDamageMeasurementTotal = 0.0;
+	PrimaryAttackDamageMeasurementStarts = 0;
+	PrimaryAttackDamageMeasurementHits = 0;
+	bPrimaryAttackDamageMeasurementActive = true;
+	World->GetTimerManager().SetTimer(PrimaryAttackDamageMeasurementTimer,
+		FTimerDelegate::CreateUObject(this, &ThisClass::FinishPrimaryAttackDamageMeasurement, false),
+		DurationSeconds, false);
+	UE_LOG(LogUmbra, Log, TEXT("[AttackMeasure] Started avatar=%s serverStart=%.4f duration=%.3f end=%.4f"),
+		*PrimaryAttackDamageMeasurementAvatar, PrimaryAttackDamageMeasurementStart,
+		DurationSeconds, PrimaryAttackDamageMeasurementEnd);
+}
+
+void UUmbraAbilitySystemComponent::RecordPrimaryAttackSettledDamage(float HealthLost)
+{
+	const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	if (!IsOwnerActorAuthoritative() || !bPrimaryAttackDamageMeasurementActive
+		|| Now < PrimaryAttackDamageMeasurementStart || Now >= PrimaryAttackDamageMeasurementEnd
+		|| !FMath::IsFinite(HealthLost) || HealthLost <= 0.f)
+	{
+		return;
+	}
+	PrimaryAttackDamageMeasurementTotal += HealthLost;
+	++PrimaryAttackDamageMeasurementHits;
+}
+
+void UUmbraAbilitySystemComponent::FinishPrimaryAttackDamageMeasurement(bool bAborted)
+{
+	if (!bPrimaryAttackDamageMeasurementActive) return;
+	UWorld* World = GetWorld();
+	const double ReportTime = World ? World->GetTimeSeconds() : PrimaryAttackDamageMeasurementEnd;
+	if (World) World->GetTimerManager().ClearTimer(PrimaryAttackDamageMeasurementTimer);
+	const double CountedSeconds = bAborted
+		? FMath::Clamp(ReportTime - PrimaryAttackDamageMeasurementStart, 0.0, double(PrimaryAttackDamageMeasurementDuration))
+		: double(PrimaryAttackDamageMeasurementDuration);
+	UE_LOG(LogUmbra, Log,
+		TEXT("[AttackMeasure] %s avatar=%s start=%.4f windowEnd=%.4f reported=%.4f seconds=%.3f starts=%d damagingHits=%d healthDamage=%.3f DPS=%.3f"),
+		bAborted ? TEXT("Aborted") : TEXT("Complete"), *PrimaryAttackDamageMeasurementAvatar,
+		PrimaryAttackDamageMeasurementStart, PrimaryAttackDamageMeasurementEnd, ReportTime, CountedSeconds,
+		PrimaryAttackDamageMeasurementStarts, PrimaryAttackDamageMeasurementHits,
+		PrimaryAttackDamageMeasurementTotal,
+		CountedSeconds > 0.0 ? PrimaryAttackDamageMeasurementTotal / CountedSeconds : 0.0);
+	bPrimaryAttackDamageMeasurementActive = false;
+	PrimaryAttackDamageMeasurementAvatar.Reset();
+	PrimaryAttackDamageMeasurementTotal = 0.0;
+	PrimaryAttackDamageMeasurementStarts = 0;
+	PrimaryAttackDamageMeasurementHits = 0;
+}
+
+bool UUmbraAbilitySystemComponent::CommitPrimaryAttackInterval(uint32 AttackInstanceId)
+{
+	if (AttackInstanceId == 0 || AttackInstanceId != ActivePrimaryAttackInstanceId)
+	{
+		return false;
+	}
+	NextPrimaryAttackAllowedTime = FMath::Max(NextPrimaryAttackAllowedTime,
+		ActivePrimaryAttackStartTime + ActivePrimaryAttackPeriod);
+	return true;
+}
+
+void UUmbraAbilitySystemComponent::EndPrimaryAttackInstance(uint32 AttackInstanceId)
+{
+	if (AttackInstanceId != 0 && AttackInstanceId == ActivePrimaryAttackInstanceId)
+	{
+		ActivePrimaryAttackInstanceId = 0;
+		ActivePrimaryAttackStartTime = 0.0;
+		ActivePrimaryAttackPeriod = 0.f;
+	}
+}
+
+bool UUmbraAbilitySystemComponent::IsPrimaryAttackIntervalReady() const
+{
+	return GetPrimaryAttackIntervalRemaining() <= KINDA_SMALL_NUMBER;
+}
+
+float UUmbraAbilitySystemComponent::GetPrimaryAttackIntervalRemaining() const
+{
+	const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	return static_cast<float>(FMath::Max(0.0, NextPrimaryAttackAllowedTime - Now));
 }
 
 FUmbraAbilitySystemLifecycle UUmbraAbilitySystemComponent::OnLifecycleChanged;
 
 void UUmbraAbilitySystemComponent::InitAbilityActorInfo(AActor* InOwnerActor, AActor* InAvatarActor)
 {
+	if (AActor* PreviousAvatar = GetAvatarActor(); PreviousAvatar && PreviousAvatar != InAvatarActor)
+	{
+		FinishPrimaryAttackDamageMeasurement(true);
+		// Instanced tasks and cached attack targets are scoped to the old avatar.
+		CancelAllAbilities();
+		ClearAbilityInput();
+		ActivePrimaryAttackInstanceId = 0;
+		ActivePrimaryAttackStartTime = 0.0;
+		ActivePrimaryAttackPeriod = 0.f;
+		NextPrimaryAttackAllowedTime = 0.0;
+	}
+	UnbindMoveSpeed();
 	Super::InitAbilityActorInfo(InOwnerActor, InAvatarActor);
 	bActorInfoReady = IsValid(InOwnerActor) && IsValid(InAvatarActor);
+	if (bActorInfoReady && GetSet<UUmbraAttributeSet>())
+	{
+		// One-time migration fallback: preserve existing BP movement defaults unless
+		// an initial GE or debug override supplies MoveSpeed. Rebinding never reseeds it.
+		if (!bAttributesInitialized && IsOwnerActorAuthoritative())
+		{
+			if (const ACharacter* Character = Cast<ACharacter>(InAvatarActor))
+			{
+				SetNumericAttributeBase(UUmbraAttributeSet::GetMoveSpeedAttribute(), Character->GetCharacterMovement()->MaxWalkSpeed);
+			}
+		}
+		MoveSpeedHandle = GetGameplayAttributeValueChangeDelegate(UUmbraAttributeSet::GetMoveSpeedAttribute())
+			.AddUObject(this, &ThisClass::HandleMoveSpeedChanged);
+		ApplyMoveSpeed();
+	}
 	OnLifecycleChanged.Broadcast(this, bActorInfoReady);
+}
+
+void UUmbraAbilitySystemComponent::UnbindMoveSpeed()
+{
+	GetGameplayAttributeValueChangeDelegate(UUmbraAttributeSet::GetMoveSpeedAttribute()).Remove(MoveSpeedHandle);
+	MoveSpeedHandle.Reset();
+}
+
+void UUmbraAbilitySystemComponent::ApplyMoveSpeed()
+{
+	if (ACharacter* Character = Cast<ACharacter>(GetAvatarActor()))
+	{
+		const float Speed = GetNumericAttribute(UUmbraAttributeSet::GetMoveSpeedAttribute());
+		const float SafeSpeed = FMath::IsFinite(Speed) ? FMath::Max(0.f, Speed) : 0.f;
+		Character->GetCharacterMovement()->MaxWalkSpeed = SafeSpeed;
+		if (AUmbraPlayerCharacter* PlayerCharacter = Cast<AUmbraPlayerCharacter>(Character))
+		{
+			// Keep movement-facing responsiveness proportional to GAS MoveSpeed without Tick polling.
+			PlayerCharacter->ApplyMoveSpeedDrivenYawRate(SafeSpeed);
+		}
+	}
+}
+
+void UUmbraAbilitySystemComponent::HandleMoveSpeedChanged(const FOnAttributeChangeData& Data)
+{
+	ApplyMoveSpeed();
 }
 
 void UUmbraAbilitySystemComponent::ClearActorInfo()
 {
+	FinishPrimaryAttackDamageMeasurement(true);
+	CancelAllAbilities();
+	ClearAbilityInput();
+	UnbindMoveSpeed();
 	bActorInfoReady = false;
+	ActivePrimaryAttackInstanceId = 0;
+	ActivePrimaryAttackStartTime = 0.0;
+	ActivePrimaryAttackPeriod = 0.f;
+	NextPrimaryAttackAllowedTime = 0.0;
 	Super::ClearActorInfo();
 	OnLifecycleChanged.Broadcast(this, false);
 }
 
 void UUmbraAbilitySystemComponent::OnUnregister()
 {
+	FinishPrimaryAttackDamageMeasurement(true);
+	UnbindMoveSpeed();
 	bActorInfoReady = false;
 	OnLifecycleChanged.Broadcast(this, false);
 	Super::OnUnregister();

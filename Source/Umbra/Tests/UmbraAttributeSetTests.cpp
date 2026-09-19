@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
+#include "AbilitySystem/UmbraDebugInitialAttributes.h"
 #include "Player/UmbraPlayerState.h"
 #include "Engine/World.h"
 #include "GameplayEffect.h"
@@ -42,6 +43,17 @@ bool FUmbraAttributeBoundaryTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Initial resource full"), Attributes->GetResource(), 100.f);
 	TestEqual(TEXT("Default crit total multiplier"), Attributes->GetCriticalDamageMultiplier(), 2.f);
 	TestEqual(TEXT("Default attack power"), Attributes->GetAttackPower(), 10.f);
+	TestEqual(TEXT("Default attack speed bonus"), Attributes->GetAttackSpeedBonus(), 0.f);
+	TestEqual(TEXT("Default move speed"), Attributes->GetMoveSpeed(), 500.f);
+	const FUmbraDebugInitialAttributes DebugDefaults;
+	TestEqual(TEXT("Debug default move speed"), DebugDefaults.MoveSpeed, 500.f);
+	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedBonusAttribute(), -10.f);
+	TestEqual(TEXT("Attack speed bonus has safe minimum"), Attributes->GetAttackSpeedBonus(), -0.8f);
+	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedBonusAttribute(), 10.f);
+	TestEqual(TEXT("Attack speed bonus has safe maximum"), Attributes->GetAttackSpeedBonus(), 9.f);
+	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedBonusAttribute(), 0.f);
+	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetMoveSpeedAttribute(), -100.f);
+	TestEqual(TEXT("Move speed cannot become negative"), Attributes->GetMoveSpeed(), 0.f);
 	Apply(UUmbraAttributeSet::GetHealthAttribute(), -25.f);
 	ASC->InitAbilityActorInfo(Owner, Owner);
 	ASC->InitializeAttributes(nullptr);

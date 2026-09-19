@@ -1,4 +1,5 @@
 # 物理与魔法伤害配置
+架构见 [Architecture](Architecture.md)，配置总入口见 [EditorSetup](EditorSetup.md)，验证状态见 [Progress](Progress.md)。以下算例为待执行的验收步骤，2026-09-16 文档整理未运行测试或确认蓝图内部。
 保留 FUmbraPhysicalDamageConfig 和 UmbraPhysicalDamageExecution 的原类名以兼容已有资产引用；它们现在同时支持物理和魔法伤害。
 
 ## 编辑器步骤

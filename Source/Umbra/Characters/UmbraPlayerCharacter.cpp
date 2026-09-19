@@ -8,6 +8,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -25,8 +26,9 @@ AUmbraPlayerCharacter::AUmbraPlayerCharacter()
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
-	GetCharacterMovement()->bOrientRotationToMovement = false;
-	GetCharacterMovement()->RotationRate = FRotator(0.0f, 720.0f, 0.0f);
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->bUseControllerDesiredRotation = false;
+	GetCharacterMovement()->RotationRate = FRotator(0.0f, 600.0f, 0.0f);
 	GetCharacterMovement()->MaxWalkSpeed = 500.0f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.0f;
 	GetMesh()->SetRenderCustomDepth(false);
@@ -52,11 +54,14 @@ void AUmbraPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Blueprint defaults must not restore movement- or controller-driven rotation.
+	// CharacterMovement is the sole owner of locomotion facing. Blueprint component
+	// defaults may tune RotationRate, but may not restore controller/custom-Tick rotation.
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
-	GetCharacterMovement()->bOrientRotationToMovement = false;
+	GetCharacterMovement()->bUseControllerDesiredRotation = false;
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	PrimaryAttackFacingInstanceId = 0;
 
 	// The player and all owned presentation meshes are never part of the enemy-hover stencil mask.
 	TInlineComponentArray<UMeshComponent*> OwnedMeshComponents(this);
@@ -85,7 +90,6 @@ void AUmbraPlayerCharacter::Tick(float DeltaSeconds)
 		}
 	}
 
-	UpdateFacingRotation(DeltaSeconds);
 }
 
 void AUmbraPlayerCharacter::PossessedBy(AController* NewController)
@@ -104,6 +108,40 @@ UAbilitySystemComponent* AUmbraPlayerCharacter::GetAbilitySystemComponent() cons
 {
 	const AUmbraPlayerState* UmbraPlayerState = GetPlayerState<AUmbraPlayerState>();
 	return UmbraPlayerState ? UmbraPlayerState->GetAbilitySystemComponent() : nullptr;
+}
+
+float AUmbraPlayerCharacter::GetLocomotionAnimationPlayRate() const
+{
+	const UCharacterMovementComponent* Movement = GetCharacterMovement();
+	const float ReferenceSpeed = FMath::IsFinite(LocomotionAnimationReferenceSpeed)
+		? FMath::Max(1.f, LocomotionAnimationReferenceSpeed) : 500.f;
+	const float MinRate = FMath::Clamp(FMath::IsFinite(MinLocomotionAnimationPlayRate)
+		? MinLocomotionAnimationPlayRate : 0.25f, 0.05f, 10.f);
+	const float MaxRate = FMath::Max(MinRate, FMath::Clamp(FMath::IsFinite(MaxLocomotionAnimationPlayRate)
+		? MaxLocomotionAnimationPlayRate : 3.f, 0.05f, 10.f));
+	const float TargetSpeed = Movement && FMath::IsFinite(Movement->MaxWalkSpeed)
+		? FMath::Max(0.f, Movement->MaxWalkSpeed) : 0.f;
+	return FMath::Clamp(TargetSpeed / ReferenceSpeed, MinRate, MaxRate);
+}
+
+float AUmbraPlayerCharacter::CalculateMovementYawRate(float MoveSpeed) const
+{
+	const float ReferenceSpeed = FMath::IsFinite(LocomotionAnimationReferenceSpeed)
+		? FMath::Max(1.f, LocomotionAnimationReferenceSpeed) : 500.f;
+	const float BaseYawRate = FMath::IsFinite(BaseMovementYawRate)
+		? FMath::Max(0.f, BaseMovementYawRate) : 600.f;
+	const float MaxYawRate = FMath::Max(BaseYawRate, FMath::IsFinite(MaxMovementYawRate)
+		? FMath::Max(0.f, MaxMovementYawRate) : 1800.f);
+	const float SafeMoveSpeed = FMath::IsFinite(MoveSpeed) ? FMath::Max(0.f, MoveSpeed) : 0.f;
+	return FMath::Clamp(BaseYawRate * SafeMoveSpeed / ReferenceSpeed, 0.f, MaxYawRate);
+}
+
+void AUmbraPlayerCharacter::ApplyMoveSpeedDrivenYawRate(float MoveSpeed)
+{
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->RotationRate.Yaw = CalculateMovementYawRate(MoveSpeed);
+	}
 }
 
 void AUmbraPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -158,7 +196,7 @@ void AUmbraPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 	}
 }
 
-bool AUmbraPlayerCharacter::TryActivatePrimaryAttack(AActor* TargetActor)
+bool AUmbraPlayerCharacter::TryActivatePrimaryAttack(AActor* TargetActor, bool bContinueAttacking)
 {
 	UUmbraAbilitySystemComponent* AbilitySystemComponent = Cast<UUmbraAbilitySystemComponent>(GetAbilitySystemComponent());
 	if (!IsValid(TargetActor) || !AbilitySystemComponent)
@@ -167,10 +205,12 @@ bool AUmbraPlayerCharacter::TryActivatePrimaryAttack(AActor* TargetActor)
 	}
 
 	PrimaryAttackTarget = TargetActor;
+	bContinuePrimaryAttack = bContinueAttacking;
 	if (!HasAuthority())
 	{
 		AbilitySystemComponent->ServerReceivePrimaryAttackIntent(TargetActor,
-			AbilitySystemComponent->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking));
+			AbilitySystemComponent->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking),
+			bContinueAttacking);
 	}
 	if (AbilitySystemComponent->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking))
 	{
@@ -193,10 +233,22 @@ bool AUmbraPlayerCharacter::TryActivatePrimaryAttack(AActor* TargetActor)
 	}
 
 	PrimaryAttackTarget.Reset();
+	bContinuePrimaryAttack = false;
 	return false;
 }
 
-void AUmbraPlayerCharacter::ReceivePrimaryAttackIntent(AActor* TargetActor, bool bCombo)
+bool AUmbraPlayerCharacter::IsTargetInPrimaryAttackRange(const AActor* TargetActor, float ExtraTolerance) const
+{
+	if (!IsValid(TargetActor)) return false;
+	const ACharacter* TargetCharacter = Cast<ACharacter>(TargetActor);
+	const float TargetRadius = TargetCharacter && TargetCharacter->GetCapsuleComponent()
+		? TargetCharacter->GetCapsuleComponent()->GetScaledCapsuleRadius() : 0.f;
+	return FVector::DistSquared2D(GetActorLocation(), TargetActor->GetActorLocation())
+		<= FMath::Square(FMath::Max(0.f, PrimaryAttackRange + TargetRadius + FMath::Max(0.f, ExtraTolerance)));
+}
+
+void AUmbraPlayerCharacter::ReceivePrimaryAttackIntent(
+	AActor* TargetActor, bool bCombo, bool bContinueAttacking)
 {
 	if (!HasAuthority())
 	{
@@ -204,13 +256,15 @@ void AUmbraPlayerCharacter::ReceivePrimaryAttackIntent(AActor* TargetActor, bool
 	}
 	if (!IsValid(TargetActor) || TargetActor == this || TargetActor->GetWorld() != GetWorld()
 		|| !TargetActor->Implements<UUmbraAttackable>() || !IUmbraAttackable::Execute_CanBeAttacked(TargetActor)
-		|| FVector::DistSquared2D(GetActorLocation(), TargetActor->GetActorLocation()) > FMath::Square(PrimaryAttackRange + 100.f))
+		|| !IsTargetInPrimaryAttackRange(TargetActor, 100.f))
 	{
 		PrimaryAttackTarget.Reset();
+		bContinuePrimaryAttack = false;
 		return;
 	}
 	PrimaryAttackTarget = TargetActor;
-	// The authoritative montage/sweep still decides whether a hit actually occurs.
+	bContinuePrimaryAttack = bContinueAttacking;
+	// The authoritative windup timer still decides whether this intent resolves a hit.
 	if (bCombo && GetAbilitySystemComponent()
 		&& GetAbilitySystemComponent()->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking))
 	{
@@ -225,7 +279,20 @@ void AUmbraPlayerCharacter::ReceivePrimaryAttackIntent(AActor* TargetActor, bool
 	{
 		// The client-predicted activation does not replicate this transient target pointer.
 		// Start the authoritative ability once the owned ASC RPC arrives.
-		TryActivatePrimaryAttack(TargetActor);
+		TryActivatePrimaryAttack(TargetActor, bContinueAttacking);
+	}
+}
+
+void AUmbraPlayerCharacter::StopPrimaryAttackContinuation()
+{
+	const bool bWasContinuing = bContinuePrimaryAttack;
+	bContinuePrimaryAttack = false;
+	if (bWasContinuing && !HasAuthority())
+	{
+		if (UUmbraAbilitySystemComponent* ASC = Cast<UUmbraAbilitySystemComponent>(GetAbilitySystemComponent()))
+		{
+			ASC->ServerCancelPrimaryAttackContinuation();
+		}
 	}
 }
 
@@ -242,38 +309,67 @@ void AUmbraPlayerCharacter::Move(const FInputActionValue& Value)
 		return;
 	}
 
-	if (AUmbraPlayerController* PlayerController = Cast<AUmbraPlayerController>(GetController()))
-	{
-		if (!PlayerController->TryBeginManualMovement())
-		{
-			return;
-		}
-	}
-
 	const FRotator MovementRotation(0.0f, CameraBoom->GetComponentRotation().Yaw, 0.0f);
 	const FVector ForwardDirection = MovementRotation.RotateVector(FVector::ForwardVector);
 	const FVector RightDirection = MovementRotation.RotateVector(FVector::RightVector);
 	const FVector MovementDirection =
 		(ForwardDirection * MovementInput.Y + RightDirection * MovementInput.X).GetSafeNormal();
-
-	if (!MovementDirection.IsNearlyZero())
+	if (AUmbraPlayerController* PlayerController = Cast<AUmbraPlayerController>(GetController()))
 	{
-		DesiredFacingYaw = MovementDirection.Rotation().Yaw;
-		bHasDesiredFacing = true;
+		if (!PlayerController->TryBeginManualMovement(MovementDirection))
+		{
+			return;
+		}
 	}
 
 	AddMovementInput(ForwardDirection, MovementInput.Y);
 	AddMovementInput(RightDirection, MovementInput.X);
 }
 
-void AUmbraPlayerCharacter::SetFacingTargetLocation(const FVector& WorldLocation)
+void AUmbraPlayerCharacter::BeginPrimaryAttackFacing(uint32 AttackInstanceId, const FVector& WorldLocation)
 {
+	if (AttackInstanceId == 0)
+	{
+		return;
+	}
+
+	PrimaryAttackFacingInstanceId = AttackInstanceId;
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationRoll = false;
+	GetCharacterMovement()->StopMovementImmediately();
+	ConsumeMovementInputVector();
+	GetCharacterMovement()->bUseControllerDesiredRotation = false;
+	GetCharacterMovement()->bOrientRotationToMovement = false;
+
 	FVector FacingDirection = WorldLocation - GetActorLocation();
 	FacingDirection.Z = 0.0f;
 	if (!FacingDirection.IsNearlyZero())
 	{
-		DesiredFacingYaw = FacingDirection.Rotation().Yaw;
-		bHasDesiredFacing = true;
+		SetActorRotation(FRotator(0.0f, FacingDirection.Rotation().Yaw, 0.0f));
+	}
+}
+
+void AUmbraPlayerCharacter::EndPrimaryAttackFacing(uint32 AttackInstanceId)
+{
+	if (AttackInstanceId == 0 || AttackInstanceId != PrimaryAttackFacingInstanceId)
+	{
+		return;
+	}
+
+	PrimaryAttackFacingInstanceId = 0;
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationRoll = false;
+	GetCharacterMovement()->bUseControllerDesiredRotation = false;
+
+	const UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent();
+	if (!AbilitySystemComponent
+		|| !AbilitySystemComponent->HasMatchingGameplayTag(UmbraGameplayTags::State_Dead))
+	{
+		// Do not write ActorRotation here. The first real movement input/path segment
+		// becomes CharacterMovement's desired direction and RotationRate limits the turn.
+		GetCharacterMovement()->bOrientRotationToMovement = true;
 	}
 }
 
@@ -292,8 +388,6 @@ void AUmbraPlayerCharacter::MoveTowardWorldLocation(const FVector& WorldLocation
 		return;
 	}
 
-	DesiredFacingYaw = MovementDirection.Rotation().Yaw;
-	bHasDesiredFacing = true;
 	AddMovementInput(MovementDirection);
 }
 
@@ -320,19 +414,6 @@ void AUmbraPlayerCharacter::AbilityInputTagReleased(FGameplayTag InputTag)
 	{
 		AbilitySystemComponent->AbilityInputTagReleased(InputTag);
 	}
-}
-
-void AUmbraPlayerCharacter::UpdateFacingRotation(float DeltaSeconds)
-{
-	if (!bHasDesiredFacing)
-	{
-		return;
-	}
-
-	const FRotator CurrentRotation(0.0f, GetActorRotation().Yaw, 0.0f);
-	const FRotator TargetRotation(0.0f, DesiredFacingYaw, 0.0f);
-	const FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaSeconds, MouseFacingInterpSpeed);
-	SetActorRotation(FRotator(0.0f, NewRotation.Yaw, 0.0f));
 }
 
 void AUmbraPlayerCharacter::InitializeAbilitySystem()

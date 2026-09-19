@@ -46,6 +46,5 @@ struct UMBRA_API FUmbraDebugInitialAttributes
 	float AbilityHaste = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0"))
-	float MoveSpeed = 600.f;
+	float MoveSpeed = 500.f;
 };
-

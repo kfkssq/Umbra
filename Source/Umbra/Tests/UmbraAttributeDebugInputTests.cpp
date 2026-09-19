@@ -5,7 +5,6 @@
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "AbilitySystem/Effects/UmbraDebugEffects.h"
 #include "Characters/UmbraEnemyCharacter.h"
-#include "Components/TextBlock.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EnhancedPlayerInput.h"
@@ -62,23 +61,20 @@ bool FUmbraAttributeDebugInputTest::RunTest(const FString& Parameters)
 	// Build the actual designer tree, invoke NativeConstruct, and use the same view
 	// method called by F2. No viewport rendering or hardware mouse is simulated.
 	TSharedPtr<SWidget> SlateWidget = Panel->TakeWidget();
-	UTextBlock* NameText = Cast<UTextBlock>(Panel->GetWidgetFromName(TEXT("TargetNameText")));
-	UTextBlock* AttributesText = Cast<UTextBlock>(Panel->GetWidgetFromName(TEXT("AttributesText")));
-	if (TestNotNull(TEXT("TargetNameText bound"), NameText) && TestNotNull(TEXT("AttributesText bound"), AttributesText))
-	{
-		Panel->ViewEnemy(Enemy);
-		TestEqual(TEXT("Enemy name shown in actual WBP"), NameText->GetText().ToString(), Enemy->GetActorNameOrLabel());
-		const FGameplayEffectSpecHandle DamageSpec = ASC->MakeOutgoingSpec(UUmbraDebugDamageEffect::StaticClass(), 1.f, ASC->MakeEffectContext());
-		ASC->ApplyGameplayEffectSpecToSelf(*DamageSpec.Data.Get());
-		TestTrue(TEXT("Enemy Health updates by delegate"), AttributesText->GetText().ToString().Contains(TEXT("90.0 / 100.0")));
-		TestTrue(TEXT("Enemy attribute listener installed"), ASC->GetGameplayAttributeValueChangeDelegate(
-			UUmbraAttributeSet::GetHealthAttribute()).IsBoundToObject(Panel));
-		Enemy->Destroy();
-		TestEqual(TEXT("Destroyed enemy falls back to player view"), NameText->GetText().ToString(), FString(TEXT("本地玩家")));
-		TestTrue(TEXT("No local player in isolated world shows waiting"), AttributesText->GetText().ToString().Contains(TEXT("等待")));
-		Panel->ShutdownPanel();
-		TestFalse(TEXT("Widget lifecycle listener removed"), UUmbraAbilitySystemComponent::OnLifecycleChanged.IsBoundToObject(Panel));
-	}
+	Panel->ViewEnemy(Enemy);
+	TestEqual(TEXT("Enemy target passed to actual WBP"), Panel->GetViewState().TargetActor.Get(), static_cast<AActor*>(Enemy));
+	TestEqual(TEXT("Enemy name passed to actual WBP"), Panel->GetViewState().TargetName, Enemy->GetActorNameOrLabel());
+	TestEqual(TEXT("Initial enemy health passed as raw value"), Panel->GetViewState().Health, 100.f);
+	const FGameplayEffectSpecHandle DamageSpec = ASC->MakeOutgoingSpec(UUmbraDebugDamageEffect::StaticClass(), 1.f, ASC->MakeEffectContext());
+	ASC->ApplyGameplayEffectSpecToSelf(*DamageSpec.Data.Get());
+	TestEqual(TEXT("Enemy Health updates by delegate"), Panel->GetViewState().Health, 90.f);
+	TestTrue(TEXT("Enemy attribute listener installed"), ASC->GetGameplayAttributeValueChangeDelegate(
+		UUmbraAttributeSet::GetHealthAttribute()).IsBoundToObject(Panel));
+	Enemy->Destroy();
+	TestTrue(TEXT("Destroyed enemy falls back to player mode"), Panel->GetViewState().bViewingPlayer);
+	TestFalse(TEXT("No local player in isolated world is not ready"), Panel->GetViewState().bReady);
+	Panel->ShutdownPanel();
+	TestFalse(TEXT("Widget lifecycle listener removed"), UUmbraAbilitySystemComponent::OnLifecycleChanged.IsBoundToObject(Panel));
 	Panel->ShutdownPanel();
 	SlateWidget.Reset();
 	World->DestroyWorld(false);

@@ -2,7 +2,6 @@
 #include "Characters/UmbraEnemyCharacter.h"
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
-#include "Components/ProgressBar.h"
 
 void UUmbraEnemyHealthBar::SetEnemy(AUmbraEnemyCharacter* InEnemy)
 {
@@ -96,13 +95,14 @@ void UUmbraEnemyHealthBar::Refresh()
 {
 	const auto* ASC = BoundASC.Get();
 	const auto* Attributes = ASC ? ASC->GetSet<UUmbraAttributeSet>() : nullptr;
-	const float Health = Attributes ? Attributes->GetHealth() : 0.f;
-	const float MaxHealth = Attributes ? Attributes->GetMaxHealth() : 0.f;
-	const float Ratio = FMath::IsFinite(Health) && FMath::IsFinite(MaxHealth) && MaxHealth > 0.f
-		? FMath::Clamp(Health / MaxHealth, 0.f, 1.f) : 0.f;
-	if (HealthProgressBar) HealthProgressBar->SetPercent(Ratio);
-	// HitTestInvisible applies to this widget AND all descendants.
-	SetVisibility(Enemy.IsValid() && FMath::IsFinite(Health) && Health > 0.f
-		? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
-}
+	FUmbraEnemyHealthBarViewState State;
+	State.Health = Attributes ? Attributes->GetHealth() : 0.f;
+	State.MaxHealth = Attributes ? Attributes->GetMaxHealth() : 0.f;
+	State.HealthNormalized = FMath::IsFinite(State.Health) && FMath::IsFinite(State.MaxHealth) && State.MaxHealth > 0.f
+		? FMath::Clamp(State.Health / State.MaxHealth, 0.f, 1.f) : 0.f;
+	State.bVisible = Enemy.IsValid() && FMath::IsFinite(State.Health) && State.Health > 0.f;
 
+	// HitTestInvisible applies to this widget AND all descendants.
+	SetVisibility(State.bVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	BP_ApplyViewState(State);
+}

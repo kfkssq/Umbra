@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "GameplayEffectTypes.h"
+#include "UI/UmbraAttributeDebugTypes.h"
 #include "UmbraPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -14,20 +15,20 @@ class UUmbraDamageNumber;
 class UUmbraAttributeDebugPanel;
 class UAbilitySystemComponent;
 
-UENUM()
-enum class EUmbraAttributeDebugOperation : uint8
-{
-	AddEffect,
-	RemoveEffect,
-	Damage,
-	Heal
-};
-
 UENUM(BlueprintType)
 enum class EUmbraPrimaryActionContext : uint8
 {
 	Ground,
 	Ability
+};
+
+enum class EUmbraQueuedPlayerCommand : uint8
+{
+	None,
+	Move,
+	DirectMove,
+	Attack,
+	Stop
 };
 
 /**
@@ -40,6 +41,7 @@ class AUmbraPlayerController : public APlayerController
 	GENERATED_BODY()
 
 public:
+	virtual void SetPawn(APawn* InPawn) override;
 	UFUNCTION(Client, Unreliable)
 	void ClientShowDamageNumber(FVector WorldPosition, float Damage, uint8 Type, bool bCritical);
 	void ReleaseDamageNumber(UUmbraDamageNumber* Number);
@@ -68,11 +70,31 @@ public:
 
 	/** Stops following the current navigation path. */
 	void CancelAutoMove();
+	/** Called by the basic-attack ability at an authored transition point or normal montage end. */
+	bool HandlePrimaryAttackTransition(AActor* CurrentTarget);
+	bool HasQueuedPrimaryCommand() const { return QueuedCommand != EUmbraQueuedPlayerCommand::None; }
+	/** Completes or discards the latest queued command after the ability releases State.Attacking. */
+	void NotifyPrimaryAttackAbilityEnded(bool bWasCancelled, bool bExecuteQueuedCommand);
 
 	/** Returns whether manual movement may proceed, canceling pending primary movement when appropriate. */
-	bool TryBeginManualMovement();
+	bool TryBeginManualMovement(const FVector& WorldDirection);
+
+	/** Creates the local player's combat HUD once when a class is configured. */
+	void InitializeCombatHUD();
+
+	/** Shows the existing combat HUD, creating it first when necessary. */
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ShowCombatHUD();
+
+	/** Hides the combat HUD without destroying it. */
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void HideCombatHUD();
 
 protected:
+	/** Root combat HUD configured by BP_UmbraPlayerController. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> CombatHUDClass;
+
 	UPROPERTY(EditDefaultsOnly, Category="UI|Damage Numbers")
 	TSubclassOf<UUmbraDamageNumber> DamageNumberClass;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -101,6 +123,16 @@ protected:
 	/** Existing IA_Attack_Primary action used to select and attack cursor targets. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Primary Action")
 	TObjectPtr<UInputAction> PrimaryAttackAction;
+
+	/** One attack command keeps repeating against its target until superseded or invalidated. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Auto Attack",
+		meta = (ToolTip = "When enabled, one attack command repeats until another command, interruption, or invalid target stops it."))
+	bool bEnableAutoAttack = true;
+
+	/** Follow an automatic-attack target that moves outside PrimaryAttackRange. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Auto Attack",
+		meta = (ToolTip = "Uses the character's existing PrimaryAttackRange and the existing auto-move acceptance settings."))
+	bool bChaseAttackTarget = true;
 
 	/** Time in seconds before primary action input becomes a hold. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Primary Action", meta = (ClampMin = "0.0", UIMin = "0.0"))
@@ -152,6 +184,13 @@ protected:
 	bool ShouldUseTouchControls() const;
 
 private:
+	friend class FUmbraCombatMaintenanceTest;
+	bool TraceAttackablePawn(const FVector& Start, const FVector& End, FHitResult& Hit) const;
+
+	/** Strong reflected reference prevents the viewport widget from being garbage collected. */
+	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> CombatHUD;
+
 	void ClearDamageNumbers();
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UUmbraDamageNumber>> ActiveDamageNumbers;
@@ -172,8 +211,8 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UUmbraAttributeDebugPanel> AttributeDebugPanel;
 
-	// Authority-only handles; each controller can remove only its own effects.
-	TMap<TWeakObjectPtr<UAbilitySystemComponent>, FActiveGameplayEffectHandle> AttributeDebugEffects;
+	// Authority-only handles; each click may add a layer, and each controller removes only its own layers.
+	TMap<TWeakObjectPtr<UAbilitySystemComponent>, TArray<FActiveGameplayEffectHandle>> AttributeDebugEffects;
 	TArray<uint32> AttributeDebugInputBindingHandles;
 	bool bAddedAttributeDebugMapping = false;
 	bool bEndingPlay = false;
@@ -191,6 +230,14 @@ private:
 	bool StartAutoMoveToLocation(const FVector& Destination);
 	void BeginAttackTarget(AActor* TargetActor);
 	void CancelPendingAttack();
+	bool IsPrimaryAttackActive() const;
+	void QueueMoveCommand(const FVector& Destination);
+	void QueueDirectMoveCommand(const FVector& WorldDirection);
+	void QueueAttackCommand(AActor* TargetActor);
+	void QueueStopCommand();
+	void ClearQueuedCommand();
+	void ExecuteQueuedCommand();
+	void CancelCombatCommandState();
 	bool GetAttackableUnderCursor(AActor*& OutTargetActor, FHitResult* OutCursorHit = nullptr) const;
 	bool GetNavigableCursorLocation(FVector& OutLocation) const;
 	void MovePawnToward(const FVector& WorldLocation);
@@ -205,6 +252,9 @@ private:
 	bool bPrimaryActionIsHold = false;
 	bool bAutoMoving = false;
 	TWeakObjectPtr<AActor> PendingAttackTarget;
+	TWeakObjectPtr<AActor> QueuedAttackTarget;
+	FVector QueuedMoveDestination = FVector::ZeroVector;
+	EUmbraQueuedPlayerCommand QueuedCommand = EUmbraQueuedPlayerCommand::None;
 	TWeakObjectPtr<AActor> HoveredAttackTarget;
 	FHitResult AttackHighlightDebugHit;
 	bool bAttackHighlightDebugHasPawnHit = false;

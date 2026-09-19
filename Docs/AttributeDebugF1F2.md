@@ -1,5 +1,7 @@
 # F1/F2 修复与准确操作
 
+本文为历史修复与验证记录。2026-09-17 起，C++ 只向 `Apply Attribute Debug State` 传递原始状态，窗口布局、文字和按钮事件由 WBP 实现；下方旧视觉结果需在蓝图迁移后重验。当前状态见 [Progress](Progress.md)，配置入口见 [EditorSetup](EditorSetup.md)。
+
 ## 已定位并修复的问题
 
 1. 引擎 BaseInput.ini 自带 F1 → viewmode wireframe、F2 → viewmode unlit。项目运行日志确实记录了 Wireframe/Unlit 切换。之前只绑定 Enhanced Input，未移除引擎的另一组调试绑定，这是实现遗漏。现已在项目 DefaultInput.ini 精确移除这两条绑定，保留其他调试键。
@@ -64,7 +66,7 @@
 ## 本次验证结果
 
 - UmbraEditor / Win64 / Development 编译成功。
-- Umbra.Attributes.DebugInputAndWidget：Success。验证有效配置中没有 F1/F2 的 viewmode 调试命令、实际 IMC 两个按键各映射一次、实际 WBP 能实例化并显示敌人名称、10点伤害后显示90/100、敌人销毁后回退、Widget 生命周期监听清理。
+- Umbra.Attributes.DebugInputAndWidget：历史版本曾验证 WBP 文字；当前测试改为验证有效 F1/F2 配置、实际 WBP 可实例化、原始状态中的敌人/Health 更新、销毁回退及监听清理，不验证蓝图格式和布局。
 - Umbra.Attributes.DebugOperations、Lifecycle：均 Success；自动化进程退出码0。
 - 测试日志：Saved/Logs/AttributeDebugFKeysTests.log（生成文件，不提交）。
 - 未手动执行真实 PIE 鼠标/按键/画面验收；新增测试调用了 F2 最终使用的 ViewEnemy 接口，但没有模拟真实鼠标射线、键盘硬件输入或联网客户端。

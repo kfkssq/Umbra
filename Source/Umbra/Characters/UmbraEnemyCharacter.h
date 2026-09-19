@@ -73,7 +73,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ability System")
 	TObjectPtr<UUmbraAttributeSet> AttributeSet;
 
-	/** Ground speed applied when the enemy begins play. */
+	/** Legacy spawn fallback in cm/s; initial GE/debug MoveSpeed overrides it. Runtime speed is owned by GAS. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement", meta = (ClampMin = "0.0"))
 	float EnemyMoveSpeed = 300.0f;
 

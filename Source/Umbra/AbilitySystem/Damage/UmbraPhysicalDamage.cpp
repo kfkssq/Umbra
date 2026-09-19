@@ -15,7 +15,8 @@ bool UmbraPhysicalDamage::IsLoggingEnabled()
 }
 
 bool UmbraPhysicalDamage::Apply(UAbilitySystemComponent* Source, UAbilitySystemComponent* Target,
-	TSubclassOf<UGameplayEffect> EffectClass, const FUmbraPhysicalDamageConfig& Config, float Level)
+	TSubclassOf<UGameplayEffect> EffectClass, const FUmbraPhysicalDamageConfig& Config, float Level,
+	UObject* DamageSourceObject)
 {
 	if (!IsValid(Source) || !IsValid(Target) || !Source->IsOwnerActorAuthoritative() || !Target->IsOwnerActorAuthoritative())
 	{
@@ -36,7 +37,7 @@ bool UmbraPhysicalDamage::Apply(UAbilitySystemComponent* Source, UAbilitySystemC
 		return false;
 	}
 	FGameplayEffectContextHandle Context = Source->MakeEffectContext();
-	Context.AddSourceObject(Source->GetAvatarActor());
+	Context.AddSourceObject(DamageSourceObject ? DamageSourceObject : Source->GetAvatarActor());
 	const FGameplayEffectSpecHandle Spec = Source->MakeOutgoingSpec(EffectClass, Level, Context);
 	if (!Spec.IsValid())
 	{

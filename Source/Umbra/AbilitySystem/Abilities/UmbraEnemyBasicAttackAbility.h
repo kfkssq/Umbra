@@ -18,6 +18,8 @@ class UMBRA_API UUmbraEnemyBasicAttackAbility : public UUmbraGameplayAbility
 
 public:
 	UUmbraEnemyBasicAttackAbility();
+	virtual void EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+		FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 	virtual void ActivateAbility(FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo,
 		FGameplayAbilityActivationInfo ActivationInfo,
@@ -37,6 +39,10 @@ protected:
 	float HitRadius = 300.0f;
 
 private:
+	friend class FUmbraCombatMaintenanceTest;
+	bool bEndingAttack = false;
+	uint8 PreviousMovementMode = 0;
+	uint8 PreviousCustomMovementMode = 0;
 	void FinishAttack(bool bCancelled);
 
 	UFUNCTION()

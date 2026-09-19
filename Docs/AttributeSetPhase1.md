@@ -1,17 +1,19 @@
 # 第一阶段属性集
 
+当前入口见 [Architecture](Architecture.md)、[EditorSetup](EditorSetup.md)、[Progress](Progress.md)。下方历史验证仅代表当时结果。
+
 ## 配置
 
 - 玩家实际使用的 PlayerState 蓝图：设置 Initial Attributes Effect。
 - 每种敌人蓝图：分别设置 Initial Attributes Effect。
 - 两者使用不同的 Instant Gameplay Effect；建议用 Override 指定初始常驻属性。
 - 初始 GE 不要配置 Health、Resource、IncomingDamage，也不要依赖激活条件或免疫判定。全部初始修饰应用完成后，C++ 单独填满生命和资源。
-- 未指定初始 GE 时沿用 C++ 后备值：生命/资源上限及当前值 100，暴击总倍率 2，移速属性 600，其余 0。该移速属性尚不驱动角色移动。
+- 未指定初始 GE 且未启用调试覆盖时沿用 C++ 后备值：生命/资源上限及当前值100，攻击力10，暴击总倍率2，其余非移速属性0。AttributeSet 原生移速后备500；角色首次 ASC 绑定时取已有 MaxWalkSpeed 作兼容初值（玩家原生500、敌人 EnemyMoveSpeed 原生300，BP可覆盖），随后由初始 GE/Debug 覆盖。MoveSpeed 已通过 ASC 驱动实际角色移动。
 - 攻速加成、暴击率为小数比例；恢复为点/秒；移速为厘米/秒；技能急速为数值。GAS BaseValue 只是聚合输入，不是成长系统的数据模型。
 - 原 Mana/MaxMana 已通过 Core Redirects 映射至 Resource/MaxResource。打开相关旧 GE/蓝图，确认引用正确并编译保存；本次没有改写二进制资产。
 - 现有负 Health 的 Instant 伤害 GE 可以继续使用。若迁移至 IncomingDamage，使用正数 Additive，并移除同一 GE 原有的负 Health 修饰，避免双重扣血。
 - IncomingDamage 只用于即时或周期执行，不能作为无周期的持续属性加成。当前生命/资源的消耗和补充使用 Instant GE；临时上限变化配置在 MaxHealth/MaxResource。
-- 属性没有绑定攻速、移动、恢复计时器、伤害公式、UI、装备或角色成长系统。
+- 当前属性已接入伤害公式、移动速度、玩家普通攻击速度、血条、飘字与调试面板；尚未绑定恢复计时器、技能急速冷却、装备或角色成长系统。伤害、攻速和 UI 流程见 Architecture。
 
 ## 生命周期
 

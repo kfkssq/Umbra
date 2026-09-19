@@ -5,10 +5,17 @@
 UUmbraEnemyHealthBarComponent::UUmbraEnemyHealthBarComponent()
 {
 	SetWidgetSpace(EWidgetSpace::Screen);
-	SetDrawSize(FVector2D(120.f, 12.f));
+	SetDrawAtDesiredSize(true);
 	SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SetGenerateOverlapEvents(false);
 	SetWindowFocusable(false);
+}
+
+void UUmbraEnemyHealthBarComponent::OnRegister()
+{
+	// The WBP root owns layout size, including for assets with an old fixed-size override.
+	SetDrawAtDesiredSize(true);
+	Super::OnRegister();
 }
 
 void UUmbraEnemyHealthBarComponent::InitWidget()
@@ -24,4 +31,3 @@ void UUmbraEnemyHealthBarComponent::EndPlay(const EEndPlayReason::Type Reason)
 	if (auto* Bar = Cast<UUmbraEnemyHealthBar>(GetUserWidgetObject())) Bar->Shutdown();
 	Super::EndPlay(Reason);
 }
-

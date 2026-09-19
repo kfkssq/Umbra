@@ -2,6 +2,8 @@
 
 #include "UmbraPlayerController.h"
 
+#include "AbilitySystemComponent.h"
+#include "AbilitySystem/UmbraAbilitySystemComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "Characters/UmbraPlayerCharacter.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -10,6 +12,8 @@
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/PawnMovementComponent.h"
+#include "GameFramework/HUD.h"
+#include "GameplayTags/UmbraGameplayTags.h"
 #include "InputMappingContext.h"
 #include "Interfaces/UmbraAttackable.h"
 #include "NavigationPath.h"
@@ -30,6 +34,7 @@ namespace UmbraAttackHighlightDebug
 void AUmbraPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+	InitializeCombatHUD();
 
 	if (IsLocalPlayerController())
 	{
@@ -55,6 +60,62 @@ void AUmbraPlayerController::BeginPlay()
 		}
 	}
 	CreateAttributeDebugPanel();
+}
+
+void AUmbraPlayerController::SetPawn(APawn* InPawn)
+{
+	if (InPawn != GetPawn())
+	{
+		// Command state belongs to one avatar and must never leak across respawn/possession.
+		CancelCombatCommandState();
+	}
+	Super::SetPawn(InPawn);
+}
+
+void AUmbraPlayerController::InitializeCombatHUD()
+{
+	if (!IsLocalController() || IsValid(CombatHUD))
+	{
+		return;
+	}
+
+	if (!CombatHUDClass)
+	{
+		UE_LOG(LogUmbra, Warning, TEXT("Combat HUD class is not configured on %s."), *GetNameSafe(this));
+		return;
+	}
+
+	CombatHUD = CreateWidget<UUserWidget>(this, CombatHUDClass);
+	if (!IsValid(CombatHUD))
+	{
+		UE_LOG(LogUmbra, Error, TEXT("Failed to create combat HUD %s for %s."),
+			*GetNameSafe(CombatHUDClass), *GetNameSafe(this));
+		return;
+	}
+
+	CombatHUD->AddToViewport();
+	UE_LOG(LogUmbra, Log, TEXT("Created combat HUD %s for local controller %s."),
+		*GetNameSafe(CombatHUD), *GetNameSafe(this));
+}
+
+void AUmbraPlayerController::ShowCombatHUD()
+{
+	if (!IsValid(CombatHUD))
+	{
+		InitializeCombatHUD();
+	}
+	if (IsValid(CombatHUD))
+	{
+		CombatHUD->SetVisibility(ESlateVisibility::Visible);
+	}
+}
+
+void AUmbraPlayerController::HideCombatHUD()
+{
+	if (IsValid(CombatHUD))
+	{
+		CombatHUD->SetVisibility(ESlateVisibility::Collapsed);
+	}
 }
 
 void AUmbraPlayerController::Tick(float DeltaSeconds)
@@ -85,6 +146,11 @@ void AUmbraPlayerController::Tick(float DeltaSeconds)
 
 void AUmbraPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (IsValid(CombatHUD))
+	{
+		CombatHUD->RemoveFromParent();
+		CombatHUD = nullptr;
+	}
 	ClearDamageNumbers();
 	bEndingPlay = true;
 	RemoveAttributeDebugPanel();
@@ -95,6 +161,7 @@ void AUmbraPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		IUmbraAttackable::Execute_SetAttackHighlighted(HoveredActor, false);
 	}
 	HoveredAttackTarget.Reset();
+	CancelCombatCommandState();
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -193,9 +260,6 @@ void AUmbraPlayerController::PrimaryActionStarted()
 		return;
 	}
 
-	CancelPendingAttack();
-	CancelAutoMove();
-
 	if (!GetCursorGroundHit(PrimaryActionInitialHit))
 	{
 		return;
@@ -217,9 +281,10 @@ void AUmbraPlayerController::PrimaryActionStarted()
 	}
 
 	bPrimaryActionHeld = true;
-	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
+	if (!IsPrimaryAttackActive())
 	{
-		UmbraCharacter->SetFacingTargetLocation(PrimaryActionInitialHit.ImpactPoint);
+		CancelPendingAttack();
+		CancelAutoMove();
 	}
 }
 
@@ -249,7 +314,14 @@ void AUmbraPlayerController::PrimaryActionCompleted()
 	}
 	else if (bPrimaryActionHeld && !bPrimaryActionIsHold)
 	{
-		StartAutoMoveToCursor();
+		if (IsPrimaryAttackActive())
+		{
+			QueueMoveCommand(PrimaryActionInitialHit.ImpactPoint);
+		}
+		else
+		{
+			StartAutoMoveToCursor();
+		}
 	}
 
 	ResetPrimaryActionState();
@@ -267,7 +339,14 @@ void AUmbraPlayerController::UpdateHeldMovement(float DeltaSeconds)
 	FVector CursorLocation;
 	if (GetNavigableCursorLocation(CursorLocation))
 	{
-		MovePawnToward(CursorLocation);
+		if (IsPrimaryAttackActive())
+		{
+			QueueMoveCommand(CursorLocation);
+		}
+		else
+		{
+			MovePawnToward(CursorLocation);
+		}
 	}
 }
 
@@ -328,9 +407,33 @@ void AUmbraPlayerController::BeginAttackTarget(AActor* TargetActor)
 	{
 		return;
 	}
+	AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn());
+	if (!UmbraCharacter)
+	{
+		return;
+	}
+	if (IsPrimaryAttackActive())
+	{
+		if (bEnableAutoAttack && PendingAttackTarget.Get() == TargetActor)
+		{
+			ClearQueuedCommand();
+			UmbraCharacter->TryActivatePrimaryAttack(TargetActor, true);
+		}
+		else if (!bEnableAutoAttack && UmbraCharacter->GetPrimaryAttackTarget() == TargetActor)
+		{
+			// Preserve the original click-to-buffer combo behavior when automatic attacks are disabled.
+			UmbraCharacter->TryActivatePrimaryAttack(TargetActor, false);
+		}
+		else
+		{
+			QueueAttackCommand(TargetActor);
+		}
+		return;
+	}
 
 	CancelAutoMove();
 	ResetPrimaryActionState();
+	ClearQueuedCommand();
 	PendingAttackTarget = TargetActor;
 	if (APawn* ControlledPawn = GetPawn())
 	{
@@ -351,30 +454,55 @@ void AUmbraPlayerController::UpdatePendingAttack()
 		|| !UmbraCharacter->IsMovementEnabled()
 		|| !IUmbraAttackable::Execute_CanBeAttacked(TargetActor))
 	{
+		if (IsPrimaryAttackActive())
+		{
+			FGameplayTagContainer BasicAttackTags;
+			BasicAttackTags.AddTag(UmbraGameplayTags::Ability_Attack_Basic);
+			UmbraCharacter->GetAbilitySystemComponent()->CancelAbilities(&BasicAttackTags);
+		}
 		CancelPendingAttack();
+		return;
+	}
+	if (IsPrimaryAttackActive())
+	{
 		return;
 	}
 
 	const FVector TargetLocation = TargetActor->GetActorLocation();
-	UmbraCharacter->SetFacingTargetLocation(TargetLocation);
-	const float AttackRange = UmbraCharacter->GetPrimaryAttackRange();
-	if (FVector::DistSquared2D(UmbraCharacter->GetActorLocation(), TargetLocation) <= FMath::Square(AttackRange))
+	if (UmbraCharacter->IsTargetInPrimaryAttackRange(TargetActor))
 	{
 		CancelAutoMove();
 		if (UPawnMovementComponent* MovementComponent = UmbraCharacter->GetMovementComponent())
 		{
 			MovementComponent->StopMovementImmediately();
 		}
-		UmbraCharacter->TryActivatePrimaryAttack(TargetActor);
-		PendingAttackTarget.Reset();
+		if (UmbraCharacter->TryActivatePrimaryAttack(TargetActor, bEnableAutoAttack))
+		{
+			if (!bEnableAutoAttack)
+			{
+				PendingAttackTarget.Reset();
+			}
+		}
+		return;
+	}
+	if (!bChaseAttackTarget)
+	{
+		CancelPendingAttack();
 		return;
 	}
 
 	if (bAutoMoving)
 	{
-		UpdateAutoMove();
+		if (FVector::DistSquared2D(AutoMoveTargetLocation, TargetLocation) > FMath::Square(AutoMoveAcceptanceRadius))
+		{
+			CancelAutoMove();
+		}
+		else
+		{
+			UpdateAutoMove();
+		}
 	}
-	else
+	if (!bAutoMoving)
 	{
 		if (!StartAutoMoveToLocation(TargetLocation))
 		{
@@ -515,6 +643,163 @@ void AUmbraPlayerController::ClearAttackHighlightDebugMessages() const
 void AUmbraPlayerController::CancelPendingAttack()
 {
 	PendingAttackTarget.Reset();
+	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
+	{
+		UmbraCharacter->StopPrimaryAttackContinuation();
+	}
+}
+
+bool AUmbraPlayerController::IsPrimaryAttackActive() const
+{
+	const AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn());
+	const UAbilitySystemComponent* ASC = UmbraCharacter ? UmbraCharacter->GetAbilitySystemComponent() : nullptr;
+	return ASC && ASC->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking);
+}
+
+void AUmbraPlayerController::QueueMoveCommand(const FVector& Destination)
+{
+	if (Destination.ContainsNaN())
+	{
+		return;
+	}
+	QueuedCommand = EUmbraQueuedPlayerCommand::Move;
+	QueuedMoveDestination = Destination;
+	QueuedAttackTarget.Reset();
+	PendingAttackTarget.Reset();
+	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
+	{
+		UmbraCharacter->StopPrimaryAttackContinuation();
+		if (UUmbraAbilitySystemComponent* ASC = Cast<UUmbraAbilitySystemComponent>(UmbraCharacter->GetAbilitySystemComponent()))
+		{
+			ASC->RequestPrimaryAttackMovementCancellation();
+		}
+	}
+}
+
+void AUmbraPlayerController::QueueDirectMoveCommand(const FVector& WorldDirection)
+{
+	if (WorldDirection.ContainsNaN() || WorldDirection.IsNearlyZero())
+	{
+		return;
+	}
+	QueuedCommand = EUmbraQueuedPlayerCommand::DirectMove;
+	QueuedMoveDestination = WorldDirection.GetSafeNormal();
+	QueuedAttackTarget.Reset();
+	PendingAttackTarget.Reset();
+	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
+	{
+		UmbraCharacter->StopPrimaryAttackContinuation();
+		if (UUmbraAbilitySystemComponent* ASC = Cast<UUmbraAbilitySystemComponent>(UmbraCharacter->GetAbilitySystemComponent()))
+		{
+			ASC->RequestPrimaryAttackMovementCancellation();
+		}
+	}
+}
+
+void AUmbraPlayerController::QueueAttackCommand(AActor* TargetActor)
+{
+	if (!IsAttackableTarget(TargetActor))
+	{
+		return;
+	}
+	QueuedCommand = EUmbraQueuedPlayerCommand::Attack;
+	QueuedAttackTarget = TargetActor;
+	QueuedMoveDestination = FVector::ZeroVector;
+	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
+	{
+		UmbraCharacter->StopPrimaryAttackContinuation();
+	}
+}
+
+void AUmbraPlayerController::QueueStopCommand()
+{
+	QueuedCommand = EUmbraQueuedPlayerCommand::Stop;
+	QueuedAttackTarget.Reset();
+	QueuedMoveDestination = FVector::ZeroVector;
+	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
+	{
+		UmbraCharacter->StopPrimaryAttackContinuation();
+	}
+}
+
+void AUmbraPlayerController::ClearQueuedCommand()
+{
+	QueuedCommand = EUmbraQueuedPlayerCommand::None;
+	QueuedAttackTarget.Reset();
+	QueuedMoveDestination = FVector::ZeroVector;
+}
+
+bool AUmbraPlayerController::HandlePrimaryAttackTransition(AActor* CurrentTarget)
+{
+	AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn());
+	if (!UmbraCharacter || QueuedCommand != EUmbraQueuedPlayerCommand::None || !bEnableAutoAttack
+		|| !UmbraCharacter->ShouldContinuePrimaryAttack() || !IsAttackableTarget(CurrentTarget))
+	{
+		return false;
+	}
+	PendingAttackTarget = CurrentTarget;
+	return UmbraCharacter->IsTargetInPrimaryAttackRange(CurrentTarget);
+}
+
+void AUmbraPlayerController::ExecuteQueuedCommand()
+{
+	const EUmbraQueuedPlayerCommand Command = QueuedCommand;
+	const FVector MoveDestination = QueuedMoveDestination;
+	AActor* AttackTarget = QueuedAttackTarget.Get();
+	ClearQueuedCommand();
+
+	switch (Command)
+	{
+	case EUmbraQueuedPlayerCommand::Move:
+		CancelPendingAttack();
+		CancelAutoMove();
+		StartAutoMoveToLocation(MoveDestination);
+		break;
+	case EUmbraQueuedPlayerCommand::DirectMove:
+		CancelPendingAttack();
+		CancelAutoMove();
+		if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
+		{
+			UmbraCharacter->AddMovementInput(MoveDestination);
+		}
+		break;
+	case EUmbraQueuedPlayerCommand::Attack:
+		CancelPendingAttack();
+		BeginAttackTarget(AttackTarget);
+		break;
+	case EUmbraQueuedPlayerCommand::Stop:
+		CancelPendingAttack();
+		CancelAutoMove();
+		break;
+	default:
+		break;
+	}
+}
+
+void AUmbraPlayerController::NotifyPrimaryAttackAbilityEnded(bool bWasCancelled, bool bExecuteQueuedCommand)
+{
+	if (bExecuteQueuedCommand)
+	{
+		ExecuteQueuedCommand();
+		return;
+	}
+	if (bWasCancelled)
+	{
+		CancelCombatCommandState();
+		return;
+	}
+	ExecuteQueuedCommand();
+	if (!IsAttackableTarget(PendingAttackTarget.Get()))
+	{
+		CancelPendingAttack();
+	}
+}
+
+void AUmbraPlayerController::CancelCombatCommandState()
+{
+	ClearQueuedCommand();
+	CancelPendingAttack();
+	CancelAutoMove();
 }
 
 bool AUmbraPlayerController::GetAttackableUnderCursor(AActor*& OutTargetActor, FHitResult* OutCursorHit) const
@@ -525,11 +810,12 @@ bool AUmbraPlayerController::GetAttackableUnderCursor(AActor*& OutTargetActor, F
 		return false;
 	}
 	FHitResult CursorHit;
-	TArray<TEnumAsByte<EObjectTypeQuery>> AttackableObjectTypes;
-	AttackableObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
-	const bool bHasPawnHit = IsLocalPlayerController()
-		&& GetHitResultUnderCursorForObjects(AttackableObjectTypes, false, CursorHit)
-		&& CursorHit.bBlockingHit;
+	float MouseX, MouseY;
+	FVector Origin, Direction;
+	const bool bHasPawnHit = IsLocalPlayerController() && GetMousePosition(MouseX, MouseY)
+		&& (!GetHUD() || !GetHUD()->GetHitBoxAtCoordinates(FVector2D(MouseX, MouseY), true))
+		&& DeprojectScreenPositionToWorld(MouseX, MouseY, Origin, Direction)
+		&& TraceAttackablePawn(Origin, Origin + Direction * HitResultTraceDistance, CursorHit);
 	if (OutCursorHit)
 	{
 		*OutCursorHit = CursorHit;
@@ -547,6 +833,16 @@ bool AUmbraPlayerController::GetAttackableUnderCursor(AActor*& OutTargetActor, F
 
 	OutTargetActor = HitActor;
 	return true;
+}
+
+bool AUmbraPlayerController::TraceAttackablePawn(const FVector& Start, const FVector& End, FHitResult& Hit) const
+{
+	FCollisionObjectQueryParams Objects;
+	Objects.AddObjectTypesToQuery(ECC_Pawn);
+	// At melee distance the player's capsule can cover the enemy on screen.
+	// Ignore only our own pawn, preserving nearest-other-pawn selection semantics.
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(UmbraAttackSelection), false, GetPawn());
+	return GetWorld() && GetWorld()->LineTraceSingleByObjectType(Hit, Start, End, Objects, Query);
 }
 
 void AUmbraPlayerController::UpdateAutoMove()
@@ -621,10 +917,15 @@ void AUmbraPlayerController::CancelAutoMove()
 	AutoMovePathPoints.Reset();
 }
 
-bool AUmbraPlayerController::TryBeginManualMovement()
+bool AUmbraPlayerController::TryBeginManualMovement(const FVector& WorldDirection)
 {
 	if (bPrimaryActionIsHold)
 	{
+		return false;
+	}
+	if (IsPrimaryAttackActive())
+	{
+		QueueDirectMoveCommand(WorldDirection);
 		return false;
 	}
 

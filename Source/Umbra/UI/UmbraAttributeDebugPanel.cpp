@@ -5,11 +5,8 @@
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Characters/UmbraEnemyCharacter.h"
-#include "Components/Button.h"
-#include "Components/TextBlock.h"
 #include "GameFramework/PlayerState.h"
 #include "UmbraPlayerController.h"
-#include "Umbra.h"
 
 namespace
 {
@@ -36,21 +33,6 @@ void UUmbraAttributeDebugPanel::NativeConstruct()
 	return;
 #else
 	bShuttingDown = false;
-	SetIsFocusable(false);
-	SetVisibility(ESlateVisibility::Visible);
-	if (!TargetNameText || !AttributesText || !HintText || !AddEffectButton
-		|| !RemoveEffectButton || !DamageButton || !HealButton)
-	{
-		UE_LOG(LogUmbra, Error, TEXT("Attribute debug: missing BindWidget controls in %s. See Docs/AttributeDebugPanel.md."), *GetName());
-	}
-	if (HintText)
-	{
-		HintText->SetText(FText::FromString(TEXT("F1 查看玩家\n悬停敌人后按 F2 锁定查看")));
-	}
-	if (AddEffectButton) AddEffectButton->OnClicked.AddUniqueDynamic(this, &ThisClass::AddEffectClicked);
-	if (RemoveEffectButton) RemoveEffectButton->OnClicked.AddUniqueDynamic(this, &ThisClass::RemoveEffectClicked);
-	if (DamageButton) DamageButton->OnClicked.AddUniqueDynamic(this, &ThisClass::DamageClicked);
-	if (HealButton) HealButton->OnClicked.AddUniqueDynamic(this, &ThisClass::HealClicked);
 	if (APlayerController* PC = GetOwningPlayer())
 	{
 		PC->OnPossessedPawnChanged.AddUniqueDynamic(this, &ThisClass::HandlePawnChanged);
@@ -75,10 +57,6 @@ void UUmbraAttributeDebugPanel::ShutdownPanel()
 	{
 		PC->OnPossessedPawnChanged.RemoveDynamic(this, &ThisClass::HandlePawnChanged);
 	}
-	if (AddEffectButton) AddEffectButton->OnClicked.RemoveDynamic(this, &ThisClass::AddEffectClicked);
-	if (RemoveEffectButton) RemoveEffectButton->OnClicked.RemoveDynamic(this, &ThisClass::RemoveEffectClicked);
-	if (DamageButton) DamageButton->OnClicked.RemoveDynamic(this, &ThisClass::DamageClicked);
-	if (HealButton) HealButton->OnClicked.RemoveDynamic(this, &ThisClass::HealClicked);
 }
 
 void UUmbraAttributeDebugPanel::NativeDestruct()
@@ -105,12 +83,12 @@ void UUmbraAttributeDebugPanel::NotifyPlayerContextChanged()
 	}
 }
 
-void UUmbraAttributeDebugPanel::SetSelectionFeedback(const FText& Message)
+void UUmbraAttributeDebugPanel::SetSelectionFeedback(EUmbraAttributeDebugFeedback Feedback)
 {
-	if (HintText && !bShuttingDown)
+	if (!bShuttingDown)
 	{
-		HintText->SetText(FText::Format(
-			NSLOCTEXT("UmbraAttributeDebug", "SelectionHint", "F1 查看玩家 | 悬停敌人后 F2 锁定\n{0}"), Message));
+		SelectionFeedback = Feedback;
+		RefreshViewState();
 	}
 }
 
@@ -151,6 +129,7 @@ void UUmbraAttributeDebugPanel::RefreshBinding()
 	}
 	else if (!IsValid(Actor))
 	{
+		SelectionFeedback = EUmbraAttributeDebugFeedback::ViewingPlayer;
 		ViewPlayer();
 		return;
 	}
@@ -166,7 +145,7 @@ void UUmbraAttributeDebugPanel::BindTarget(AActor* Actor, UUmbraAbilitySystemCom
 	}
 	if (ViewedActor == Actor && ViewedASC == ASC)
 	{
-		RefreshSnapshot();
+		RefreshViewState();
 		return;
 	}
 	UnbindTarget();
@@ -185,7 +164,7 @@ void UUmbraAttributeDebugPanel::BindTarget(AActor* Actor, UUmbraAbilitySystemCom
 			AttributeListeners.Emplace(Attribute, Handle);
 		}
 	}
-	RefreshSnapshot();
+	RefreshViewState();
 }
 
 void UUmbraAttributeDebugPanel::UnbindTarget()
@@ -214,6 +193,7 @@ void UUmbraAttributeDebugPanel::HandleASCLifecycle(UUmbraAbilitySystemComponent*
 	}
 	if (!bReady && ViewedASC == ASC)
 	{
+		SelectionFeedback = EUmbraAttributeDebugFeedback::ViewingPlayer;
 		ViewPlayer();
 		return;
 	}
@@ -234,26 +214,48 @@ void UUmbraAttributeDebugPanel::HandlePawnChanged(APawn* OldPawn, APawn* NewPawn
 void UUmbraAttributeDebugPanel::HandleTargetEndPlay(AActor* Actor, EEndPlayReason::Type Reason)
 {
 	UnbindTarget();
+	SelectionFeedback = EUmbraAttributeDebugFeedback::ViewingPlayer;
 	ViewPlayer();
 }
 
 void UUmbraAttributeDebugPanel::HandleAttributeChanged(const FOnAttributeChangeData& Data)
 {
-	RefreshSnapshot();
+	RefreshViewState();
 }
 
-FText UUmbraAttributeDebugPanel::FormatAttributeSnapshot(const UUmbraAttributeSet& A)
+FUmbraAttributeDebugViewState UUmbraAttributeDebugPanel::MakeViewState(const UUmbraAttributeSet* Attributes,
+	AActor* TargetActor, bool bReady, bool bInViewingPlayer, EUmbraAttributeDebugFeedback Feedback)
 {
-	return FText::FromString(FString::Printf(
-		TEXT("生命：%.1f / %.1f\n生命恢复：%.1f 点/秒\n资源：%.1f / %.1f\n资源恢复：%.1f 点/秒\n")
-		TEXT("攻击力：%.1f\n技能强度：%.1f\n攻速加成：%.1f%%\n暴击率：%.1f%%\n暴击总倍率：%.1f%%\n")
-		TEXT("护甲：%.1f\n魔法抗性：%.1f\n技能急速：%.1f\n移速：%.1f 厘米/秒"),
-		A.GetHealth(), A.GetMaxHealth(), A.GetHealthRegen(), A.GetResource(), A.GetMaxResource(), A.GetResourceRegen(),
-		A.GetAttackPower(), A.GetAbilityPower(), A.GetAttackSpeedBonus() * 100.f, A.GetCriticalChance() * 100.f,
-		A.GetCriticalDamageMultiplier() * 100.f, A.GetArmor(), A.GetMagicResistance(), A.GetAbilityHaste(), A.GetMoveSpeed()));
+	FUmbraAttributeDebugViewState State;
+	State.TargetActor = TargetActor;
+	State.TargetName = IsValid(TargetActor) ? TargetActor->GetActorNameOrLabel() : TEXT("Local Player");
+	State.bViewingPlayer = bInViewingPlayer;
+	State.bReady = bReady && Attributes;
+	State.Feedback = Feedback;
+	if (!Attributes)
+	{
+		return State;
+	}
+
+	State.Health = Attributes->GetHealth();
+	State.MaxHealth = Attributes->GetMaxHealth();
+	State.HealthRegen = Attributes->GetHealthRegen();
+	State.Resource = Attributes->GetResource();
+	State.MaxResource = Attributes->GetMaxResource();
+	State.ResourceRegen = Attributes->GetResourceRegen();
+	State.AttackPower = Attributes->GetAttackPower();
+	State.AbilityPower = Attributes->GetAbilityPower();
+	State.AttackSpeedBonus = Attributes->GetAttackSpeedBonus() * 100.f;
+	State.CriticalChance = Attributes->GetCriticalChance() * 100.f;
+	State.CriticalDamageMultiplier = Attributes->GetCriticalDamageMultiplier() * 100.f;
+	State.Armor = Attributes->GetArmor();
+	State.MagicResistance = Attributes->GetMagicResistance();
+	State.AbilityHaste = Attributes->GetAbilityHaste();
+	State.MoveSpeed = Attributes->GetMoveSpeed();
+	return State;
 }
 
-void UUmbraAttributeDebugPanel::RefreshSnapshot()
+void UUmbraAttributeDebugPanel::RefreshViewState()
 {
 	if (bShuttingDown)
 	{
@@ -262,23 +264,11 @@ void UUmbraAttributeDebugPanel::RefreshSnapshot()
 	const UUmbraAbilitySystemComponent* ASC = ViewedASC.Get();
 	const UUmbraAttributeSet* Attributes = ASC ? ASC->GetSet<UUmbraAttributeSet>() : nullptr;
 	const bool bReady = Attributes && ASC->IsActorInfoReady();
-	if (TargetNameText)
-	{
-		TargetNameText->SetText(FText::FromString(ViewedActor.IsValid()
-			? ViewedActor->GetActorNameOrLabel() : TEXT("本地玩家")));
-	}
-	if (AttributesText)
-	{
-		AttributesText->SetText(bReady ? FormatAttributeSnapshot(*Attributes)
-			: FText::FromString(TEXT("等待玩家 / Ability System 就绪…")));
-	}
-	for (UButton* Button : { AddEffectButton.Get(), RemoveEffectButton.Get(), DamageButton.Get(), HealButton.Get() })
-	{
-		if (Button) Button->SetIsEnabled(bReady);
-	}
+	ViewState = MakeViewState(Attributes, ViewedActor.Get(), bReady, bViewingPlayer, SelectionFeedback);
+	BP_ApplyViewState(ViewState);
 }
 
-void UUmbraAttributeDebugPanel::SendOperation(EUmbraAttributeDebugOperation Operation)
+void UUmbraAttributeDebugPanel::RequestOperation(EUmbraAttributeDebugOperation Operation)
 {
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 	if (!bShuttingDown && ViewedActor.IsValid() && ViewedASC.IsValid() && ViewedASC->IsActorInfoReady())
@@ -292,11 +282,6 @@ void UUmbraAttributeDebugPanel::SendOperation(EUmbraAttributeDebugOperation Oper
 	UWidgetBlueprintLibrary::SetFocusToGameViewport();
 #endif
 }
-
-void UUmbraAttributeDebugPanel::AddEffectClicked() { SendOperation(EUmbraAttributeDebugOperation::AddEffect); }
-void UUmbraAttributeDebugPanel::RemoveEffectClicked() { SendOperation(EUmbraAttributeDebugOperation::RemoveEffect); }
-void UUmbraAttributeDebugPanel::DamageClicked() { SendOperation(EUmbraAttributeDebugOperation::Damage); }
-void UUmbraAttributeDebugPanel::HealClicked() { SendOperation(EUmbraAttributeDebugOperation::Heal); }
 
 void UUmbraAttributeDebugPanel::NativeOnMouseEnter(const FGeometry& Geometry, const FPointerEvent& Event)
 {

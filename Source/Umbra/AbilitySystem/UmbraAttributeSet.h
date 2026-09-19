@@ -11,7 +11,7 @@
 	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
 
 /** Shared player/enemy attributes. Change through GEs.
-	* Regen: points/sec; MoveSpeed: cm/sec; attack speed and crit chance: fractions (0.2 = 20%).
+	* Regen: points/sec; MoveSpeed: cm/sec; attack-speed bonus and crit chance: fractions (0.2 = 20%).
 	* Crit multiplier: total damage (2 = double); haste: numeric rating (50).
 	* GAS BaseValue is an aggregation input, not a character progression stat.
 	*/
@@ -20,6 +20,11 @@ class UMBRA_API UUmbraAttributeSet : public UAttributeSet
 {
 	GENERATED_BODY()
 public:
+	static constexpr float MinAttackSpeedMultiplier = 0.2f;
+	static constexpr float MaxAttackSpeedMultiplier = 10.f;
+	static constexpr float MinAttackSpeedBonus = MinAttackSpeedMultiplier - 1.f;
+	static constexpr float MaxAttackSpeedBonus = MaxAttackSpeedMultiplier - 1.f;
+
 	UUmbraAttributeSet();
 	virtual void PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const override;
 	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
@@ -59,7 +64,8 @@ public:
 	FGameplayAttributeData AbilityPower;
 	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, AbilityPower)
 
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_AttackSpeedBonus, Category = "Attributes", meta = (ClampMin = "0.0"))
+	/** Additive fraction converted to the logical attack speed multiplier as 1 + AttackSpeedBonus. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_AttackSpeedBonus, Category = "Attributes", meta = (ClampMin = "-0.8", ClampMax = "9.0"))
 	FGameplayAttributeData AttackSpeedBonus;
 	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, AttackSpeedBonus)
 

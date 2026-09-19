@@ -3,11 +3,9 @@
 #include "Net/UnrealNetwork.h"
 #include "AbilitySystem/Damage/UmbraPhysicalDamage.h"
 #include "Umbra.h"
-#include "Characters/UmbraEnemyCharacter.h"
-#include "Components/SkeletalMeshComponent.h"
-#include "GameFramework/PlayerState.h"
-#include "UmbraPlayerController.h"
-#include "GameplayTags/UmbraGameplayTags.h"
+#include "AbilitySystem/Damage/UmbraDamageNotification.h"
+#include "AbilitySystem/Abilities/UmbraBasicAttackAbility.h"
+#include "AbilitySystem/UmbraAbilitySystemComponent.h"
 
 UUmbraAttributeSet::UUmbraAttributeSet()
 {
@@ -17,7 +15,7 @@ UUmbraAttributeSet::UUmbraAttributeSet()
 	InitResource(100.f);
 	InitAttackPower(10.f);
 	InitCriticalDamageMultiplier(2.f);
-	InitMoveSpeed(600.f);
+	InitMoveSpeed(500.f);
 }
 
 void UUmbraAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, float& Value) const
@@ -32,6 +30,8 @@ void UUmbraAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, flo
 		Value = FMath::Clamp(Value, 0.f, FMath::Max(0.f, GetMaxResource()));
 	else if (Attribute == GetCriticalChanceAttribute())
 		Value = FMath::Clamp(Value, 0.f, 1.f);
+	else if (Attribute == GetAttackSpeedBonusAttribute())
+		Value = FMath::Clamp(Value, MinAttackSpeedBonus, MaxAttackSpeedBonus);
 	else
 		Value = FMath::Max(Value, 0.f);
 }
@@ -62,34 +62,23 @@ void UUmbraAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 	{
 		const float Damage = GetIncomingDamage();
 		const float HealthBefore = GetHealth();
-		// Capture before Health delegates can destroy the victim.
-		TWeakObjectPtr<AUmbraPlayerController> Recipient;
-		FVector DisplayPosition = FVector::ZeroVector;
-		const float Type = Data.EffectSpec.GetSetByCallerMagnitude(UmbraGameplayTags::Damage_Type, false, -1.f);
-		const float Critical = Data.EffectSpec.GetSetByCallerMagnitude(UmbraGameplayTags::Damage_ResultCritical, false, -1.f);
-		auto* TargetASC = GetOwningAbilitySystemComponent();
-		if (TargetASC && TargetASC->IsOwnerActorAuthoritative() && Damage > 0.f && FMath::IsFinite(Damage)
-			&& (Type == 0.f || Type == 1.f) && (Critical == 0.f || Critical == 1.f))
-		{
-			if (auto* Enemy = Cast<AUmbraEnemyCharacter>(TargetASC->GetAvatarActor()))
-			{
-				DisplayPosition = Enemy->GetMesh() ? Enemy->GetMesh()->Bounds.Origin : Enemy->GetActorLocation();
-				if (auto* SourceASC = Data.EffectSpec.GetContext().GetOriginalInstigatorAbilitySystemComponent())
-				{
-					if (auto* Pawn = Cast<APawn>(SourceASC->GetAvatarActor()))
-						Recipient = Cast<AUmbraPlayerController>(Pawn->GetController());
-					if (!Recipient.IsValid())
-						if (auto* PS = Cast<APlayerState>(SourceASC->GetOwnerActor()))
-							Recipient = Cast<AUmbraPlayerController>(PS->GetPlayerController());
-				}
-			}
-		}
+		const FUmbraDamageNotification Notification = FUmbraDamageNotification::Capture(
+			GetOwningAbilitySystemComponent(), Data.EffectSpec, Damage);
 		// Clear first: Health delegates can synchronously cause another damage execution.
 		SetIncomingDamage(0.f);
 		if (FMath::IsFinite(Damage) && Damage > 0.f)
 			SetHealth(Health.GetBaseValue() - Damage);
-		if (Recipient.IsValid())
-			Recipient->ClientShowDamageNumber(DisplayPosition, Damage, uint8(Type), Critical == 1.f);
+		// Count the settled Health loss, including lethal hits, only for basic-attack specs.
+		if (const UObject* SourceObject = Data.EffectSpec.GetContext().GetSourceObject();
+			SourceObject && SourceObject->IsA<UUmbraBasicAttackAbility>())
+		{
+			if (UUmbraAbilitySystemComponent* SourceASC = Cast<UUmbraAbilitySystemComponent>(
+				Data.EffectSpec.GetContext().GetOriginalInstigatorAbilitySystemComponent()))
+			{
+				SourceASC->RecordPrimaryAttackSettledDamage(FMath::Max(0.f, HealthBefore - GetHealth()));
+			}
+		}
+		Notification.Dispatch();
 		if (UmbraPhysicalDamage::IsLoggingEnabled())
 		{
 			UE_LOG(LogUmbra, Log, TEXT("[DamageHealth] Target=%s GE=%s Incoming=%.3f Health=%.3f->%.3f Lost=%.3f"),

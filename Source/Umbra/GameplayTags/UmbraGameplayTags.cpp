@@ -21,11 +21,14 @@ namespace UmbraGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Attacking, "State.Attacking", "Actor is performing an attack.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_HitReact, "State.HitReact", "Actor is playing a hit reaction.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Dead, "State.Dead", "Actor is dead and cannot react to hits.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Stunned, "State.Stunned", "Actor is stunned and cannot continue attacks.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_SuperArmor, "State.SuperArmor", "Actor ignores ordinary hit reactions.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_ComboInput, "Event.Attack.ComboInput", "Queues the next basic-attack combo step.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_MovementCommand, "Event.Attack.MovementCommand", "Requests phase-aware movement cancellation of the current basic attack.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_HitWindow, "Event.Attack.HitWindow", "Root event for melee weapon sweep windows.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_HitWindowBegin, "Event.Attack.HitWindow.Begin", "Begins a melee weapon sweep window.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_HitWindowTick, "Event.Attack.HitWindow.Tick", "Advances a melee weapon sweep window.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_HitWindowEnd, "Event.Attack.HitWindow.End", "Ends a melee weapon sweep window.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Attack_ChainPoint, "Event.Attack.ChainPoint", "Author-authored point at which the next basic attack may replace the current montage.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_Combat_HitReceived, "Event.Combat.HitReceived", "Reports a confirmed combat hit to the target ASC.");
 }

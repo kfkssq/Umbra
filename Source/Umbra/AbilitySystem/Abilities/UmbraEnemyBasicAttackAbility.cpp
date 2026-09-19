@@ -41,6 +41,8 @@ void UUmbraEnemyBasicAttackAbility::ActivateAbility(FGameplayAbilitySpecHandle H
 	{
 		Controller->StopMovement();
 	}
+	PreviousMovementMode = Enemy->GetCharacterMovement()->MovementMode;
+	PreviousCustomMovementMode = Enemy->GetCharacterMovement()->CustomMovementMode;
 	Enemy->GetCharacterMovement()->DisableMovement();
 	bMovementLocked = true;
 	UAbilityTask_WaitGameplayEvent* HitTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
@@ -62,7 +64,7 @@ void UUmbraEnemyBasicAttackAbility::ActivateAbility(FGameplayAbilitySpecHandle H
 
 void UUmbraEnemyBasicAttackAbility::HandleHitWindow(FGameplayEventData Payload)
 {
-	if (bDamageApplied || Payload.EventTag != UmbraGameplayTags::Event_Attack_HitWindowTick)
+	if (!IsActive() || bEndingAttack || bDamageApplied || Payload.EventTag != UmbraGameplayTags::Event_Attack_HitWindowTick)
 	{
 		return;
 	}
@@ -86,21 +88,36 @@ void UUmbraEnemyBasicAttackAbility::HandleHitWindow(FGameplayEventData Payload)
 
 void UUmbraEnemyBasicAttackAbility::FinishAttack(bool bCancelled)
 {
+	if (IsActive() && !bEndingAttack)
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bCancelled);
+	}
+}
+
+void UUmbraEnemyBasicAttackAbility::EndAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+	FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
+{
+	if (bEndingAttack || !IsEndAbilityValid(Handle, ActorInfo)) return;
+	if (ScopeLockCount > 0)
+	{
+		WaitingToExecute.Add(FPostLockDelegate::CreateUObject(this, &ThisClass::EndAbility,
+			Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled));
+		return;
+	}
+	TGuardValue<bool> EndingGuard(bEndingAttack, true);
 	if (bMovementLocked)
 	{
 		if (AUmbraEnemyCharacter* Enemy = Cast<AUmbraEnemyCharacter>(GetAvatarActorFromActorInfo()))
 		{
-			if (!Enemy->IsDead())
+			if (!Enemy->IsDead() && Enemy->GetCharacterMovement()->MovementMode == MOVE_None)
 			{
-				Enemy->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+				Enemy->GetCharacterMovement()->SetMovementMode(EMovementMode(PreviousMovementMode), PreviousCustomMovementMode);
 			}
 		}
 		bMovementLocked = false;
 	}
-	if (IsActive())
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, bCancelled);
-	}
+	bDamageApplied = false;
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
 void UUmbraEnemyBasicAttackAbility::HandleCompleted() { FinishAttack(false); }

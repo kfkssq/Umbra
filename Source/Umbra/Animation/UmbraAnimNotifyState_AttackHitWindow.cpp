@@ -3,6 +3,7 @@
 #include "Animation/UmbraAnimNotifyState_AttackHitWindow.h"
 
 #include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystem/UmbraAbilitySystemComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameplayTags/UmbraGameplayTags.h"
 
@@ -13,7 +14,7 @@ void UUmbraAnimNotifyState_AttackHitWindow::NotifyBegin(
 	const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
-	SendHitWindowEvent(MeshComp, UmbraGameplayTags::Event_Attack_HitWindowBegin);
+	SendHitWindowEvent(MeshComp, Animation, UmbraGameplayTags::Event_Attack_HitWindowBegin);
 }
 
 void UUmbraAnimNotifyState_AttackHitWindow::NotifyTick(
@@ -23,7 +24,7 @@ void UUmbraAnimNotifyState_AttackHitWindow::NotifyTick(
 	const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
-	SendHitWindowEvent(MeshComp, UmbraGameplayTags::Event_Attack_HitWindowTick);
+	SendHitWindowEvent(MeshComp, Animation, UmbraGameplayTags::Event_Attack_HitWindowTick);
 }
 
 void UUmbraAnimNotifyState_AttackHitWindow::NotifyEnd(
@@ -32,11 +33,12 @@ void UUmbraAnimNotifyState_AttackHitWindow::NotifyEnd(
 	const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyEnd(MeshComp, Animation, EventReference);
-	SendHitWindowEvent(MeshComp, UmbraGameplayTags::Event_Attack_HitWindowEnd);
+	SendHitWindowEvent(MeshComp, Animation, UmbraGameplayTags::Event_Attack_HitWindowEnd);
 }
 
 void UUmbraAnimNotifyState_AttackHitWindow::SendHitWindowEvent(
 	USkeletalMeshComponent* MeshComp,
+	UAnimSequenceBase* Animation,
 	const FGameplayTag& EventTag)
 {
 	AActor* OwnerActor = MeshComp ? MeshComp->GetOwner() : nullptr;
@@ -48,5 +50,11 @@ void UUmbraAnimNotifyState_AttackHitWindow::SendHitWindowEvent(
 	FGameplayEventData EventData;
 	EventData.EventTag = EventTag;
 	EventData.Instigator = OwnerActor;
+	EventData.OptionalObject = Animation;
+	if (const UUmbraAbilitySystemComponent* ASC = Cast<UUmbraAbilitySystemComponent>(
+		UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerActor)))
+	{
+		EventData.EventMagnitude = static_cast<float>(ASC->GetActivePrimaryAttackInstanceId());
+	}
 	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(OwnerActor, EventTag, EventData);
 }
