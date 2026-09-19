@@ -53,3 +53,6 @@ Desktop.ini
 
 # Paragon Minions FX are kept locally but excluded from source control.
 /Content/ParagonMinions/FX/
+
+# Art source files (kept outside repo)
+*.psd
