@@ -9,14 +9,16 @@
 #include "AbilitySystem/UmbraDebugInitialAttributes.h"
 #include "Characters/UmbraPlayerCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/PlayerState.h"
 #include "GameplayTags/UmbraGameplayTags.h"
 #include "HAL/IConsoleManager.h"
 #include "TimerManager.h"
 #include "Umbra.h"
+#include "UmbraPlayerController.h"
 
 static TAutoConsoleVariable<float> CVarUmbraAttackMeasureSeconds(
 	TEXT("umbra.Attack.MeasureSeconds"), 0.f,
-	TEXT("Server: set to N>0 to measure actual basic-attack Health damage for N seconds from the next attack start; one shot."));
+	TEXT("Server: set to N>0 to measure settled basic-attack GE damage for N seconds from the next attack start; one shot."));
 
 void UUmbraAbilitySystemComponent::ServerReceivePrimaryAttackIntent_Implementation(
 	AActor* Target, bool bCombo, bool bContinueAttacking)
@@ -124,16 +126,19 @@ void UUmbraAbilitySystemComponent::StartPrimaryAttackDamageMeasurement(float Dur
 		DurationSeconds, PrimaryAttackDamageMeasurementEnd);
 }
 
-void UUmbraAbilitySystemComponent::RecordPrimaryAttackSettledDamage(float HealthLost)
+void UUmbraAbilitySystemComponent::RecordPrimaryAttackSettledDamage(float SettledDamage, const AActor* Target)
 {
 	const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 	if (!IsOwnerActorAuthoritative() || !bPrimaryAttackDamageMeasurementActive
 		|| Now < PrimaryAttackDamageMeasurementStart || Now >= PrimaryAttackDamageMeasurementEnd
-		|| !FMath::IsFinite(HealthLost) || HealthLost <= 0.f)
+		|| !FMath::IsFinite(SettledDamage))
 	{
 		return;
 	}
-	PrimaryAttackDamageMeasurementTotal += HealthLost;
+	UE_LOG(LogUmbra, Log, TEXT("[AttackMeasure] Settled source=%s target=%s server=%.4f settledDamage=%.3f"),
+		*PrimaryAttackDamageMeasurementAvatar, *GetNameSafe(Target), Now, SettledDamage);
+	if (SettledDamage <= 0.f) return;
+	PrimaryAttackDamageMeasurementTotal += SettledDamage;
 	++PrimaryAttackDamageMeasurementHits;
 }
 
@@ -147,12 +152,32 @@ void UUmbraAbilitySystemComponent::FinishPrimaryAttackDamageMeasurement(bool bAb
 		? FMath::Clamp(ReportTime - PrimaryAttackDamageMeasurementStart, 0.0, double(PrimaryAttackDamageMeasurementDuration))
 		: double(PrimaryAttackDamageMeasurementDuration);
 	UE_LOG(LogUmbra, Log,
-		TEXT("[AttackMeasure] %s avatar=%s start=%.4f windowEnd=%.4f reported=%.4f seconds=%.3f starts=%d damagingHits=%d healthDamage=%.3f DPS=%.3f"),
+		TEXT("[AttackMeasure] %s avatar=%s start=%.4f windowEnd=%.4f reported=%.4f seconds=%.3f starts=%d damagingHits=%d settledDamage=%.3f DPS=%.3f"),
 		bAborted ? TEXT("Aborted") : TEXT("Complete"), *PrimaryAttackDamageMeasurementAvatar,
 		PrimaryAttackDamageMeasurementStart, PrimaryAttackDamageMeasurementEnd, ReportTime, CountedSeconds,
 		PrimaryAttackDamageMeasurementStarts, PrimaryAttackDamageMeasurementHits,
 		PrimaryAttackDamageMeasurementTotal,
 		CountedSeconds > 0.0 ? PrimaryAttackDamageMeasurementTotal / CountedSeconds : 0.0);
+	AUmbraPlayerController* Recipient = nullptr;
+	if (const APawn* AvatarPawn = Cast<APawn>(GetAvatarActor()))
+	{
+		Recipient = Cast<AUmbraPlayerController>(AvatarPawn->GetController());
+	}
+	if (!Recipient)
+	{
+		if (const APlayerState* OwnerPlayerState = Cast<APlayerState>(GetOwnerActor()))
+		{
+			Recipient = Cast<AUmbraPlayerController>(OwnerPlayerState->GetPlayerController());
+		}
+	}
+	if (Recipient)
+	{
+		Recipient->ClientShowAttackDamageMeasurement(float(CountedSeconds),
+			PrimaryAttackDamageMeasurementStarts, PrimaryAttackDamageMeasurementHits,
+			float(PrimaryAttackDamageMeasurementTotal),
+			CountedSeconds > 0.0 ? float(PrimaryAttackDamageMeasurementTotal / CountedSeconds) : 0.f,
+			bAborted);
+	}
 	bPrimaryAttackDamageMeasurementActive = false;
 	PrimaryAttackDamageMeasurementAvatar.Reset();
 	PrimaryAttackDamageMeasurementTotal = 0.0;
@@ -316,7 +341,7 @@ void UUmbraAbilitySystemComponent::InitializeAttributes(TSubclassOf<UGameplayEff
 		AddOverride(UUmbraAttributeSet::GetResourceRegenAttribute(), DebugAttributes->ResourceRegen);
 		AddOverride(UUmbraAttributeSet::GetAttackPowerAttribute(), DebugAttributes->AttackPower);
 		AddOverride(UUmbraAttributeSet::GetAbilityPowerAttribute(), DebugAttributes->AbilityPower);
-		AddOverride(UUmbraAttributeSet::GetAttackSpeedBonusAttribute(), DebugAttributes->AttackSpeedBonus);
+		AddOverride(UUmbraAttributeSet::GetAttackSpeedAttribute(), DebugAttributes->AttackSpeed);
 		AddOverride(UUmbraAttributeSet::GetCriticalChanceAttribute(), DebugAttributes->CriticalChance);
 		AddOverride(UUmbraAttributeSet::GetCriticalDamageMultiplierAttribute(), DebugAttributes->CriticalDamageMultiplier);
 		AddOverride(UUmbraAttributeSet::GetArmorAttribute(), DebugAttributes->Armor);

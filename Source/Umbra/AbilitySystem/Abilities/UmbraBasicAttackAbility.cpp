@@ -201,7 +201,8 @@ bool UUmbraBasicAttackAbility::PlayCurrentAttackMontage()
 		GetWorld()->GetTimerManager().SetTimer(AttackWindupTimerHandle, StrikeDelegate, CurrentWindupSeconds, false);
 	}
 	ScheduleIntervalTransition(AttackInstanceId);
-	if (GetAvatarActorFromActorInfo()->HasAuthority() && CVarUmbraAttackLog.GetValueOnGameThread())
+	if (GetAvatarActorFromActorInfo()->HasAuthority()
+		&& (CVarUmbraAttackLog.GetValueOnGameThread() || UmbraASC->IsPrimaryAttackDamageMeasurementActive()))
 	{
 		UE_LOG(LogUmbra, Log, TEXT("Attack start id=%u target=%s speed=%.3f period=%.4f windup=%.4f server=%.4f next=%.4f montage=%s requestedRate=%.3f actualRate=%.3f capped=%d"),
 			AttackInstanceId, *GetNameSafe(StrikeTarget.Get()), CapturedAttackSpeed, CurrentEffectiveAttackPeriod,
@@ -314,11 +315,10 @@ bool UUmbraBasicAttackAbility::StartComboGraceWindow()
 float UUmbraBasicAttackAbility::ReadAttackSpeed() const
 {
 	const UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-	const float Bonus = ASC
-		? ASC->GetNumericAttribute(UUmbraAttributeSet::GetAttackSpeedBonusAttribute())
-		: 0.f;
-	const float Multiplier = 1.f + (FMath::IsFinite(Bonus) ? Bonus : 0.f);
-	return FMath::Clamp(Multiplier, UUmbraAttributeSet::MinAttackSpeedMultiplier,
+	const float Speed = ASC
+		? ASC->GetNumericAttribute(UUmbraAttributeSet::GetAttackSpeedAttribute())
+		: 1.f;
+	return FMath::Clamp(FMath::IsFinite(Speed) ? Speed : 1.f, UUmbraAttributeSet::MinAttackSpeedMultiplier,
 		UUmbraAttributeSet::MaxAttackSpeedMultiplier);
 }
 
@@ -336,20 +336,24 @@ float UUmbraBasicAttackAbility::GetSafeHighSpeedThreshold() const
 
 float UUmbraBasicAttackAbility::ResolveBaseAttackInterval() const
 {
+	const float Interval = GetConfiguredBaseAttackInterval();
+	if (Interval <= 0.f)
+	{
+		UE_LOG(LogUmbra, Error, TEXT("BaseAttackInterval=0 requires normal AttackMontages[0]; set an explicit base period or configure the normal montage."));
+	}
+	return Interval;
+}
+
+float UUmbraBasicAttackAbility::GetConfiguredBaseAttackInterval() const
+{
 	if (FMath::IsFinite(BaseAttackInterval) && BaseAttackInterval >= 0.01f)
 	{
 		return BaseAttackInterval;
 	}
-
-	// Auto mode preserves the authored playback speed of the first normal strike at 1x attack speed.
 	const UAnimMontage* ReferenceMontage = AttackMontages.IsValidIndex(0) ? AttackMontages[0].Get() : nullptr;
-	if (!ReferenceMontage)
-	{
-		UE_LOG(LogUmbra, Error, TEXT("BaseAttackInterval=0 requires normal AttackMontages[0]; set an explicit base period or configure the normal montage."));
-		return 0.f;
-	}
-	return FMath::Max(0.01f, ReferenceMontage->GetPlayLength()
-		/ FMath::Max(0.01f, ReferenceMontage->RateScale));
+	// Auto mode preserves the authored playback speed of the first normal strike at 1x speed.
+	return ReferenceMontage ? FMath::Max(0.01f, ReferenceMontage->GetPlayLength()
+		/ FMath::Max(0.01f, ReferenceMontage->RateScale)) : 0.f;
 }
 
 float UUmbraBasicAttackAbility::GetSafeMaxMontagePlayRate() const
@@ -717,11 +721,12 @@ void UUmbraBasicAttackAbility::ResolveLogicalStrike(uint32 ExpectedAttackInstanc
 	}
 	if (FCString::Strcmp(Result, TEXT("hit")) == 0)
 	{
-		if (!UmbraPhysicalDamage::Apply(ASC, UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Target),
-			DamageEffectClass, DamageConfig, GetAbilityLevel(), this))
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Target);
+		if (!UmbraPhysicalDamage::Apply(ASC, TargetASC, DamageEffectClass, DamageConfig, GetAbilityLevel(), true))
 			Result = TEXT("damage effect rejected");
 		else
 		{
+			Result = TEXT("damage effect submitted");
 			FGameplayEventData HitReactEvent;
 			HitReactEvent.EventTag = UmbraGameplayTags::Event_Combat_HitReceived;
 			HitReactEvent.Instigator = Character;
@@ -729,7 +734,7 @@ void UUmbraBasicAttackAbility::ResolveLogicalStrike(uint32 ExpectedAttackInstanc
 			UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Target, HitReactEvent.EventTag, HitReactEvent);
 		}
 	}
-	if (CVarUmbraAttackLog.GetValueOnGameThread())
+	if (CVarUmbraAttackLog.GetValueOnGameThread() || ASC->IsPrimaryAttackDamageMeasurementActive())
 		UE_LOG(LogUmbra, Log, TEXT("Attack strike id=%u target=%s server=%.4f result=%s next=%.4f"),
 			ExpectedAttackInstanceId, *GetNameSafe(Target), GetWorld()->GetTimeSeconds(), Result,
 			GetWorld()->GetTimeSeconds() + ASC->GetPrimaryAttackIntervalRemaining());

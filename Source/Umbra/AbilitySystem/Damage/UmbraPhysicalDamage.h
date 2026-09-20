@@ -33,7 +33,7 @@ namespace UmbraPhysicalDamage
 	/** Creates a fresh hit spec on authority. Rejects legacy/mixed damage definitions. */
 	bool Apply(UAbilitySystemComponent* Source, UAbilitySystemComponent* Target,
 		TSubclassOf<UGameplayEffect> EffectClass, const FUmbraPhysicalDamageConfig& Config, float Level,
-		UObject* DamageSourceObject = nullptr);
+		bool bPrimaryAttack = false);
 	bool IsLoggingEnabled();
 }
 

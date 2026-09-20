@@ -31,6 +31,8 @@ class UMBRA_API UUmbraBasicAttackAbility : public UUmbraGameplayAbility
 
 public:
 	UUmbraBasicAttackAbility();
+	/** 1x logical strike-start interval in seconds; zero means the attack asset is not configured. */
+	float GetConfiguredBaseAttackInterval() const;
 	virtual bool CanActivateAbility(FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 		const FGameplayTagContainer* SourceTags = nullptr, const FGameplayTagContainer* TargetTags = nullptr,
 		FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
@@ -57,7 +59,7 @@ protected:
 		meta = (ToolTip = "Chooses the high-speed montage independently for each strike. Changes never replace a montage already playing."))
 	bool bEnableHighSpeedAttackMode = true;
 
-	/** Final multiplier threshold (1 + AttackSpeedBonus). 3.0 means 300% base attack speed. */
+	/** Direct attack speed threshold. 3.0 means 300% base attack speed. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Speed",
 		meta = (ClampMin = "0.2", ClampMax = "10.0", UIMin = "0.2", UIMax = "10.0", Units = "x"))
 	float HighSpeedAttackThreshold = 3.f;
@@ -72,7 +74,7 @@ protected:
 
 	/**
 	 * Desired seconds between strike starts at final multiplier 1.0.
-	 * Zero automatically uses AttackMontages[0] up to its valid chain point (or full length), preserving 1x authored speed.
+	 * Zero automatically uses the full authored duration of AttackMontages[0], preserving 1x authored speed.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack|Speed",
 		meta = (ClampMin = "0.0", UIMin = "0.0", Units = "s",

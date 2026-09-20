@@ -11,7 +11,7 @@
 	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
 
 /** Shared player/enemy attributes. Change through GEs.
-	* Regen: points/sec; MoveSpeed: cm/sec; attack-speed bonus and crit chance: fractions (0.2 = 20%).
+	* Regen: points/sec; MoveSpeed: cm/sec; AttackSpeed: direct multiplier (1 = base speed); crit chance: fraction.
 	* Crit multiplier: total damage (2 = double); haste: numeric rating (50).
 	* GAS BaseValue is an aggregation input, not a character progression stat.
 	*/
@@ -22,8 +22,6 @@ class UMBRA_API UUmbraAttributeSet : public UAttributeSet
 public:
 	static constexpr float MinAttackSpeedMultiplier = 0.2f;
 	static constexpr float MaxAttackSpeedMultiplier = 10.f;
-	static constexpr float MinAttackSpeedBonus = MinAttackSpeedMultiplier - 1.f;
-	static constexpr float MaxAttackSpeedBonus = MaxAttackSpeedMultiplier - 1.f;
 
 	UUmbraAttributeSet();
 	virtual void PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const override;
@@ -56,18 +54,18 @@ public:
 	FGameplayAttributeData ResourceRegen;
 	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, ResourceRegen)
 
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_AttackPower, Category = "Attributes", meta = (ClampMin = "0.0"))
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_AttackPower, Category = "Attributes", meta = (ClampMin = "0.0", DisplayName = "攻击力"))
 	FGameplayAttributeData AttackPower;
 	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, AttackPower)
 
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_AbilityPower, Category = "Attributes", meta = (ClampMin = "0.0"))
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_AbilityPower, Category = "Attributes", meta = (ClampMin = "0.0", DisplayName = "法术强度"))
 	FGameplayAttributeData AbilityPower;
 	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, AbilityPower)
 
-	/** Additive fraction converted to the logical attack speed multiplier as 1 + AttackSpeedBonus. */
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_AttackSpeedBonus, Category = "Attributes", meta = (ClampMin = "-0.8", ClampMax = "9.0"))
-	FGameplayAttributeData AttackSpeedBonus;
-	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, AttackSpeedBonus)
+	/** Direct attack speed multiplier; 1 is the authored base attack interval. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_AttackSpeed, Category = "Attributes", meta = (ClampMin = "0.2", ClampMax = "10.0", DisplayName = "攻速"))
+	FGameplayAttributeData AttackSpeed;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, AttackSpeed)
 
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_CriticalChance, Category = "Attributes", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	FGameplayAttributeData CriticalChance;
@@ -115,7 +113,7 @@ protected:
 	UFUNCTION()
 	void OnRep_AbilityPower(const FGameplayAttributeData& OldValue);
 	UFUNCTION()
-	void OnRep_AttackSpeedBonus(const FGameplayAttributeData& OldValue);
+	void OnRep_AttackSpeed(const FGameplayAttributeData& OldValue);
 	UFUNCTION()
 	void OnRep_CriticalChance(const FGameplayAttributeData& OldValue);
 	UFUNCTION()

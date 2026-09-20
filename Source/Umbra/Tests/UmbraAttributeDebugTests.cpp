@@ -78,9 +78,9 @@ bool FUmbraAttributeDebugTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Three layers raise resource by 60"), PlayerAttributes->GetResource(), 160.f);
 	TestEqual(TEXT("Three layers raise max resource by 60"), PlayerAttributes->GetMaxResource(), 160.f);
 	TestEqual(TEXT("Three layers raise resource regen by 60"), PlayerAttributes->GetResourceRegen(), 60.f);
-	TestEqual(TEXT("Three layers raise attack power by 60"), PlayerAttributes->GetAttackPower(), 70.f);
-	TestEqual(TEXT("Three layers raise ability power by 60"), PlayerAttributes->GetAbilityPower(), 60.f);
-	TestEqual(TEXT("Three layers add 60 percentage points of attack speed"), PlayerAttributes->GetAttackSpeedBonus(), 0.6f);
+	TestEqual(TEXT("Three layers raise strength by 60"), PlayerAttributes->GetAttackPower(), 70.f);
+	TestEqual(TEXT("Three layers raise intelligence by 60"), PlayerAttributes->GetAbilityPower(), 60.f);
+	TestEqual(TEXT("Three layers add 0.6x attack speed"), PlayerAttributes->GetAttackSpeed(), 1.6f);
 	TestEqual(TEXT("Three layers add 60 percentage points of critical chance"), PlayerAttributes->GetCriticalChance(), 0.6f);
 	TestEqual(TEXT("Three layers add 60 percentage points to critical damage multiplier"),
 		PlayerAttributes->GetCriticalDamageMultiplier(), 2.6f);
@@ -126,12 +126,17 @@ bool FUmbraAttributeDebugTest::RunTest(const FString& Parameters)
 	Operate(PlayerProxy, EUmbraAttributeDebugOperation::Damage);
 	Operate(PlayerProxy, EUmbraAttributeDebugOperation::RemoveEffect);
 	TestEqual(TEXT("Unrelated operation does not repeat damage"), PlayerAttributes->GetHealth(), 90.f);
-	PlayerASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedBonusAttribute(), 0.25f);
+	PlayerASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedAttribute(), 1.25f);
 	PlayerASC->SetNumericAttributeBase(UUmbraAttributeSet::GetCriticalChanceAttribute(), 0.4f);
 	PlayerASC->SetNumericAttributeBase(UUmbraAttributeSet::GetCriticalDamageMultiplierAttribute(), 1.75f);
 	const FUmbraAttributeDebugViewState ViewState = UUmbraAttributeDebugPanel::MakeViewState(
 		PlayerAttributes, PlayerProxy, true, true, EUmbraAttributeDebugFeedback::ViewingPlayer);
-	TestEqual(TEXT("View state supplies attack speed as percentage points"), ViewState.AttackSpeedBonus, 25.f);
+	TestEqual(TEXT("View state supplies direct attack speed"), ViewState.AttackSpeed, 1.25f);
+	TestEqual(TEXT("View state formats attack speed with two decimals"), ViewState.AttackSpeedDisplay.ToString(), FString(TEXT("1.25")));
+	PlayerASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedAttribute(), 2.3f);
+	const FUmbraAttributeDebugViewState FasterViewState = UUmbraAttributeDebugPanel::MakeViewState(
+		PlayerAttributes, PlayerProxy, true, true, EUmbraAttributeDebugFeedback::ViewingPlayer);
+	TestEqual(TEXT("View state retains trailing attack speed zero"), FasterViewState.AttackSpeedDisplay.ToString(), FString(TEXT("2.30")));
 	TestEqual(TEXT("View state supplies critical chance as percent"), ViewState.CriticalChance, 40.f);
 	TestEqual(TEXT("View state supplies critical damage as percent"), ViewState.CriticalDamageMultiplier, 175.f);
 	TestEqual(TEXT("View state passes current health"), ViewState.Health, 90.f);
@@ -140,8 +145,8 @@ bool FUmbraAttributeDebugTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("View state passes resource"), ViewState.Resource, PlayerAttributes->GetResource());
 	TestEqual(TEXT("View state passes max resource"), ViewState.MaxResource, PlayerAttributes->GetMaxResource());
 	TestEqual(TEXT("View state passes resource regen"), ViewState.ResourceRegen, PlayerAttributes->GetResourceRegen());
-	TestEqual(TEXT("View state passes attack power"), ViewState.AttackPower, PlayerAttributes->GetAttackPower());
-	TestEqual(TEXT("View state passes ability power"), ViewState.AbilityPower, PlayerAttributes->GetAbilityPower());
+	TestEqual(TEXT("View state passes strength"), ViewState.AttackPower, PlayerAttributes->GetAttackPower());
+	TestEqual(TEXT("View state passes intelligence"), ViewState.AbilityPower, PlayerAttributes->GetAbilityPower());
 	TestEqual(TEXT("View state passes armor"), ViewState.Armor, PlayerAttributes->GetArmor());
 	TestEqual(TEXT("View state passes magic resistance"), ViewState.MagicResistance, PlayerAttributes->GetMagicResistance());
 	TestEqual(TEXT("View state passes ability haste"), ViewState.AbilityHaste, PlayerAttributes->GetAbilityHaste());

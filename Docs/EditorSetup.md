@@ -1,5 +1,7 @@
 # 编辑器配置入口
 
+八项正式角色属性面板的 WBP 创建与验证见 [CharacterStatsPanel](CharacterStatsPanel.md)。根 HUD 复用 `/Game/UI/HUD/WBP_CombatHUD` 与 `CombatHUDClass` 的现有创建流程。
+
 2026-09-19 更新普通攻击逻辑命中。关联：[架构](Architecture.md)、[状态与验收](Progress.md)。
 
 ## 证据边界
@@ -34,11 +36,13 @@
 1. 类参数通常按 C++ 构造后备值 → Blueprint 类默认值 → 允许实例编辑的关卡实例覆盖取值。BeginPlay 的显式赋值仍会覆盖某些编辑器值：敌人 MaxWalkSpeed 取 EnemyMoveSpeed；玩家/敌人高亮初始状态也由 C++ 重设。
 2. GAS 初始数值：AttributeSet 后备值（角色 MoveSpeed 首次取已有 MaxWalkSpeed 作兼容初值）→ InitialAttributesEffect → 非 Shipping 且开启开关时的 **整组** DebugInitialAttributes Override → Health/Resource 填满。调试覆盖不是“仅覆盖你改过的字段”。每个 ASC 权威端只执行一次，PIE 中改配置不会重新初始化。
 3. 玩家初值配在实际 PlayerState 类，敌人初值配在 Enemy；初始 GE 不要设置 Health、Resource、IncomingDamage，不依赖施加条件，也不要用持续 GE。当前仓库没有在此确认具体初始 GE 资产引用；不要臆造路径。
-4. 普攻 DamageConfig 只配置类型和 AD/AP 系数；AD/AP、双抗和暴击参数来自 GAS 属性。当前默认 AttackPower=10、AD 系数=1、AP 系数=0；没有独立基础伤害或 Can Crit 参数。
+4. 普攻 DamageConfig 只配置类型和 AD/AP 系数；攻击力 AttackPower、法术强度 AbilityPower、双抗和暴击参数来自 GAS 属性。当前默认 AttackPower=10、AbilityPower=0、AD 系数=1、AP 系数=0；没有独立基础伤害或 Can Crit 参数。系数仍沿用 `AttackPowerCoefficient` / `AbilityPowerCoefficient` 字段及对应 SetByCaller Tag。
+
+恢复属性名后，UE 5.8 编辑器已编译/保存玩家和敌人蓝图及 `WBP_AttributeDebugPanel`。两份角色蓝图的调试初值保留 `AttackSpeed=1.0`；面板的攻击力、法术强度、攻速标签和连线已在编辑器中更新。若另建正式 Initial Attributes GE，应核对 Modifier Attribute 指向 `UmbraAttributeSet.AttackPower` / `AbilityPower` / `AttackSpeed`，其中 AttackSpeed 基础值为1.0；上一版本 Strength/Intelligence 的序列化引用由 `DefaultEngine.ini` 的 CoreRedirects 迁移。真实 PIE 显示仍待验证。
 5. **MoveSpeed 已驱动实际移动**：ASC 绑定和属性变化时把 GAS 当前值写入 Avatar.MaxWalkSpeed，清除/更换 Avatar 时解绑。兼容初值为玩家 MovementComponent 默认500或现有 BP 覆盖；敌人 EnemyMoveSpeed 默认300或现有 BP 覆盖。AttributeSet 与 DebugInitialAttributes 的 C++ MoveSpeed 后备均为500；初始 GE / 已保存的 Blueprint Debug MoveSpeed 仍优先于后备值。旧 EnemyMoveSpeed 不再是独立的运行时控制入口，不必删除或重命名已有资产属性。`AUmbraPlayerCharacter.GetLocomotionAnimationPlayRate` 向 AnimBP 提供由当前 MaxWalkSpeed 推导的倍率，但 C++ 不直接修改动画资产。
-6. **普通攻击逻辑时序**：最终倍率=1+AttackSpeedBonus；每击开始快照倍率、周期、前摇和动画。周期=BaseAttackInterval/倍率，前摇=周期×AttackWindupRatio（默认0.3，运行时限制0.01～0.99）。前摇结束由服务端对原目标判定并提交本击间隔，挥空也消耗周期；前摇取消不新增周期。跨击间隔存在 ASC，不随 Ability End 清零。BaseAttackInterval=0 仅按普通 AttackMontages[0] 的原始完整时长和 Rate Scale 自动校准，不按高速动画或当前播放率重算。Montage 长度、Chain Point、Hit Window 和播放率上限均不推迟逻辑下一击。
+6. **普通攻击逻辑时序**：最终倍率直接取 AttackSpeed；每击开始快照倍率、周期、前摇和动画。周期=BaseAttackInterval/AttackSpeed，前摇=周期×AttackWindupRatio（默认0.3，运行时限制0.01～0.99）。前摇结束由服务端对原目标判定并提交本击间隔，挥空也消耗周期；前摇取消不新增周期。跨击间隔存在 ASC，不随 Ability End 清零。BaseAttackInterval=0 仅按普通 AttackMontages[0] 的原始完整时长和 Rate Scale 自动校准，不按高速动画或当前播放率重算。Montage 长度、Chain Point、Hit Window 和播放率上限均不推迟逻辑下一击。
 7. **自动攻击与移动**：BP_UmbraPlayerController 的 bEnableAutoAttack、bChaseAttackTarget 继续控制持续攻击和追击。起手与出手使用同一个 Character.PrimaryAttackRange，距离按目标胶囊半径计入；出手可加 GA.HitDistanceTolerance。移动立即停止自动攻击并取消当前前摇或后摇，已结算的伤害与剩余间隔保留。重复点击同一目标不重启当前前摇。周期到期若目标失效或出范围，当前 Ability 结束，Controller 依原有规则追击。
-8. UI：血条宽高只在 WBP 根 SizeBox 配置；WidgetComponent 注册时强制 Draw at Desired Size，不使用旧 Draw Size，Designer 使用 Desired 预览。C++ 监听 GAS 并通过 `FUmbraEnemyHealthBarViewState` 发送 Health、MaxHealth、0..1比例和可见性；WBP 只把状态写入原生/材质/复合控件。飘字数字、位置、字号和动画由 C++ 写，参数取 WBP 类默认值；按缩写前实际伤害选字号档并只随机一次，暴击字体倍率默认1.15、最终字号上限28。命中时保存世界起点/终点，每帧按当前相机投影，终点固定在场景中。不要加第二套属性绑定、伤害计算或重复 CreateWidget。属性调试面板接收 `FUmbraAttributeDebugViewState`；其中攻速、暴击率、暴击伤害已由 C++ 转成百分比显示值，WBP 直接追加 `%`，不要再次乘100。窗口锚点、位置、尺寸、精度和样式全部由 WBP 负责；C++ 只以 ZOrder20 添加实例。
+8. UI：血条宽高只在 WBP 根 SizeBox 配置；WidgetComponent 注册时强制 Draw at Desired Size，不使用旧 Draw Size，Designer 使用 Desired 预览。C++ 监听 GAS 并通过 `FUmbraEnemyHealthBarViewState` 发送 Health、MaxHealth、0..1比例和可见性；WBP 只把状态写入原生/材质/复合控件。飘字数字、位置、字号和动画由 C++ 写，参数取 WBP 类默认值；按缩写前实际伤害选字号档并只随机一次，暴击字体倍率默认1.15、最终字号上限28。命中时保存世界起点/终点，每帧按当前相机投影，终点固定在场景中。不要加第二套属性绑定、伤害计算或重复 CreateWidget。属性调试面板接收 `FUmbraAttributeDebugViewState`；攻速显示 `AttackSpeedDisplay` 的两位小数，不带百分号；暴击率、暴击伤害由 C++ 转成百分比，WBP 对这两项追加 `%`。窗口锚点、位置、尺寸、精度和样式全部由 WBP 负责；C++ 只以 ZOrder20 添加实例。
 
 ## 玩家攻击动画配置与验证
 
@@ -54,11 +58,17 @@
 
 运行时请求实际播放率=视觉出手原始时间/本击逻辑前摇；传给 Montage 的倍率会除以资产自身 Rate Scale，避免重复叠乘。若触及播放率上限导致动画赶不上逻辑出手，Output Log 会提示缩短或替换高速 Montage；伤害仍按服务端计时结算，视觉错位不会自动消失。
 
-在 `/Game/Maps/L_Prototype` 双人 PIE 测试，服务端控制台输入 `umbra.Attack.Log 1` 开启日志，完成后设为 0。用固定单击伤害、无额外触发效果的目标，分别设最终倍率 1.0、2.99、3.0、4.0、5.0、10.0（AttackSpeedBonus 对应 0、1.99、2、3、4、9），稳定阶段统计服务端日志中的起手次数与时间跨度，再用实际总扣血/同一跨度算 DPS。理论起手频率为倍率/BaseAttackInterval，理论 DPS=每击固定伤害×该频率；将实测单列，勿把预测写成实测。另测同目标最多一次扣血、前摇移动、出手后反复移动取消、目标死亡/离距/遮挡、快速取消重攻、移动后无补刀与双人 PIE 服务端唯一伤害。服务器 Timer 在游戏线程按帧触发；低帧率或服务器更新间隔大于前摇/周期时，实际频率会低于理论值，调度不会在同帧无限补发。
+在 `/Game/Maps/L_Prototype` 双人 PIE 测试，服务端控制台输入 `umbra.Attack.Log 1` 开启日志，完成后设为 0。用固定单击伤害、无额外触发效果的目标，分别设 AttackSpeed 1.0、2.99、3.0、4.0、5.0、10.0，稳定阶段统计服务端日志中的起手次数与时间跨度，再用实际总扣血/同一跨度算 DPS。理论起手频率为 AttackSpeed/BaseAttackInterval，理论 DPS=每击固定伤害×该频率；将实测单列，勿把预测写成实测。另测同目标最多一次扣血、前摇移动、出手后反复移动取消、目标死亡/离距/遮挡、快速取消重攻、移动后无补刀与双人 PIE 服务端唯一伤害。服务器 Timer 在游戏线程按帧触发；低帧率或服务器更新间隔大于前摇/周期时，实际频率会低于理论值，调度不会在同帧无限补发。
 
 ### n 秒普通攻击伤害统计
 
-在服务端控制台输入 `umbra.Attack.MeasureSeconds 10`（将 10 换成所需正数秒），然后对目标开始普通攻击。命令只武装**服务器上任意角色的下一次普攻起手**，由该角色独立统计，起手时自动归零；窗口结束后 Output Log 输出 `[AttackMeasure] Complete`，包含起止服务端时间、起手次数、造成有效生命损失的命中次数、总生命损失和 DPS（总损失/n）。统计该攻击者对所有目标的**普通攻击实际 Health 减少量**，不计其他技能、预测伤害或超出目标剩余生命值的溢出伤害。若 Avatar 在窗口结束前更换或 ASC 清理，输出 `Aborted` 和已统计时长。计时器可能因服务器帧延迟才打印结果，但到期后的伤害不会算入 n 秒窗口；这是服务端游戏时间，不是现实秒表。建议先使角色进入稳定连续攻击，再输入命令等待下一击起手，分别记录倍率、n、起手数、总伤害与 DPS。
+在服务端控制台输入 `umbra.Attack.MeasureSeconds 10`（将 10 换成所需正数秒），然后对目标开始普通攻击。命令只武装**服务器上任意角色的下一次普攻起手**，由该角色独立统计，起手时自动归零；窗口结束后 Output Log 输出 `[AttackMeasure] Complete`，包含起止服务端时间、起手次数、GE 结算命中次数、总结算伤害和 DPS（总结算伤害/n）。统计该攻击者对所有目标的**普通攻击在服务端 GE 结算的伤害值**，按结算前剩余 Health 封顶；不计其他技能、客户端预测伤害或超出目标剩余生命值的溢出伤害。若 Avatar 在窗口结束前更换或 ASC 清理，输出 `Aborted` 和已统计时长。计时器可能因服务器帧延迟才打印结果，但到期后的伤害不会算入 n 秒窗口；这是服务端游戏时间，不是现实秒表。建议先使角色进入稳定连续攻击，再输入命令等待下一击起手，分别记录倍率、n、起手数、总伤害与 DPS。
+
+统计完成时，服务端还会通过攻击者的 PlayerController 把结果发到其本地视口，以青色调试文字显示 10 秒，包含时长、起手数、结算命中数、总伤害和 DPS；中途更换 Avatar 或 ASC 清理则以黄色显示“中断”和已统计时长。Output Log 的服务器记录仍是精确起止时间的依据。专服没有本地视口，消息发送到对应玩家客户端；若攻击者没有有效的 `AUmbraPlayerController`，只记录日志。这个视口文字不需要另建 WBP；若编辑器关闭了屏幕调试消息，应重新启用后查看。
+
+统计窗口内会自动写入服务端 `Attack start` / `Attack strike` 日志，后者包含命中/挥空或 GE 提交结果；目标 `IncomingDamage → Health` 结算时，带普攻来源标记的本次 Spec 会额外输出 `[AttackMeasure] Settled`（目标、服务端时间、`settledDamage`）并累加。窗口外可用 `umbra.Attack.Log 1` 延长起手/出手记录；若“起手大于 0、结算命中和伤害为 0”，可打开 `umbra.Damage.Log 1` 对照 `[Damage]` 与 `[DamageHealth]`。`settledDamage` 是 GE 结算伤害，**不是逐击实际 Health 浮点差值**；目标 Health 极大时，单次伤害可能小于 `float` 在该数值附近的最小间隔，`[DamageHealth]` 会显示 Health 未变，此时应把测试目标的 Health/MaxHealth 降到合理范围，才能用血条或 Health 差值核验扣血。攻击挥空、GE 被拒绝、结算伤害为 0 或目标无剩余 Health 时，统计为 0。
+
+C++ 后备 `AttackSpeed=1.0`；实际初值以 PlayerState 的初始 GE / 调试覆盖为准。`BaseAttackInterval=0` 会以普通 `AttackMontages[0]` 的**完整原始时长 / Rate Scale** 作为基础周期；若旧版使用 1 秒周期，新节奏可能显得较慢。可在 `/Game/Blueprints/Abilities/Attack/GA_BasicAttack` 的 Class Defaults 将 `BaseAttackInterval` 填成期望的正数秒，例如想要约每秒一击可设 `1.0`；这会同时缩短逻辑前摇，需结合 `umbra.Attack.Log 1` 的请求/实际播放率及姿势错位警告确认动画表现。不要把 `AttackSpeed` 调高来掩盖基础周期配置问题。
 
 需要反馈：服务端 `Attack start` / `Attack strike` 日志（实例号、目标、倍率、周期、前摇、服务端时间、命中/挥空原因、Montage 请求/实际速率和触顶），每档倍率的实际起手次数、计时区间、总伤害，以及动画出手是否提前/滞后、穿墙、重复扣血、移动后补刀或旧回调误结束新攻击。所有资产内部默认值、Notify 时间和 PIE 结果目前待编辑器确认。
 
@@ -116,7 +126,7 @@
 | Health/Resource 与上限 | 点；Health∈[0,MaxHealth]，MaxHealth≥1；Resource∈[0,MaxResource]，MaxResource≥0 |
 | HealthRegen / ResourceRegen | 点/秒，当前只存储 |
 | AttackPower / AbilityPower / Armor / MagicResistance | 非负数值；抗性公式尺度100；AD/AP 系数无量纲，最终原始伤害整体裁到≥0 |
-| AttackSpeedBonus | 加成比例，0.2=+20%；限制-0.8–9.0，最终倍率为1+Bonus（0.2～10倍） |
+| AttackSpeed | 直接攻速倍率，1.0=基础攻速；限制0.2～10.0倍，调试面板显示为0.20～10.00 |
 | HighSpeedAttackThreshold | 最终攻速倍率；默认3.0，无量纲 |
 | MaxAttackMontagePlayRate | 实际Montage倍率安全上限；默认3.0，无量纲 |
 | CriticalChance | 小数比例，0.2=20%；限制0–1 |
@@ -128,7 +138,7 @@
 | 玩家 / AI 转向速率与容差 | 度/秒 / 度；玩家共享LocomotionAnimationReferenceSpeed=500cm/s，对应Yaw 600°/秒并随MoveSpeed线性增加，默认上限1800°/秒；AI保持独立配置 |
 | 飘字距离、面板位置尺寸 | DPI 换算后的 UI 布局单位；SpreadAngleDegrees 是向上方向两侧合计张角 |
 
-属性调试面板的 Add Effect 每层把普通数值增加20，把 AttackSpeedBonus、CriticalChance、CriticalDamageMultiplier 增加0.2（20个百分点）。允许重复添加且不限制层数，但 AttackSpeedBonus/CriticalChance 继续受9.0/1.0边界约束；Remove Effect 一次清除本控制器对当前目标添加的全部层。
+属性调试面板的 Add Effect 每层把普通数值增加20，把 AttackSpeed、CriticalChance、CriticalDamageMultiplier 增加0.2（攻速面板显示增加0.20）。允许重复添加且不限制层数，但 AttackSpeed/CriticalChance 继续受10.0/1.0边界约束；Remove Effect 一次清除本控制器对当前目标添加的全部层。
 
 ## 输入、导航与高亮
 
@@ -136,6 +146,7 @@
 - 已存在 `/Game/Input/IMC_Default`、`IMC_MouseLook`、`IMC_AttributeDebug` 及 `/Game/Input/Actions/IA_Move`、`IA_PrimaryAction`、`IA_Attack_Primary`、`IA_Debug_ViewPlayer`、`IA_Debug_LockHovered`。实际按键映射、轴修饰器和 Trigger 待编辑器确认。调试契约是两个 bool Action，分别 F1/F2，专用 IMC 优先级10；普通 IMC 由 Controller 以0加入。
 - PrimaryAction 与 PrimaryAttackAction 是独立入口；不要把普攻再加入通用标签输入绑定。专用调试 IMC 不要重复放进普通 IMC 数组。详细步骤见 [AttributeDebugPanel](AttributeDebugPanel.md)、[AttributeDebugF1F2](AttributeDebugF1F2.md)。
 - 鼠标选敌查 Pawn 对象及 Attackable，并显式忽略自己的 Pawn，避免贴身时自己的胶囊挡住敌人；地面查 Visibility；F2 额外做 Visibility 遮挡校验，普通攻击悬停不具有同样的遮挡校验。实际敌人碰撞响应待编辑器确认。
+- 启用 `BP_UmbraPlayerController.bEnableAutoAttack` 后，当前自动攻击目标在本地持续使用既有 `SetAttackHighlighted` 高亮；鼠标移开目标不熄灭，追击期间也保持。换目标时旧目标取消、新目标高亮；移动、停止、目标失效、攻击取消、角色更换及 Controller 结束时清理。鼠标悬停高亮仍独立生效，因此取消攻击后若鼠标仍停在该敌人身上，它会继续按悬停规则高亮。关闭自动攻击选项时仍只使用悬停高亮。该逻辑由 C++ 管理，不需要改动敌人资产或后处理配置。
 - 地面移动依赖可投影且完整的 NavMesh 路径；关卡导航覆盖待编辑器确认。`r.CustomDepth=3` 已配置，后处理材质与 stencil 引用待编辑器确认。
 
 ## 第三方资源与资产维护

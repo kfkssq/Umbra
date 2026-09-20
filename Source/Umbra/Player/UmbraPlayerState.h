@@ -11,6 +11,7 @@
 class UUmbraAbilitySystemComponent;
 class UUmbraAttributeSet;
 class UUmbraGameplayAbility;
+class UUmbraBasicAttackAbility;
 class UGameplayEffect;
 
 /** Persistent replicated owner of a player's ability system and attributes. */
@@ -32,6 +33,8 @@ public:
 	/** Read-only shared attribute set for Blueprint UI/inspection. Mutate through Gameplay Effects. */
 	UFUNCTION(BlueprintPure, Category = "Ability System|Attributes")
 	UUmbraAttributeSet* GetAttributeSet() const { return AttributeSet; }
+	/** The configured primary attack CDO supplies the same 1x period used by combat. */
+	const UUmbraBasicAttackAbility* GetPrimaryAttackAbilityDefaults() const;
 
 private:
 	/** Instant GE containing initial stats; omit Health/Resource (filled afterwards). */

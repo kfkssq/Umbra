@@ -66,15 +66,19 @@ struct UMBRA_API FUmbraAttributeDebugViewState
 	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes")
 	float ResourceRegen = 0.f;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes", meta = (DisplayName = "攻击力"))
 	float AttackPower = 0.f;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes", meta = (DisplayName = "法术强度"))
 	float AbilityPower = 0.f;
 
-	/** Percentage points; for example GAS ratio 0.2 is supplied as 20. */
+	/** Direct attack speed multiplier; 1.0 is the base speed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes", meta = (DisplayName = "攻速"))
+	float AttackSpeed = 0.f;
+
+	/** Formatted for the simple debug panel with exactly two decimal places. */
 	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes")
-	float AttackSpeedBonus = 0.f;
+	FText AttackSpeedDisplay;
 
 	/** Percentage in [0, 100]; for example GAS ratio 1 is supplied as 100. */
 	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes")

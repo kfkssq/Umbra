@@ -44,6 +44,10 @@ public:
 	virtual void SetPawn(APawn* InPawn) override;
 	UFUNCTION(Client, Unreliable)
 	void ClientShowDamageNumber(FVector WorldPosition, float Damage, uint8 Type, bool bCritical);
+	/** Shows the server's finished basic-attack damage measurement to the owning player. */
+	UFUNCTION(Client, Reliable)
+	void ClientShowAttackDamageMeasurement(float Seconds, int32 AttackStarts, int32 DamagingHits,
+		float HealthDamage, float DamagePerSecond, bool bAborted);
 	void ReleaseDamageNumber(UUmbraDamageNumber* Number);
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -224,6 +228,7 @@ private:
 	void UpdateAutoMove();
 	void UpdatePendingAttack();
 	void UpdateAttackHover();
+	void UpdateAutoAttackHighlight();
 	void UpdateAttackHighlightDebug();
 	void ClearAttackHighlightDebugMessages() const;
 	void StartAutoMoveToCursor();
@@ -256,6 +261,7 @@ private:
 	FVector QueuedMoveDestination = FVector::ZeroVector;
 	EUmbraQueuedPlayerCommand QueuedCommand = EUmbraQueuedPlayerCommand::None;
 	TWeakObjectPtr<AActor> HoveredAttackTarget;
+	TWeakObjectPtr<AActor> HighlightedAutoAttackTarget;
 	FHitResult AttackHighlightDebugHit;
 	bool bAttackHighlightDebugHasPawnHit = false;
 	EUmbraPrimaryActionContext ActivePrimaryActionContext = EUmbraPrimaryActionContext::Ground;

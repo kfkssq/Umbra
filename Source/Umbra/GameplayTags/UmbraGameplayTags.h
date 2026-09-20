@@ -13,6 +13,7 @@ namespace UmbraGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Type);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_ResultCritical);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_SourcePrimaryAttack);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_AbilityPowerCoefficient);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_AttackPowerCoefficient);
 

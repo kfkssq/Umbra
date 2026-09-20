@@ -2,6 +2,19 @@
 #include "UI/UmbraDamageNumber.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/Engine.h"
+
+void AUmbraPlayerController::ClientShowAttackDamageMeasurement_Implementation(float Seconds, int32 AttackStarts,
+	int32 DamagingHits, float HealthDamage, float DamagePerSecond, bool bAborted)
+{
+	if (!IsLocalController() || GetNetMode() == NM_DedicatedServer || !GEngine) return;
+	const FString Message = FString::Printf(
+		TEXT("普攻伤害统计%s | %.2f 秒 | 起手 %d | 结算命中 %d | 总伤害 %.1f | DPS %.1f"),
+		bAborted ? TEXT("（中断）") : TEXT(""), Seconds, AttackStarts, DamagingHits, HealthDamage, DamagePerSecond);
+	// A stable key replaces the previous result for this controller instead of stacking messages.
+	const uint64 MessageKey = 0x554D4252414D4553ULL ^ uint64(GetUniqueID());
+	GEngine->AddOnScreenDebugMessage(MessageKey, 10.f, bAborted ? FColor::Yellow : FColor::Cyan, Message);
+}
 
 void AUmbraPlayerController::ClientShowDamageNumber_Implementation(FVector WorldPosition, float Damage, uint8 Type, bool bCritical)
 {

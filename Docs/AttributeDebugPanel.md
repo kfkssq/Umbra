@@ -3,6 +3,8 @@
 本指南对应 `UUmbraAttributeDebugPanel` 和 `AUmbraPlayerController` 的当前实现。
 面板只观察属性，不负责初始化、重置或填满属性。操作由本地控制器发送至服务器执行。
 
+2026-09-20：`WBP_AttributeDebugPanel` 的格式文本已改为“攻击力”“法术强度”“攻速”。攻速连接 `AttackSpeedDisplay`，显示 `1.00`、`2.30` 等两位小数，不带百分号；蓝图已由 UE 5.8 编辑器保存并重编译。真实 PIE 视觉仍待验证。
+
 2026-09-16 维护说明：下文“已读取确认”“本次验证”属于历史功能交付记录，不是本轮重跑。资产文件已存在；当前内部与实际引用待编辑器确认，按步骤核对而非重复创建。统一配置和验证状态见 [EditorSetup](EditorSetup.md)、[Progress](Progress.md)。
 
 ## 1. 已创建与待手动配置
@@ -56,14 +58,14 @@
 C++ 会在目标绑定、任一展示属性变化、选择反馈变化和 ASC 生命周期变化时调用蓝图事件 **Apply Attribute Debug State**，参数为 `FUmbraAttributeDebugViewState`。蓝图负责把它写入任意控件：
 
 - `TargetActor`、`TargetName`、`bViewingPlayer`、`bReady` 与 `Feedback` 提供目标及状态上下文；等待文字、反馈文字和按钮 Enabled 均由蓝图决定。
-- 15 项 GAS 数据都以 float 传递：Health、MaxHealth、HealthRegen、Resource、MaxResource、ResourceRegen、AttackPower、AbilityPower、AttackSpeedBonus、CriticalChance、CriticalDamageMultiplier、Armor、MagicResistance、AbilityHaste、MoveSpeed。
-- 三个百分比字段已在 C++ 转为显示单位：AttackSpeedBonus `0.2 → 20`、CriticalChance `1 → 100`、CriticalDamageMultiplier `2 → 200`。蓝图直接格式化数字并追加 `%`，不要再次乘100；布局、精度和样式仍由蓝图决定。
+- 15 项 GAS 数据都以 float 传递：Health、MaxHealth、HealthRegen、Resource、MaxResource、ResourceRegen、AttackPower、AbilityPower、AttackSpeed、CriticalChance、CriticalDamageMultiplier、Armor、MagicResistance、AbilityHaste、MoveSpeed。
+- AttackSpeed 仍以直接倍率浮点值传递，另有 `AttackSpeedDisplay` 按两位小数给面板显示（`1.00`、`2.30`），不追加 `%`。CriticalChance `1 → 100`、CriticalDamageMultiplier `2 → 200`，这两个字段的文字才追加 `%`。对应标签显示“攻击力”“法术强度”“攻速”。
 - IncomingDamage 不传递，也不注册 UI 监听。
 - C++ 仍负责 ASC 委托、Pawn/PlayerState/目标生命周期及成对清理，没有 Tick 或计时轮询。
 
 四个按钮在 WBP Graph 的 OnClicked 中分别调用 **Request Operation**，枚举值为 Add Effect、Remove Effect、Damage、Heal。此入口只发送当前目标与固定操作；服务器仍验证权限、距离和目标，蓝图不得自行 Set Attribute 或 Apply Gameplay Effect。调用后 C++ 会把焦点交回游戏 Viewport。
 
-不要在蓝图重复 Create Widget、Add to Viewport、GAS 初始化、属性监听或 F1/F2 输入绑定。现有 `WBP_AttributeDebugPanel.uasset` 本轮未修改，必须由蓝图侧实现上述事件和按钮连线后再做 PIE 视觉验收。
+不要在蓝图重复 Create Widget、Add to Viewport、GAS 初始化、属性监听或 F1/F2 输入绑定。2026-09-16 当时未修改 `WBP_AttributeDebugPanel.uasset`；当前资产已在 2026-09-20 由 UE 编辑器更新属性格式文本及连线，按钮和实际 PIE 视觉仍应在编辑器中检查。
 
 ## 5. Enhanced Input 配置
 
@@ -112,12 +114,12 @@ Compile、Save。不要在 BeginPlay 再创建一份 Widget，也不要重复设
 | 原生类 | Duration Policy | Modifier Attribute | Operation | Magnitude |
 | --- | --- | --- | --- | --- |
 | UmbraDebugAttributeEffect | Infinite | Health、MaxHealth、HealthRegen、Resource、MaxResource、ResourceRegen、AttackPower、AbilityPower、Armor、MagicResistance、AbilityHaste、MoveSpeed | Additive | 每层 +20 |
-| 同一 UmbraDebugAttributeEffect | Infinite | AttackSpeedBonus、CriticalChance、CriticalDamageMultiplier | Additive | 每层 +0.2（20 个百分点）；AttackSpeedBonus/CriticalChance 最终分别封顶 9.0/1.0 |
+| 同一 UmbraDebugAttributeEffect | Infinite | AttackSpeed、CriticalChance、CriticalDamageMultiplier | Additive | 每层 +0.2；AttackSpeed/CriticalChance 最终分别封顶 10.0/1.0 |
 | UmbraDebugDamageEffect | Instant | UmbraAttributeSet.IncomingDamage | Additive | 10 |
 | UmbraDebugHealEffect | Instant | UmbraAttributeSet.Health | Additive | 10 |
 
 所有 GE 的 Period 都为 0，无周期恢复。每次点击 Add Effect 都新增一层，没有人为层数上限；测试增益持续到点击移除或面板/控制器清理。Health/Resource、CriticalChance 等仍遵守 AttributeSet 自身边界。
-没有伤害公式、AttackPower 伤害绑定、护甲计算或暴击随机计算。
+上述固定 10 点调试伤害不走常规 AttackPower/AbilityPower 伤害公式、护甲计算或暴击随机计算。
 
 服务器按 ASC 保存每一层的 ActiveGameplayEffectHandle：同一个控制器对同一目标可重复添加；Remove Effect 会一次移除该控制器在当前目标上添加的全部层。切换目标不会移除或遗失句柄；只按本控制器存储的句柄移除，不按效果类别/Tag 批量删除其他来源的效果。
 两个不同控制器各自添加的增益是各自的调试实例，互不拥有对方的移除权限。

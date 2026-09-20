@@ -16,7 +16,7 @@ bool UmbraPhysicalDamage::IsLoggingEnabled()
 
 bool UmbraPhysicalDamage::Apply(UAbilitySystemComponent* Source, UAbilitySystemComponent* Target,
 	TSubclassOf<UGameplayEffect> EffectClass, const FUmbraPhysicalDamageConfig& Config, float Level,
-	UObject* DamageSourceObject)
+	bool bPrimaryAttack)
 {
 	if (!IsValid(Source) || !IsValid(Target) || !Source->IsOwnerActorAuthoritative() || !Target->IsOwnerActorAuthoritative())
 	{
@@ -37,7 +37,7 @@ bool UmbraPhysicalDamage::Apply(UAbilitySystemComponent* Source, UAbilitySystemC
 		return false;
 	}
 	FGameplayEffectContextHandle Context = Source->MakeEffectContext();
-	Context.AddSourceObject(DamageSourceObject ? DamageSourceObject : Source->GetAvatarActor());
+	Context.AddSourceObject(Source->GetAvatarActor());
 	const FGameplayEffectSpecHandle Spec = Source->MakeOutgoingSpec(EffectClass, Level, Context);
 	if (!Spec.IsValid())
 	{
@@ -46,6 +46,10 @@ bool UmbraPhysicalDamage::Apply(UAbilitySystemComponent* Source, UAbilitySystemC
 	Spec.Data->SetSetByCallerMagnitude(UmbraGameplayTags::Damage_Type, float(Config.DamageType));
 	Spec.Data->SetSetByCallerMagnitude(UmbraGameplayTags::Damage_AbilityPowerCoefficient, Config.AbilityPowerCoefficient);
 	Spec.Data->SetSetByCallerMagnitude(UmbraGameplayTags::Damage_AttackPowerCoefficient, Config.AttackPowerCoefficient);
+	if (bPrimaryAttack)
+	{
+		Spec.Data->SetSetByCallerMagnitude(UmbraGameplayTags::Damage_SourcePrimaryAttack, 1.f);
+	}
 	Source->ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), Target);
 	return true;
 }

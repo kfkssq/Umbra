@@ -61,8 +61,9 @@ public:
 	uint32 GetActivePrimaryAttackInstanceId() const { return ActivePrimaryAttackInstanceId; }
 	bool IsPrimaryAttackIntervalReady() const;
 	float GetPrimaryAttackIntervalRemaining() const;
-	/** Records actual Health lost to this ASC's basic attack, on the authoritative damage path. */
-	void RecordPrimaryAttackSettledDamage(float HealthLost);
+	/** Records this ASC's basic-attack GE damage at authoritative settlement, capped by pre-hit Health. */
+	void RecordPrimaryAttackSettledDamage(float SettledDamage, const AActor* Target);
+	bool IsPrimaryAttackDamageMeasurementActive() const { return bPrimaryAttackDamageMeasurementActive; }
 
 private:
 	friend class FUmbraCombatMaintenanceTest;

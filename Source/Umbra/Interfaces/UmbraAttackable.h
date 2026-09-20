@@ -21,7 +21,7 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Combat")
 	bool CanBeAttacked() const;
 
-	/** Updates presentation when the local player's cursor enters or leaves this target. */
+	/** Updates presentation for local cursor hover or a selected automatic-attack target. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Combat")
 	void SetAttackHighlighted(bool bHighlighted);
 };

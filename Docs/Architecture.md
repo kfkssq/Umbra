@@ -1,5 +1,7 @@
 # Umbra 架构与维护地图
 
+正式角色属性面板的数据流与 Editor 接线见 [CharacterStatsPanel](CharacterStatsPanel.md)。`UUmbraCharacterStatsPanel` 观察本地 PlayerState 的 ASC 委托，`UUmbraStatEntry` 通过 Blueprint 事件更新格式化数值，图标 Brush 由条目 WBP 设置，`UUmbraStatTooltip` 单独显示属性名称及说明；根 HUD 由既有 PlayerController 创建。
+
 依据：2026-09-16 仓库 C++、配置、维护修复及回归检查。资产文件存在不代表其 Graph 或全部引用已确认；专项自动化读取的资产范围见 [Progress](Progress.md)。配置见 [EditorSetup](EditorSetup.md)。本文记录现有实现，不要求建立新的框架。
 
 ## 模块与关键类
@@ -41,7 +43,7 @@
 
 - 玩家：PlayerState 创建并拥有 ASC / AttributeSet，Character 是 Avatar。换 Pawn 不等于换属性容器；此布局支持属性与技能跨 Pawn 绑定存续，但**当前没有实现完整重生**。
 - 敌人：Character 自己拥有 ASC / AttributeSet，生命周期随敌人结束；ASC 使用 Minimal 效果复制，玩家使用 Mixed。常驻属性由 AttributeSet 显式复制；是否在实际网络地图正确工作需 PIE。
-- 15 个常驻属性是 GAS 当前数据源；现有 `AttackSpeedBonus` 直接作为攻速属性，逻辑攻击倍率为 `1 + AttackSpeedBonus`。`IncomingDamage` 是瞬时结算中间值，不复制、不展示、不当作持续增益。技能只持有本次攻击目标、连招进度、攻速快照与命中集合。
+- 15 个常驻属性是 GAS 当前数据源；`AttackSpeed` 直接存攻速倍率，1.0 是基础攻速。`IncomingDamage` 是瞬时结算中间值，不复制、不展示、不当作持续增益。技能只持有本次攻击目标、连招进度、攻速快照与命中集合。
 - Controller 拥有本地指针操作状态与 UI 实例；UI 持有弱目标和委托句柄，不另存一套战斗数值。血条比例、百分比文字和显示舍入属于表现计算，不是重复伤害结算。
 - 调试面板的 GE 句柄由服务器 Controller 按目标 ASC 保存，仅清除自己创建的增益。调试按钮不负责属性初始化。
 
@@ -69,9 +71,9 @@ Controller 只保留一条待执行指令。移动立即停止自动攻击并取
 
 BasicAttackAbility 每击快照原目标、倍率、周期、前摇和动画。服务端在前摇结束核对实例/存活/攻击标签/原目标/范围及可选 Visibility 遮挡，只对原目标调用统一 UmbraPhysicalDamage.Apply 一次，并沿用受击事件、暴击与飘字链。旧 Hit Window Notify 不再驱动玩家普通攻击伤害；敌人及其他技能的 Notify/扫掠能力保留。LocalPredicted 客户端仅播放表现，不能扣血。
 
-激活首击和每个后续攻击段开始时，从 ASC 快照现有 `AttackSpeedBonus`，最终倍率为 `1 + Bonus`（AttributeSet 限制 Bonus -0.8～9.0，对应0.2～10.0）。倍率达到 `HighSpeedAttackThreshold`（默认3.0）时按 `HighSpeedAttackMontages` 顺序循环有效项；配置A、B即得到A-B-A-B，空项会跳过，数组无有效项则安全回退普通第一段。降回阈值以下从普通连招第一段恢复并重置高速索引，再次进入高速模式从A开始。模式、索引与倍率都只在每击开始决定。
+激活首击和每个后续攻击段开始时，从 ASC 快照 `AttackSpeed`（AttributeSet 限制0.2～10.0）。倍率达到 `HighSpeedAttackThreshold`（默认3.0）时按 `HighSpeedAttackMontages` 顺序循环有效项；配置A、B即得到A-B-A-B，空项会跳过，数组无有效项则安全回退普通第一段。降回阈值以下从普通连招第一段恢复并重置高速索引，再次进入高速模式从A开始。模式、索引与倍率都只在每击开始决定。
 
-逻辑周期=BaseAttackInterval/(1+AttackSpeedBonus)，前摇=周期×AttackWindupRatio。BaseAttackInterval=0 只读取普通第一段原始完整长度和 Rate Scale；前摇出手时 ASC 提交从本击起手算起的下一次许可时间，取消前摇不新增间隔。Montage/Chain Point 不门控逻辑频率；视觉出手标记来自 GA 覆盖值或首个旧 Hit Window Begin，请求播放率考虑资产 Rate Scale，并受表现上限控制。旧高速动画赶不上逻辑出手时记录警告。
+逻辑周期=BaseAttackInterval/AttackSpeed，前摇=周期×AttackWindupRatio。BaseAttackInterval=0 只读取普通第一段原始完整长度和 Rate Scale；前摇出手时 ASC 提交从本击起手算起的下一次许可时间，取消前摇不新增间隔。Montage/Chain Point 不门控逻辑频率；视觉出手标记来自 GA 覆盖值或首个旧 Hit Window Begin，请求播放率考虑资产 Rate Scale，并受表现上限控制。旧高速动画赶不上逻辑出手时记录警告。
 
 Controller 的鼠标 Pawn 射线显式忽略当前受控 Pawn；这是贴身时玩家胶囊遮挡敌人、导致攻击入口未触发的修复。仍保留最近其他 Pawn 的选择语义，不扩大攻击半径或添加无条件距离伤害。
 
@@ -85,9 +87,9 @@ Health 从正数降到零 → Enemy::HandleHealthChanged → authority Die → b
 
 ### 4. 伤害到最终数据修改
 
-双方普攻 → UmbraPhysicalDamage::Apply → 校验 Instant / 无 Modifiers / 恰好一个指定 Execution → Spec 写 Damage.Type、AD/AP 系数 → ApplyGameplayEffectSpecToTarget → PhysicalDamageExecution 实时捕获攻击方 AD/AP、暴击率/倍率与目标对应抗性。
+双方普攻 → UmbraPhysicalDamage::Apply → 校验 Instant / 无 Modifiers / 恰好一个指定 Execution → Spec 写 Damage.Type、AD/AP 系数 → ApplyGameplayEffectSpecToTarget → PhysicalDamageExecution 实时捕获攻击方 AttackPower/AbilityPower、暴击率/倍率与目标对应抗性。
 
-`Raw = max(0, AD × AD系数 + AP × AP系数)`；`Damage = Raw × 暴击总倍率（未暴击为1）× 100 / (100 + 对应抗性)`。物理用 Armor，魔法用 MagicResistance；类型与 AD/AP 缩放独立。保留 Physical 类名是为了兼容已引用资产，不代表仅支持物理。
+`Raw = max(0, AttackPower × AD系数 + AbilityPower × AP系数)`；`Damage = Raw × 暴击总倍率（未暴击为1）× 100 / (100 + 对应抗性)`。物理用 Armor，魔法用 MagicResistance；类型与 AD/AP 缩放独立。系数及其 SetByCaller Tag 保留既有名称，以兼容攻击蓝图。保留 Physical 类名是为了兼容已引用资产，不代表仅支持物理。
 
 Execution 写本 Spec 的 Damage.ResultCritical，并输出正 IncomingDamage → AttributeSet::PostGameplayEffectExecute **先清 IncomingDamage，再 SetHealth(Health.BaseValue - Damage)** → 属性边界裁剪 → 属性委托 / 复制 → 死亡与 UI。旧负 Health GE 仍可改血，但绕过当前伤害公式/飘字链，不应叠加在普攻 GE 上。
 
@@ -96,7 +98,7 @@ Execution 写本 Spec 的 Damage.ResultCritical，并输出正 IncomingDamage �
 - 血条组件 InitWidget 注入 Enemy → 血条 Bind 订阅 Health/MaxHealth → Refresh 读取 GAS、生成 `FUmbraEnemyHealthBarViewState` 并调用 Blueprint 表现事件；WBP 将0..1比例写入任意原生/材质/复合控件，Health≤0时由 C++ 隐藏整棵 Widget。C++ 不依赖 Designer 子控件名或具体 UMG 类型。
 - 血条布局：WBP 根 SizeBox 定义宽高；组件 OnRegister 强制 Draw at Desired Size，覆盖旧资产固定尺寸模式，C++ 不指定数值宽高。预览用 Desired 模式，运行遵循相同布局和视口 DPI。
 - 飘字：AttributeSet 仅在唯一扣血点调用 FUmbraDamageNotification::Capture / Dispatch；Notification 内部在扣血前捕获敌人 Mesh Bounds 与攻击者 PC，扣血后发 ClientShowDamageNumber（Unreliable）→ Controller 屏外过滤和 CreateWidget → DamageNumber::Start。Start 按缩写前实际伤害选择并规范化字体档位，只随机一次基础字号，暴击再乘字体倍率并受最终上限限制；数字格式独立按 k/M/B/T 格式化且在舍入到下一阈值时进位。随后保存世界起点/终点，NativeTick 仅处理既有投影、移动、缩放和淡出，不再随机字号。快照不引用受害者，过量伤害不裁成生命差；丢包只丢表现。
-- 调试：F1/F2 → Controller → Panel::ViewPlayer/ViewEnemy → 订阅 15 个属性 → 生成 `FUmbraAttributeDebugViewState`；AttackSpeedBonus/CriticalChance/CriticalDamageMultiplier 乘100后交给 WBP 决定窗口尺寸、控件、精度和样式。WBP 按钮调用 `RequestOperation` → Controller RPC 校验目标、距离、开发开关 → 原生调试 GE → GAS 修改。固定伤害10绕过公式，无飘字；治疗10修改 Health；Add Effect 每次给全部15项新增一层，普通值+20、三个比例/倍率值+0.2，层数不限但 AttackSpeedBonus/CriticalChance 分别受9.0/1.0上限；Remove Effect 移除本控制器在当前目标上的全部层。
+- 调试：F1/F2 → Controller → Panel::ViewPlayer/ViewEnemy → 订阅 15 个属性 → 生成 `FUmbraAttributeDebugViewState`；AttackSpeed 保留直接倍率并提供两位小数显示文本（1.00、2.30），CriticalChance/CriticalDamageMultiplier 乘100后交给 WBP。WBP 决定窗口尺寸、控件和样式。WBP 按钮调用 `RequestOperation` → Controller RPC 校验目标、距离、开发开关 → 原生调试 GE → GAS 修改。固定伤害10绕过公式，无飘字；治疗10修改 Health；Add Effect 每次给全部15项新增一层，普通值+20、攻速倍率及两个暴击值+0.2，层数不限但 AttackSpeed/CriticalChance 分别受10.0/1.0上限；Remove Effect 移除本控制器在当前目标上的全部层。
 
 ## 生命周期清理检查
 

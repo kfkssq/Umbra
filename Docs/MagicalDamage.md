@@ -12,27 +12,27 @@
 3. Damage Effect Class 保持引用原伤害 GE：
    /Game/Blueprints/Abilities/Effects/GE_Damage_PlayerBasic 或 GE_Damage_EnemyBasic。
    GE 的 Duration Policy 必须为 Instant；Modifiers 清空；Executions 只有一个，Calculation Class 为 UmbraPhysicalDamageExecution。不要额外添加魔法 Execution 或扣血 Modifier。
-4. 玩家法强：/Game/Blueprints/Player/BP_UmbraPlayerState -> Class Defaults -> Ability System / Debug Attributes。
-   勾选 Use Debug Initial Attributes，展开 Debug Initial Attributes，设置 Ability Power。
+4. 玩家法术强度：/Game/Blueprints/Player/BP_UmbraPlayerState -> Class Defaults -> Ability System / Debug Attributes。
+   勾选 Use Debug Initial Attributes，展开 Debug Initial Attributes，设置 AbilityPower。
 5. 敌人魔抗：/Game/Blueprints/Enemies/BP_Enemy_Melee_01 -> 同一分类 -> Magic Resistance。注意关卡实例可能覆盖蓝图默认值。
 6. 若使用正式 Initial Attributes Effect，关闭调试开关，在该 Instant GE 中配置 UmbraAttributeSet.AbilityPower / MagicResistance，Operation 为 Override，Magnitude 为目标初始值。调试开关开启时会覆盖初始 GE 对应值。
 7. Compile、Save，重新开始 PIE；调试初始值仅在服务器首次初始化应用。
-8. 控制台 umbra.Damage.Log 1 开日志，0 关闭。输出 [Damage] 包含类型、AD/AP、两种系数、抗性种类与数值、暴击和最终伤害；[DamageHealth] 显示生命前后与实际扣血。
+8. 控制台 umbra.Damage.Log 1 开日志，0 关闭。输出 [Damage] 包含类型、AttackPower/AbilityPower、两种系数、抗性种类与数值、暴击和最终伤害；[DamageHealth] 显示生命前后与实际扣血。
 
 ## Spec 参数
 现有攻击由 C++ 自动传递，无需蓝图再绑定：
 Damage.Type：0 Physical、1 Magical；缺失、非整数、未知或非有限值记录错误并拒绝结算。
 Damage.AttackPowerCoefficient、Damage.AbilityPowerCoefficient。
 AP 系数缺失默认为 0。旧攻击配置新增字段默认 Physical、AP 系数 0，原字段名与默认值保留。
-公式为 max(0, AD*AD系数 + AP*AP系数) * 暴击倍率 * 100/(100+max(0,对应抗性))。
+公式为 max(0, AttackPower*AD系数 + AbilityPower*AP系数) * 暴击倍率 * 100/(100+max(0,对应抗性))。
 伤害类型只控制抗性，和缩放属性独立。暴击与 IncomingDamage 仍走原服务器链路。
 
 ## PIE 验收（需手动执行）
 - 敌人关闭 Enable AI Behavior，Max Health 1000，Armor 100，Magic Resistance 300。
-- 玩家 Attack Power 20、Ability Power 40。攻击 AD 系数 2、AP 系数 0.5，玩家 Critical Chance 设为 0。
+- 玩家 AttackPower 20、AbilityPower 40。攻击 AD 系数 2、AP 系数 0.5，玩家 Critical Chance 设为 0。
 - Physical 单次命中应扣 30；Magical 应扣 15。确认每个命中只出现一次生命结算；连招可有多个独立命中。
 - Magical 时改变 Armor 应不影响伤害；改变 Magic Resistance 为 0 后应扣 60。
-- Physical 时改变 Magic Resistance 应不影响伤害；改变 Ability Power 应按 AP 系数影响伤害。
+- Physical 时改变 Magic Resistance 应不影响伤害；改变 AbilityPower 应按 AP 系数影响伤害。
 - F2 锁定敌人，观察正常攻击实时更新生命。固定 10 点伤害按钮仍应扣 10，与双抗/暴击无关。
 - 恢复旧攻击设置，Physical、AP 系数 0，确认原伤害不变。
 

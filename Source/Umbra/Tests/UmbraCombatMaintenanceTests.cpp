@@ -158,7 +158,7 @@ bool FUmbraCombatMaintenanceTest::RunTest(const FString& Parameters)
 
 	const FGameplayAbilitySpecHandle AttackHandle = ASC->GiveAbility(FGameplayAbilitySpec(AttackClass, 1));
 	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackPowerAttribute(), 20.f);
-	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedBonusAttribute(), 0.f);
+	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedAttribute(), 1.f);
 	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetCriticalChanceAttribute(), 0.f);
 	EnemyASC->SetNumericAttributeBase(UUmbraAttributeSet::GetMaxHealthAttribute(), 1000.f);
 	EnemyASC->SetNumericAttributeBase(UUmbraAttributeSet::GetHealthAttribute(), 1000.f);
@@ -166,7 +166,7 @@ bool FUmbraCombatMaintenanceTest::RunTest(const FString& Parameters)
 	UGameplayEffect* AttackSpeedBuff = NewObject<UGameplayEffect>();
 	AttackSpeedBuff->DurationPolicy = EGameplayEffectDurationType::Infinite;
 	FGameplayModifierInfo& AttackSpeedModifier = AttackSpeedBuff->Modifiers.AddDefaulted_GetRef();
-	AttackSpeedModifier.Attribute = UUmbraAttributeSet::GetAttackSpeedBonusAttribute();
+	AttackSpeedModifier.Attribute = UUmbraAttributeSet::GetAttackSpeedAttribute();
 	AttackSpeedModifier.ModifierOp = EGameplayModOp::Additive;
 	AttackSpeedModifier.ModifierMagnitude = FScalableFloat(1.f);
 	const FActiveGameplayEffectHandle AttackSpeedBuffHandle = ASC->ApplyGameplayEffectSpecToSelf(
@@ -211,7 +211,7 @@ bool FUmbraCombatMaintenanceTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("Measurement closes after reporting"), ASC->bPrimaryAttackDamageMeasurementActive);
 		TestTrue(TEXT("Issued strike commits interval"), ASC->GetPrimaryAttackIntervalRemaining() > 0.f);
 		ASC->RemoveActiveGameplayEffect(AttackSpeedBuffHandle);
-		ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedBonusAttribute(), 2.f);
+		ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedAttribute(), 3.f);
 		TestEqual(TEXT("Current speed snapshot remains unchanged"), Attack->CapturedAttackSpeed, 2.f);
 		ASC->NextPrimaryAttackAllowedTime = 0.0;
 		Attack->EvaluatePendingTransition(FirstId);

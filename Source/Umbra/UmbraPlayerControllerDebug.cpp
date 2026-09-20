@@ -11,6 +11,8 @@
 #include "GameFramework/PlayerState.h"
 #include "Interfaces/UmbraAttackable.h"
 #include "UI/UmbraAttributeDebugPanel.h"
+#include "UI/UmbraCharacterStatsPanel.h"
+#include "Blueprint/WidgetTree.h"
 #include "Umbra.h"
 
 void AUmbraPlayerController::OnRep_PlayerState()
@@ -19,6 +21,18 @@ void AUmbraPlayerController::OnRep_PlayerState()
 	if (AttributeDebugPanel)
 	{
 		AttributeDebugPanel->NotifyPlayerContextChanged();
+	}
+	if (IsValid(CombatHUD) && CombatHUD->WidgetTree)
+	{
+		TArray<UWidget*> Widgets;
+		CombatHUD->WidgetTree->GetAllWidgets(Widgets);
+		for (UWidget* Widget : Widgets)
+		{
+			if (UUmbraCharacterStatsPanel* Panel = Cast<UUmbraCharacterStatsPanel>(Widget))
+			{
+				Panel->NotifyPlayerContextChanged();
+			}
+		}
 	}
 }
 

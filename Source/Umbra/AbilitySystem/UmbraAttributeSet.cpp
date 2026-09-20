@@ -4,8 +4,8 @@
 #include "AbilitySystem/Damage/UmbraPhysicalDamage.h"
 #include "Umbra.h"
 #include "AbilitySystem/Damage/UmbraDamageNotification.h"
-#include "AbilitySystem/Abilities/UmbraBasicAttackAbility.h"
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
+#include "GameplayTags/UmbraGameplayTags.h"
 
 UUmbraAttributeSet::UUmbraAttributeSet()
 {
@@ -14,6 +14,7 @@ UUmbraAttributeSet::UUmbraAttributeSet()
 	InitMaxResource(100.f);
 	InitResource(100.f);
 	InitAttackPower(10.f);
+	InitAttackSpeed(1.f);
 	InitCriticalDamageMultiplier(2.f);
 	InitMoveSpeed(500.f);
 }
@@ -21,7 +22,7 @@ UUmbraAttributeSet::UUmbraAttributeSet()
 void UUmbraAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, float& Value) const
 {
 	if (Attribute == GetIncomingDamageAttribute()) return;
-	if (!FMath::IsFinite(Value)) Value = 0.f;
+	if (!FMath::IsFinite(Value)) Value = Attribute == GetAttackSpeedAttribute() ? 1.f : 0.f;
 	if (Attribute == GetMaxHealthAttribute() || Attribute == GetCriticalDamageMultiplierAttribute())
 		Value = FMath::Max(Value, 1.f);
 	else if (Attribute == GetHealthAttribute())
@@ -30,8 +31,8 @@ void UUmbraAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, flo
 		Value = FMath::Clamp(Value, 0.f, FMath::Max(0.f, GetMaxResource()));
 	else if (Attribute == GetCriticalChanceAttribute())
 		Value = FMath::Clamp(Value, 0.f, 1.f);
-	else if (Attribute == GetAttackSpeedBonusAttribute())
-		Value = FMath::Clamp(Value, MinAttackSpeedBonus, MaxAttackSpeedBonus);
+	else if (Attribute == GetAttackSpeedAttribute())
+		Value = FMath::Clamp(Value, MinAttackSpeedMultiplier, MaxAttackSpeedMultiplier);
 	else
 		Value = FMath::Max(Value, 0.f);
 }
@@ -62,28 +63,36 @@ void UUmbraAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 	{
 		const float Damage = GetIncomingDamage();
 		const float HealthBefore = GetHealth();
+		const float HealthBaseBefore = Health.GetBaseValue();
 		const FUmbraDamageNotification Notification = FUmbraDamageNotification::Capture(
 			GetOwningAbilitySystemComponent(), Data.EffectSpec, Damage);
 		// Clear first: Health delegates can synchronously cause another damage execution.
 		SetIncomingDamage(0.f);
 		if (FMath::IsFinite(Damage) && Damage > 0.f)
 			SetHealth(Health.GetBaseValue() - Damage);
-		// Count the settled Health loss, including lethal hits, only for basic-attack specs.
-		if (const UObject* SourceObject = Data.EffectSpec.GetContext().GetSourceObject();
-			SourceObject && SourceObject->IsA<UUmbraBasicAttackAbility>())
+		if (Data.EffectSpec.GetSetByCallerMagnitude(UmbraGameplayTags::Damage_SourcePrimaryAttack, false, 0.f) == 1.f)
 		{
 			if (UUmbraAbilitySystemComponent* SourceASC = Cast<UUmbraAbilitySystemComponent>(
 				Data.EffectSpec.GetContext().GetOriginalInstigatorAbilitySystemComponent()))
 			{
-				SourceASC->RecordPrimaryAttackSettledDamage(FMath::Max(0.f, HealthBefore - GetHealth()));
+				// At very large Health values, a small hit can be below float precision. Count the
+				// authoritative GE damage that reached settlement, capped by pre-hit Health.
+				const float SettledDamage = FMath::IsFinite(Damage) && FMath::IsFinite(HealthBefore)
+					? FMath::Min(FMath::Max(0.f, Damage), FMath::Max(0.f, HealthBefore)) : 0.f;
+				SourceASC->RecordPrimaryAttackSettledDamage(SettledDamage,
+					GetOwningAbilitySystemComponent()->GetAvatarActor());
+			}
+			else
+			{
+				UE_LOG(LogUmbra, Warning, TEXT("Basic attack damage settled without an Umbra source ASC; measurement skipped."));
 			}
 		}
 		Notification.Dispatch();
 		if (UmbraPhysicalDamage::IsLoggingEnabled())
 		{
-			UE_LOG(LogUmbra, Log, TEXT("[DamageHealth] Target=%s GE=%s Incoming=%.3f Health=%.3f->%.3f Lost=%.3f"),
+			UE_LOG(LogUmbra, Log, TEXT("[DamageHealth] Target=%s GE=%s Incoming=%.3f Health=%.3f->%.3f Base=%.3f->%.3f ObservedLost=%.3f"),
 				*GetNameSafe(GetOwningAbilitySystemComponent()->GetAvatarActor()), *GetNameSafe(Data.EffectSpec.Def),
-				Damage, HealthBefore, GetHealth(), HealthBefore - GetHealth());
+				Damage, HealthBefore, GetHealth(), HealthBaseBefore, Health.GetBaseValue(), HealthBefore - GetHealth());
 		}
 	}
 }
@@ -98,7 +107,7 @@ void UUmbraAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, ResourceRegen, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, AttackPower, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, AbilityPower, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, AttackSpeedBonus, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, AttackSpeed, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, CriticalChance, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, CriticalDamageMultiplier, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, Armor, COND_None, REPNOTIFY_Always);
@@ -138,9 +147,9 @@ void UUmbraAttributeSet::OnRep_AbilityPower(const FGameplayAttributeData& OldVal
 {
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, AbilityPower, OldValue);
 }
-void UUmbraAttributeSet::OnRep_AttackSpeedBonus(const FGameplayAttributeData& OldValue)
+void UUmbraAttributeSet::OnRep_AttackSpeed(const FGameplayAttributeData& OldValue)
 {
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, AttackSpeedBonus, OldValue);
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, AttackSpeed, OldValue);
 }
 void UUmbraAttributeSet::OnRep_CriticalChance(const FGameplayAttributeData& OldValue)
 {

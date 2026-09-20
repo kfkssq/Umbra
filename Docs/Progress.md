@@ -1,12 +1,31 @@
 # Umbra 进度与验证状态
 
-维护日期：2026-09-19。入口：[架构与问题证据](Architecture.md)、[编辑器配置](EditorSetup.md)、[开发规则](../AGENTS.md)。以仓库实现为准，不以文件名或规划推断已完成功能。
+维护日期：2026-09-20。入口：[架构与问题证据](Architecture.md)、[编辑器配置](EditorSetup.md)、[开发规则](../AGENTS.md)。以仓库实现为准，不以文件名或规划推断已完成功能。
+
+## 2026-09-20 正式角色属性面板 C++ 基础
+
+- 新增 `UmbraStatEntry`、属性专用 `UmbraStatTooltip`、`UmbraCharacterStatsPanel`；条目正文只显示图标与数值，名称和说明交给独立 Tooltip WBP。图标固定由各条目 WBP 的 Designer Brush 配置，C++ 仅把格式化 FText 交给蓝图事件，避免编译预览时用空图标覆盖 Brush。八项槽位、初始化刷新、五项 GAS 变化委托、解绑／重复初始化／角色切换处理已实现。攻速按普通攻击配置周期与当前直接倍率计算次/秒。技能和物品 Tooltip 属后续各自的数据契约，不在本次范围。
+- 攻击力与法强所要求的物理／魔法侧最终武器伤害当前没有战斗层数据源；技能急速目前没有冷却规则。这三项明确显示“—”，接入点位于 `TryReadStat`，没有借用原始 AttackPower/AbilityPower 或冷却缩减值。
+- 移除 C++ 图标覆盖后的源码在 `Saved/StatEntryBuildValidation-20260920` 隔离副本通过 UE 5.8 `UmbraEditor / Win64 / Development` 构建；原项目 Editor 占用 `UnrealEditor-Umbra.dll`，直接构建在链接时被文件锁阻止，运行中的 Editor 尚未重载新模块。`WBP_StatTooltip`、各条目 WBP、`WBP_CharacterStatsPanel` 及现有 `WBP_CombatHUD` 的 Editor 接线、悬停交互、PIE 和联机验证待完成。操作清单见 [CharacterStatsPanel](CharacterStatsPanel.md)。
+- 用户当前 PIE 日志在 `WBP_StatsPanel` 创建时连续七次报告 `duplicate stat 0`，且 `WBP_CombatHUD` 仅创建一次；这证实八个条目都仍使用默认 `AttackPower`，只登记最后一项。已将重复值日志改成包含两个条目名和枚举名，并提示在每个条目 WBP 的 Class Defaults 设唯一 `Stat`；该诊断源码在上述隔离副本编译通过。资产内部 TextBlock 事件接线及修改后的实际 PIE 显示仍待 Editor 确认。
+- 应用户显示偏好，正式面板攻速仍计算逻辑普攻次数／秒，显示文本改为两位小数、不附加 `/s`；`Saved/StatEntryBuildValidation-20260920` 中的 UE 5.8 `UmbraEditor / Win64 / Development` 增量构建通过。运行中原项目 Editor 尚未加载这次格式改动，PIE 待确认。
+
+## 2026-09-20 属性命名与攻速
+
+- GAS 常驻属性恢复为 `AttackPower`（攻击力）/ `AbilityPower`（法术强度），默认值仍为 10 / 0；伤害执行、调试初值、调试增益及面板快照统一使用这两个名称。AD/AP 系数配置和 SetByCaller Tag 保持原名，数值规则不变。
+- `AttackSpeedBonus` 更名为直接倍率 `AttackSpeed`：默认1.0，范围0.2～10.0，普通攻击周期直接除以该值。调试初值、增益、复制和调试面板状态使用新属性；面板按两位小数显示，1.00 为基础攻速。旧攻速加成0对应新值1.0。
+- `Config/DefaultEngine.ini` 将上一版本的 Strength/Intelligence 属性引用重定向至恢复的名称，并保留攻速重定向。调试 WBP 显示“攻击力”“法术强度”“攻速”，攻速连接两位小数 `AttackSpeedDisplay`。两份角色蓝图的调试初值保持 `AttackSpeed=1.0`。
+- 恢复攻击力/法术强度名称后，UE 5.8.2 `UmbraEditor / Win64 / Development` 构建成功；本次重跑 `Umbra.Attributes` 3 项及 `Umbra.Damage.Types` 1 项，全部通过。玩家、敌人与调试 WBP 三项蓝图重新加载编译，0 错误、0 警告；保存后重新读取面板文本、连线和两份初值均正确。未运行真实地图 PIE 或多人验证；`Umbra.Combat.Maintenance` 为上次修改阶段的通过记录。
 
 ## 2026-09-19 玩家普通攻击逻辑命中
 
-- 增加一次性服务端命令 `umbra.Attack.MeasureSeconds n`：下一击起手开启 n 秒窗口，在实际 `IncomingDamage → Health` 结算点按普通攻击来源记录生命损失，输出起手数、有效命中数、总伤害和 DPS。其他技能、客户端预测与致死溢出伤害不计；真实 PIE 数值仍待测。
-- 当前攻速最终倍率上限为 10.0（`AttackSpeedBonus` 上限 9.0）；Montage 播放率上限仍独立控制视觉表现。10 倍档的实际频率、DPS 和动画对齐尚待 PIE 测量。下文 5 倍/Bonus 4.0 的描述属于旧阶段记录。
-- 本次最新源码已在 `Saved/AttackMeasureBuildValidation` 隔离副本通过 UE 5.8 `Umbra` 与 `UmbraEditor / Win64 / Development` 编译；后者使用 `-NoHotReloadFromIDE`，未替换当前运行编辑器的模块。原项目编辑器处于 Live Coding 状态，常规 `UmbraEditor` 构建被 UBT 拒绝。隔离副本的未烘焙 Game 启动在加载资源时触发 `BufferReader` 断言，未进入自动化测试；用户随后要求不再测试，因此未运行 PIE 或其他测试。
+- 增加一次性服务端命令 `umbra.Attack.MeasureSeconds n`：下一击起手开启 n 秒窗口，在 `IncomingDamage → Health` 结算点按普通攻击来源记录 GE 结算伤害（按结算前剩余 Health 封顶），输出起手数、结算命中数、总伤害和 DPS。其他技能、客户端预测与致死溢出伤害不计；真实 PIE 数值仍待测。
+- 计时结束后，服务端向攻击者 PlayerController 发送可靠客户端消息，在其视口显示统计 10 秒；无有效 Controller 时保留日志。中断窗口也显示黄色提示。该视口路径尚未做 PIE 验证。
+- 自动攻击目标高亮现由本地 Controller 持有，和鼠标悬停共同决定既有 `SetAttackHighlighted` 状态；取消、换目标、移动、失效和 Controller 清理时更新。本次源码已在 `Saved/AttackMeasureBuildValidation` 隔离副本通过 UE 5.8 `UmbraEditor / Win64 / Development` 编译，原项目运行中的编辑器未加载新模块；按用户要求未运行 PIE 或自动化测试。
+- 用户现场日志先后记录 5 秒窗口 `starts=3/5`、`damagingHits=0`、`healthDamage=0`；敌人显示飘字。即时 GE 调用返回点及目标结算回调均读到 `healthLost=0`，因此此前以 Health 差值统计的版本仍输出 0。普通攻击 Spec 的来源标记已在回调中识别；当前改由同一服务端回调记录 GE 结算伤害。此前版本已通过原项目 UE 5.8 `UmbraEditor / Win64 / Development` 编译，当前修改的编译状态见下文。初始节奏偏慢与 `BaseAttackInterval=0` 使用普通 A 完整时长的配置一致，资产实际时长与 1x 周期待编辑器核对。
+- 后续用户服务端日志证实每击物理 GE 的 `Incoming=14`，目标 Health 为 `2,100,000,000`，同一结算回调的 `HealthBefore/After` 相同；此量级的 float 不能表示 14 点差异。因此统计改为直接记录本次 GE 在服务端结算的正伤害，按结算前剩余 Health 封顶，并明确将日志字段改为 `settledDamage`。这使统计口径与浮点 Health 差值分开；高 Health 目标的血量本身仍需降低到合理范围，才能逐击观察 14 点扣血。本次修改在同步全部当前源码后的 `Saved/AttackMeasureBuildValidation` 隔离副本通过 UE 5.8 `UmbraEditor / Win64 / Development` 编译；运行中的原项目编辑器未加载新模块。用户要求不再运行测试，因此没有新 PIE 或自动化验证。
+- 当前攻速倍率上限为 10.0（直接属性 `AttackSpeed`）；Montage 播放率上限仍独立控制视觉表现。10 倍档的实际频率、DPS 和动画对齐尚待 PIE 测量。下文 Bonus 数值属于旧阶段记录。
+- 本次最新源码已在 `Saved/AttackMeasureBuildValidation` 隔离副本通过 UE 5.8 `Umbra` 与 `UmbraEditor / Win64 / Development` 编译；新增视口提示的 `UmbraEditor` 增量编译也通过；后者使用 `-NoHotReloadFromIDE`，未替换当前运行编辑器的模块。原项目编辑器处于 Live Coding 状态，常规 `UmbraEditor` 构建被 UBT 拒绝。隔离副本的未烘焙 Game 启动在加载资源时触发 `BufferReader` 断言，未进入自动化测试；用户随后要求不再测试，因此未运行 PIE 或其他测试。
 
 - 当前代码以本击开始时间快照周期与前摇，服务端前摇 Timer 对原目标做存活、可攻击、距离、Visibility 遮挡检查，再复用现有物理伤害 GE 与受击事件。普通攻击不再订阅 Hit Window，其他能力的扫掠 Notify 类保留。跨 Ability 间隔由 ASC 保留，前摇移动取消不新增间隔，出手后取消保留已提交间隔。
 - Montage/Chain Point 不门控下一击；视觉出手时间优先读取 GA 覆盖值，否则读取首个旧 Hit Window Begin。动画请求率考虑资产 Rate Scale，触及 MaxAttackMontagePlayRate 时输出姿势赶不上逻辑出手的警告。`umbra.Attack.Log 1` 可记录服务端实例、时间、倍率、结果和动画速率。
@@ -123,7 +142,7 @@ Session Frontend → Automation 可运行下列现有测试：
 1. **编辑器配置**：打开 `GA_BasicAttack` Class Defaults，核对普通Montage、命中sockets/radius、高攻速开关/阈值3.0/`HighSpeedAttackMontages`的A与B、BaseAttackInterval。逐Montage在最后一个命中窗之后添加 `Umbra Attack Chain Point`；留空时另测正常结束回退。Compile/Save后再PIE。
 2. **属性**：出生满池；同 ASC 重新绑定不回血；上限增益不补血、移除裁剪；临时效果不残留。具体值见 AttributeSetPhase1。
 3. **持续攻击/指令**：单击敌人观察至少三击且每击一次伤害；第二击中点击两个不同地面点，安全点后只去最后一点且不多打一击；换目标同理。把目标移出/移入范围验证追近和恢复，杀死目标验证立即停止；施加 `State.Stunned` 验证立即中断并清指令。
-4. **攻速节奏**：在一击中把 Bonus 从1.99改为2.0，当前击 Montage/速率不变，下一击切高速 Montage；再降回1.99，下一击从普通第一段恢复。记录相邻起手间隔，核对 `BaseAttackInterval / (1+Bonus)`，并检查命中窗不漏伤害。
+4. **攻速节奏**：在一击中把 AttackSpeed 从2.99改为3.0，当前击 Montage/速率不变，下一击切高速 Montage；再降回2.99，下一击从普通第一段恢复。记录相邻起手间隔，核对 `BaseAttackInterval / AttackSpeed`，并检查命中窗不漏伤害。
 5. **伤害/UI**：按 MagicalDamage 设置 AD20/AP40、系数2/0.5、护甲100/魔抗300、暴击0，预期物理30/魔法15；开 `umbra.Damage.Log 1`。按 [DamageNumbers](DamageNumbers.md) 验证字号四档、暴击倍率/上限、999960进位，以及既有扇形/停留/淡出、血条与调试 UI。
 6. **生命周期与网络**：Montage 中、手动宽限期、衔接点前后分别取消；Pawn/Controller 切换、目标销毁、反复进出 PIE。另跑 Listen Server、两个客户端和条件允许时专服，确认客户端 Montage 一致且每击只有服务端 GE/伤害。
 

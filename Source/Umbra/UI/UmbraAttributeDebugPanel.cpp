@@ -17,7 +17,7 @@ namespace
 			UUmbraAttributeSet::GetHealthRegenAttribute(), UUmbraAttributeSet::GetResourceAttribute(),
 			UUmbraAttributeSet::GetMaxResourceAttribute(), UUmbraAttributeSet::GetResourceRegenAttribute(),
 			UUmbraAttributeSet::GetAttackPowerAttribute(), UUmbraAttributeSet::GetAbilityPowerAttribute(),
-			UUmbraAttributeSet::GetAttackSpeedBonusAttribute(), UUmbraAttributeSet::GetCriticalChanceAttribute(),
+			UUmbraAttributeSet::GetAttackSpeedAttribute(), UUmbraAttributeSet::GetCriticalChanceAttribute(),
 			UUmbraAttributeSet::GetCriticalDamageMultiplierAttribute(), UUmbraAttributeSet::GetArmorAttribute(),
 			UUmbraAttributeSet::GetMagicResistanceAttribute(), UUmbraAttributeSet::GetAbilityHasteAttribute(),
 			UUmbraAttributeSet::GetMoveSpeedAttribute()
@@ -245,7 +245,8 @@ FUmbraAttributeDebugViewState UUmbraAttributeDebugPanel::MakeViewState(const UUm
 	State.ResourceRegen = Attributes->GetResourceRegen();
 	State.AttackPower = Attributes->GetAttackPower();
 	State.AbilityPower = Attributes->GetAbilityPower();
-	State.AttackSpeedBonus = Attributes->GetAttackSpeedBonus() * 100.f;
+	State.AttackSpeed = Attributes->GetAttackSpeed();
+	State.AttackSpeedDisplay = FText::FromString(FString::Printf(TEXT("%.2f"), State.AttackSpeed));
 	State.CriticalChance = Attributes->GetCriticalChance() * 100.f;
 	State.CriticalDamageMultiplier = Attributes->GetCriticalDamageMultiplier() * 100.f;
 	State.Armor = Attributes->GetArmor();

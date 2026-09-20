@@ -435,6 +435,7 @@ void AUmbraPlayerController::BeginAttackTarget(AActor* TargetActor)
 	ResetPrimaryActionState();
 	ClearQueuedCommand();
 	PendingAttackTarget = TargetActor;
+	UpdateAutoAttackHighlight();
 	if (APawn* ControlledPawn = GetPawn())
 	{
 		if (UPawnMovementComponent* MovementComponent = ControlledPawn->GetMovementComponent())
@@ -481,6 +482,7 @@ void AUmbraPlayerController::UpdatePendingAttack()
 			if (!bEnableAutoAttack)
 			{
 				PendingAttackTarget.Reset();
+				UpdateAutoAttackHighlight();
 			}
 		}
 		return;
@@ -536,7 +538,7 @@ void AUmbraPlayerController::UpdateAttackHover()
 			FString::Printf(TEXT("Hover changed: %s -> %s"), *GetNameSafe(CurrentHoveredActor), *GetNameSafe(NewHoveredActor)));
 	}
 
-	if (IsValid(CurrentHoveredActor))
+	if (IsValid(CurrentHoveredActor) && CurrentHoveredActor != HighlightedAutoAttackTarget.Get())
 	{
 		IUmbraAttackable::Execute_SetAttackHighlighted(CurrentHoveredActor, false);
 		if (bShowAttackHighlightDebug && GEngine)
@@ -546,7 +548,7 @@ void AUmbraPlayerController::UpdateAttackHover()
 		}
 	}
 	HoveredAttackTarget = NewHoveredActor;
-	if (IsValid(NewHoveredActor))
+	if (IsValid(NewHoveredActor) && NewHoveredActor != HighlightedAutoAttackTarget.Get())
 	{
 		IUmbraAttackable::Execute_SetAttackHighlighted(NewHoveredActor, true);
 		if (bShowAttackHighlightDebug && GEngine)
@@ -554,6 +556,30 @@ void AUmbraPlayerController::UpdateAttackHover()
 			GEngine->AddOnScreenDebugMessage(UmbraAttackHighlightDebug::RequestEventMessageKey, 2.5f, FColor::Green,
 				TEXT("Highlight requested: True"));
 		}
+	}
+}
+
+void AUmbraPlayerController::UpdateAutoAttackHighlight()
+{
+	AActor* DesiredTarget = nullptr;
+	if (IsLocalPlayerController() && bEnableAutoAttack && QueuedCommand != EUmbraQueuedPlayerCommand::Move
+		&& QueuedCommand != EUmbraQueuedPlayerCommand::DirectMove
+		&& QueuedCommand != EUmbraQueuedPlayerCommand::Stop)
+	{
+		DesiredTarget = QueuedCommand == EUmbraQueuedPlayerCommand::Attack
+			? QueuedAttackTarget.Get() : PendingAttackTarget.Get();
+		if (!IsAttackableTarget(DesiredTarget)) DesiredTarget = nullptr;
+	}
+	AActor* PreviousTarget = HighlightedAutoAttackTarget.Get();
+	if (PreviousTarget == DesiredTarget) return;
+	if (IsValid(PreviousTarget) && PreviousTarget != HoveredAttackTarget.Get())
+	{
+		IUmbraAttackable::Execute_SetAttackHighlighted(PreviousTarget, false);
+	}
+	HighlightedAutoAttackTarget = DesiredTarget;
+	if (IsValid(DesiredTarget) && DesiredTarget != HoveredAttackTarget.Get())
+	{
+		IUmbraAttackable::Execute_SetAttackHighlighted(DesiredTarget, true);
 	}
 }
 
@@ -643,6 +669,7 @@ void AUmbraPlayerController::ClearAttackHighlightDebugMessages() const
 void AUmbraPlayerController::CancelPendingAttack()
 {
 	PendingAttackTarget.Reset();
+	UpdateAutoAttackHighlight();
 	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
 	{
 		UmbraCharacter->StopPrimaryAttackContinuation();
@@ -666,6 +693,7 @@ void AUmbraPlayerController::QueueMoveCommand(const FVector& Destination)
 	QueuedMoveDestination = Destination;
 	QueuedAttackTarget.Reset();
 	PendingAttackTarget.Reset();
+	UpdateAutoAttackHighlight();
 	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
 	{
 		UmbraCharacter->StopPrimaryAttackContinuation();
@@ -686,6 +714,7 @@ void AUmbraPlayerController::QueueDirectMoveCommand(const FVector& WorldDirectio
 	QueuedMoveDestination = WorldDirection.GetSafeNormal();
 	QueuedAttackTarget.Reset();
 	PendingAttackTarget.Reset();
+	UpdateAutoAttackHighlight();
 	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
 	{
 		UmbraCharacter->StopPrimaryAttackContinuation();
@@ -705,6 +734,7 @@ void AUmbraPlayerController::QueueAttackCommand(AActor* TargetActor)
 	QueuedCommand = EUmbraQueuedPlayerCommand::Attack;
 	QueuedAttackTarget = TargetActor;
 	QueuedMoveDestination = FVector::ZeroVector;
+	UpdateAutoAttackHighlight();
 	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
 	{
 		UmbraCharacter->StopPrimaryAttackContinuation();
@@ -716,6 +746,7 @@ void AUmbraPlayerController::QueueStopCommand()
 	QueuedCommand = EUmbraQueuedPlayerCommand::Stop;
 	QueuedAttackTarget.Reset();
 	QueuedMoveDestination = FVector::ZeroVector;
+	UpdateAutoAttackHighlight();
 	if (AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
 	{
 		UmbraCharacter->StopPrimaryAttackContinuation();
@@ -727,6 +758,7 @@ void AUmbraPlayerController::ClearQueuedCommand()
 	QueuedCommand = EUmbraQueuedPlayerCommand::None;
 	QueuedAttackTarget.Reset();
 	QueuedMoveDestination = FVector::ZeroVector;
+	UpdateAutoAttackHighlight();
 }
 
 bool AUmbraPlayerController::HandlePrimaryAttackTransition(AActor* CurrentTarget)
@@ -738,6 +770,7 @@ bool AUmbraPlayerController::HandlePrimaryAttackTransition(AActor* CurrentTarget
 		return false;
 	}
 	PendingAttackTarget = CurrentTarget;
+	UpdateAutoAttackHighlight();
 	return UmbraCharacter->IsTargetInPrimaryAttackRange(CurrentTarget);
 }
 

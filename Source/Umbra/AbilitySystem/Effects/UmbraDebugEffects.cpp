@@ -30,7 +30,7 @@ UUmbraDebugAttributeEffect::UUmbraDebugAttributeEffect()
 	AddModifier(*this, UUmbraAttributeSet::GetResourceRegenAttribute(), DebugAttributeIncrease);
 	AddModifier(*this, UUmbraAttributeSet::GetAttackPowerAttribute(), DebugAttributeIncrease);
 	AddModifier(*this, UUmbraAttributeSet::GetAbilityPowerAttribute(), DebugAttributeIncrease);
-	AddModifier(*this, UUmbraAttributeSet::GetAttackSpeedBonusAttribute(), DebugRatioIncrease);
+	AddModifier(*this, UUmbraAttributeSet::GetAttackSpeedAttribute(), DebugRatioIncrease);
 	AddModifier(*this, UUmbraAttributeSet::GetCriticalChanceAttribute(), DebugRatioIncrease);
 	AddModifier(*this, UUmbraAttributeSet::GetCriticalDamageMultiplierAttribute(), DebugRatioIncrease);
 	AddModifier(*this, UUmbraAttributeSet::GetArmorAttribute(), DebugAttributeIncrease);

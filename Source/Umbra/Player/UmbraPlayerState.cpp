@@ -5,6 +5,7 @@
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "AbilitySystem/UmbraGameplayAbility.h"
+#include "AbilitySystem/Abilities/UmbraBasicAttackAbility.h"
 
 AUmbraPlayerState::AUmbraPlayerState()
 {
@@ -17,6 +18,18 @@ AUmbraPlayerState::AUmbraPlayerState()
 UAbilitySystemComponent* AUmbraPlayerState::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComponent;
+}
+
+const UUmbraBasicAttackAbility* AUmbraPlayerState::GetPrimaryAttackAbilityDefaults() const
+{
+	for (const TSubclassOf<UUmbraGameplayAbility>& AbilityClass : InitialAbilities)
+	{
+		if (AbilityClass && AbilityClass->IsChildOf(UUmbraBasicAttackAbility::StaticClass()))
+		{
+			return Cast<UUmbraBasicAttackAbility>(AbilityClass.GetDefaultObject());
+		}
+	}
+	return nullptr;
 }
 
 void AUmbraPlayerState::GrantInitialAbilities()

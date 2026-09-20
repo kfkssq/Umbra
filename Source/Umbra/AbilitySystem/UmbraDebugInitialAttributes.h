@@ -21,14 +21,14 @@ struct UMBRA_API FUmbraDebugInitialAttributes
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0"))
 	float ResourceRegen = 0.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0", DisplayName = "攻击力"))
 	float AttackPower = 10.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0", DisplayName = "法术强度"))
 	float AbilityPower = 0.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0"))
-	float AttackSpeedBonus = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.2", ClampMax = "10.0", DisplayName = "攻速"))
+	float AttackSpeed = 1.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float CriticalChance = 0.f;

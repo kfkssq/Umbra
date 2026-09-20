@@ -94,7 +94,7 @@ void UUmbraPhysicalDamageExecution::Execute_Implementation(
 	const float Damage = float(FMath::Min(Final, double(MAX_flt)));
 	if (UmbraPhysicalDamage::IsLoggingEnabled())
 	{
-		UE_LOG(LogUmbra, Log, TEXT("[Damage] Source=%s Target=%s GE=%s Type=%s AD=%.3f ADCoefficient=%.3f AP=%.3f APCoefficient=%.3f Chance=%.3f CriticalMultiplier=%.3f Crit=%d ResistanceType=%s Resistance=%.3f Raw=%.3f Final=%.3f"),
+		UE_LOG(LogUmbra, Log, TEXT("[Damage] Source=%s Target=%s GE=%s Type=%s AttackPower=%.3f ADCoefficient=%.3f AbilityPower=%.3f APCoefficient=%.3f Chance=%.3f CriticalMultiplier=%.3f Crit=%d ResistanceType=%s Resistance=%.3f Raw=%.3f Final=%.3f"),
 			*GetNameSafe(Source->GetAvatarActor()), *GetNameSafe(Target->GetAvatarActor()), *GetNameSafe(Spec.Def),
 			bMagical ? TEXT("Magical") : TEXT("Physical"), AttackPower, Coefficient, AbilityPower, APCoefficient, Chance, CriticalMultiplier, bCritical, bMagical ? TEXT("MagicResistance") : TEXT("Armor"), Resistance, Raw, Damage);
 	}
