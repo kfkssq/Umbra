@@ -4,9 +4,11 @@
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "AbilitySystem/UmbraDebugInitialAttributes.h"
+#include "AbilitySystem/Effects/UmbraDebugEffects.h"
 #include "Player/UmbraPlayerState.h"
 #include "Engine/World.h"
 #include "GameplayEffect.h"
+#include "UObject/UnrealType.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUmbraAttributeBoundaryTest, "Umbra.Attributes.Lifecycle",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -42,12 +44,46 @@ bool FUmbraAttributeBoundaryTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Initial health full"), Attributes->GetHealth(), 100.f);
 	TestEqual(TEXT("Initial resource full"), Attributes->GetResource(), 100.f);
 	TestEqual(TEXT("Default crit total multiplier"), Attributes->GetCriticalDamageMultiplier(), 2.f);
-	TestEqual(TEXT("Default strength"), Attributes->GetAttackPower(), 10.f);
+	TestEqual(TEXT("Default attack power"), Attributes->GetAttackPower(), 10.f);
+	TestEqual(TEXT("Default Strength"), Attributes->GetStrength(), 0.f);
+	TestEqual(TEXT("Default Dexterity"), Attributes->GetDexterity(), 0.f);
+	TestEqual(TEXT("Default Intelligence"), Attributes->GetIntelligence(), 0.f);
+	TestEqual(TEXT("Default Faith"), Attributes->GetFaith(), 0.f);
 	TestEqual(TEXT("Default attack speed is 1x"), Attributes->GetAttackSpeed(), 1.f);
 	TestEqual(TEXT("Default move speed"), Attributes->GetMoveSpeed(), 500.f);
 	const FUmbraDebugInitialAttributes DebugDefaults;
 	TestEqual(TEXT("Debug default move speed"), DebugDefaults.MoveSpeed, 500.f);
 	TestEqual(TEXT("Debug default attack speed is 1x"), DebugDefaults.AttackSpeed, 1.f);
+	TestEqual(TEXT("Debug default Strength"), DebugDefaults.Strength, 0.f);
+	TestEqual(TEXT("Debug default Dexterity"), DebugDefaults.Dexterity, 0.f);
+	TestEqual(TEXT("Debug default Intelligence"), DebugDefaults.Intelligence, 0.f);
+	TestEqual(TEXT("Debug default Faith"), DebugDefaults.Faith, 0.f);
+	const FName PrimaryAttributeNames[] = {
+		GET_MEMBER_NAME_CHECKED(UUmbraAttributeSet, Strength),
+		GET_MEMBER_NAME_CHECKED(UUmbraAttributeSet, Dexterity),
+		GET_MEMBER_NAME_CHECKED(UUmbraAttributeSet, Intelligence),
+		GET_MEMBER_NAME_CHECKED(UUmbraAttributeSet, Faith)
+	};
+	for (const FName AttributeName : PrimaryAttributeNames)
+	{
+		const FProperty* Property = FindFProperty<FProperty>(UUmbraAttributeSet::StaticClass(), AttributeName);
+		TestTrue(*FString::Printf(TEXT("%s is replicated"), *AttributeName.ToString()),
+			Property && Property->HasAnyPropertyFlags(CPF_Net));
+	}
+	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetStrengthAttribute(), -10.f);
+	TestEqual(TEXT("Primary attributes cannot become negative"), Attributes->GetStrength(), 0.f);
+	const FGameplayEffectSpecHandle PrimaryDebugSpec = ASC->MakeOutgoingSpec(
+		UUmbraDebugAttributeEffect::StaticClass(), 1.f, ASC->MakeEffectContext());
+	const FActiveGameplayEffectHandle PrimaryDebugHandle = ASC->ApplyGameplayEffectSpecToSelf(*PrimaryDebugSpec.Data.Get());
+	TestEqual(TEXT("Debug GE raises Strength"), Attributes->GetStrength(), 20.f);
+	TestEqual(TEXT("Debug GE raises Dexterity"), Attributes->GetDexterity(), 20.f);
+	TestEqual(TEXT("Debug GE raises Intelligence"), Attributes->GetIntelligence(), 20.f);
+	TestEqual(TEXT("Debug GE raises Faith"), Attributes->GetFaith(), 20.f);
+	ASC->RemoveActiveGameplayEffect(PrimaryDebugHandle);
+	TestEqual(TEXT("Removing debug GE restores Strength"), Attributes->GetStrength(), 0.f);
+	TestEqual(TEXT("Removing debug GE restores Dexterity"), Attributes->GetDexterity(), 0.f);
+	TestEqual(TEXT("Removing debug GE restores Intelligence"), Attributes->GetIntelligence(), 0.f);
+	TestEqual(TEXT("Removing debug GE restores Faith"), Attributes->GetFaith(), 0.f);
 	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedAttribute(), -10.f);
 	TestEqual(TEXT("Attack speed has safe minimum"), Attributes->GetAttackSpeed(), 0.2f);
 	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedAttribute(), 10.f);
@@ -99,6 +135,25 @@ bool FUmbraAttributeBoundaryTest::RunTest(const FString& Parameters)
 	Apply(UUmbraAttributeSet::GetIncomingDamageAttribute(), -100.f);
 	TestEqual(TEXT("Negative damage does not heal"), Attributes->GetHealth(), 0.f);
 	TestEqual(TEXT("Negative meta also reset"), Attributes->GetIncomingDamage(), 0.f);
+
+	AUmbraPlayerState* DebugOwner = World->SpawnActor<AUmbraPlayerState>();
+	UUmbraAbilitySystemComponent* DebugASC = DebugOwner->GetUmbraAbilitySystemComponent();
+	DebugASC->InitializeComponent();
+	DebugASC->InitAbilityActorInfo(DebugOwner, DebugOwner);
+	FUmbraDebugInitialAttributes DebugValues;
+	DebugValues.Strength = 11.f;
+	DebugValues.Dexterity = 12.f;
+	DebugValues.Intelligence = 13.f;
+	DebugValues.Faith = 14.f;
+	DebugASC->InitializeAttributes(nullptr, &DebugValues);
+	const UUmbraAttributeSet* DebugAttributes = DebugASC->GetSet<UUmbraAttributeSet>();
+	TestEqual(TEXT("Debug initial Strength"), DebugAttributes->GetStrength(), 11.f);
+	TestEqual(TEXT("Debug initial Dexterity"), DebugAttributes->GetDexterity(), 12.f);
+	TestEqual(TEXT("Debug initial Intelligence"), DebugAttributes->GetIntelligence(), 13.f);
+	TestEqual(TEXT("Debug initial Faith"), DebugAttributes->GetFaith(), 14.f);
+	DebugValues.Strength = 99.f;
+	DebugASC->InitializeAttributes(nullptr, &DebugValues);
+	TestEqual(TEXT("Repeated initialization does not reset primary attributes"), DebugAttributes->GetStrength(), 11.f);
 	World->DestroyWorld(false);
 	return true;
 }

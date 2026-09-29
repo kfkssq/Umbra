@@ -8,12 +8,12 @@
 - 每种敌人蓝图：分别设置 Initial Attributes Effect。
 - 两者使用不同的 Instant Gameplay Effect；建议用 Override 指定初始常驻属性。
 - 初始 GE 不要配置 Health、Resource、IncomingDamage，也不要依赖激活条件或免疫判定。全部初始修饰应用完成后，C++ 单独填满生命和资源。
-- 未指定初始 GE 且未启用调试覆盖时沿用 C++ 后备值：生命/资源上限及当前值100，攻击力10，暴击总倍率2，其余非移速属性0。AttributeSet 原生移速后备500；角色首次 ASC 绑定时取已有 MaxWalkSpeed 作兼容初值（玩家原生500、敌人 EnemyMoveSpeed 原生300，BP可覆盖），随后由初始 GE/Debug 覆盖。MoveSpeed 已通过 ASC 驱动实际角色移动。
+- 未指定初始 GE 且未启用调试覆盖时沿用 C++ 后备值：生命/资源上限及当前值100，攻击力10，暴击总倍率2，四主属性 Strength/Dexterity/Intelligence/Faith 及其余非移速属性0。AttributeSet 原生移速后备500；角色首次 ASC 绑定时取已有 MaxWalkSpeed 作兼容初值（玩家原生500、敌人 EnemyMoveSpeed 原生300，BP可覆盖），随后由初始 GE/Debug 覆盖。MoveSpeed 已通过 ASC 驱动实际角色移动。
 - 攻速是直接倍率（1.0=基础攻速），暴击率为小数比例；恢复为点/秒；移速为厘米/秒；技能急速为数值。GAS BaseValue 只是聚合输入，不是成长系统的数据模型。
 - 原 Mana/MaxMana 已通过 Core Redirects 映射至 Resource/MaxResource。打开相关旧 GE/蓝图，确认引用正确并编译保存；本次没有改写二进制资产。
 - 现有负 Health 的 Instant 伤害 GE 可以继续使用。若迁移至 IncomingDamage，使用正数 Additive，并移除同一 GE 原有的负 Health 修饰，避免双重扣血。
 - IncomingDamage 只用于即时或周期执行，不能作为无周期的持续属性加成。当前生命/资源的消耗和补充使用 Instant GE；临时上限变化配置在 MaxHealth/MaxResource。
-- 当前属性已接入伤害公式、移动速度、玩家普通攻击速度、血条、飘字与调试面板；尚未绑定恢复计时器、技能急速冷却、装备或角色成长系统。伤害、攻速和 UI 流程见 Architecture。
+- 当前属性已接入伤害公式、移动速度、玩家普通攻击速度、血条、飘字与调试面板；四主属性当前只支持初始化、复制、GE 修改和调试显示，不提供派生收益。尚未绑定恢复计时器、技能急速冷却、装备或角色成长系统。伤害、攻速和 UI 流程见 Architecture。
 
 ## 生命周期
 
@@ -24,7 +24,7 @@ ASC 的 authority-only 标志保证每个 ASC 生命周期只初始化一次；�
 PreAttributeBaseChange 约束即时基础数值；PreAttributeChange 约束持续效果添加、移除及聚合重算后的当前值。
 上限降低时裁剪池，上限增加不补充。不会在每次 GE 执行后把所有 CurrentValue 写回 BaseValue，避免临时增益残留。
 IncomingDamage 先读出并归零，再扣血，兼容 Health 变更委托触发的死亡逻辑。
-15 个常驻属性均提供 C++ GAS 访问接口、BlueprintReadOnly、复制及 RepNotify；IncomingDamage 不复制。
+19 个常驻属性均提供 C++ GAS 访问接口、BlueprintReadOnly、复制及 RepNotify；IncomingDamage 不复制。
 
 ## 最短验收
 

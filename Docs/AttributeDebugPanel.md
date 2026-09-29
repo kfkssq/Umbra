@@ -58,14 +58,15 @@
 C++ 会在目标绑定、任一展示属性变化、选择反馈变化和 ASC 生命周期变化时调用蓝图事件 **Apply Attribute Debug State**，参数为 `FUmbraAttributeDebugViewState`。蓝图负责把它写入任意控件：
 
 - `TargetActor`、`TargetName`、`bViewingPlayer`、`bReady` 与 `Feedback` 提供目标及状态上下文；等待文字、反馈文字和按钮 Enabled 均由蓝图决定。
-- 15 项 GAS 数据都以 float 传递：Health、MaxHealth、HealthRegen、Resource、MaxResource、ResourceRegen、AttackPower、AbilityPower、AttackSpeed、CriticalChance、CriticalDamageMultiplier、Armor、MagicResistance、AbilityHaste、MoveSpeed。
+- 19 项 GAS 数据都以 float 传递：Health、MaxHealth、HealthRegen、Resource、MaxResource、ResourceRegen、Strength、Dexterity、Intelligence、Faith、AttackPower、AbilityPower、AttackSpeed、CriticalChance、CriticalDamageMultiplier、Armor、MagicResistance、AbilityHaste、MoveSpeed。
+- WBP 需新增“力量／敏捷／智力／信仰”四行并分别读取同名字段；原“攻击力／法术强度”两行必须继续读取 AttackPower／AbilityPower，不得复用 Strength／Intelligence。
 - AttackSpeed 仍以直接倍率浮点值传递，另有 `AttackSpeedDisplay` 按两位小数给面板显示（`1.00`、`2.30`），不追加 `%`。CriticalChance `1 → 100`、CriticalDamageMultiplier `2 → 200`，这两个字段的文字才追加 `%`。对应标签显示“攻击力”“法术强度”“攻速”。
 - IncomingDamage 不传递，也不注册 UI 监听。
 - C++ 仍负责 ASC 委托、Pawn/PlayerState/目标生命周期及成对清理，没有 Tick 或计时轮询。
 
 四个按钮在 WBP Graph 的 OnClicked 中分别调用 **Request Operation**，枚举值为 Add Effect、Remove Effect、Damage、Heal。此入口只发送当前目标与固定操作；服务器仍验证权限、距离和目标，蓝图不得自行 Set Attribute 或 Apply Gameplay Effect。调用后 C++ 会把焦点交回游戏 Viewport。
 
-不要在蓝图重复 Create Widget、Add to Viewport、GAS 初始化、属性监听或 F1/F2 输入绑定。2026-09-16 当时未修改 `WBP_AttributeDebugPanel.uasset`；当前资产已在 2026-09-20 由 UE 编辑器更新属性格式文本及连线，按钮和实际 PIE 视觉仍应在编辑器中检查。
+不要在蓝图重复 Create Widget、Add to Viewport、GAS 初始化、属性监听或 F1/F2 输入绑定。当前二进制资产仍是 2026-09-20 的保存状态；四主属性行、旧攻击力/法强连线及实际 PIE 视觉需在加载本次新模块后检查并重新保存。
 
 ## 5. Enhanced Input 配置
 
@@ -165,7 +166,7 @@ Output Log 打开方式：Window → Developer Tools → Output Log，或底部 
 下面是待执行的编辑器验收清单，不代表已经实测通过：
 
 1. **初始玩家**：PIE 后默认玩家名称正确，生命/资源与原初始数据一致，暴击总倍率 2 显示 200%；重复 F1 不改变任何属性。
-2. **添加/移除多层**：记下15项原值；连点添加三次，普通数值增加60，三个比例/倍率值增加0.6，其中 CriticalChance 不超过1.0。点击一次 Remove Effect 后，本控制器在当前目标添加的三层应全部恢复；再次移除不改变数值。
+2. **添加/移除多层**：记下19项原值；连点添加三次，普通数值（含四主属性）增加60，三个比例/倍率值增加0.6，其中 CriticalChance 不超过1.0。点击一次 Remove Effect 后，本控制器在当前目标添加的三层应全部恢复；再次移除不改变数值。
 3. **当前池与上限**：先受到10点伤害再添加一层，Health 与 MaxHealth 都增加20（90/100 → 110/120）；Resource 与 MaxResource 同理。移除后回到原池值与原上限；治疗仍不超过当前 MaxHealth。
 4. **治疗与伤害**：连续治疗不超过 MaxHealth；每次伤害扣10，后续添加/移除效果不会重复扣血。
 5. **F2 锁定**：悬停有效敌人按F2，移开鼠标仍显示该敌人；对地面再按F2不改变目标。
@@ -187,7 +188,7 @@ DebugOperations 使用真实 ASC、原生 GE 和项目现有 Controller 蓝图�
 | UE 5.8.2 UmbraEditor / Win64 / Development | 完整编译成功，包含 UHT、新 Widget 类、RPC、原生 GE 和测试 |
 | Rider 项目文件刷新 | UBT -ProjectFiles -Game -Rider 成功；安装版引擎的部分 Program 目标产生不支持提示，最终生成结果为 Succeeded |
 | Umbra.Attributes.Lifecycle | Success，既有属性边界/初始化/伤害回归通过 |
-| Umbra.Attributes.DebugOperations | Success，服务器开关、固定伤害、15项统一增益、比例值按0.2、多层叠加、暴击率封顶、按目标清除全部自有层、其他来源同类效果保留、治疗封顶、伤害不重复及目标销毁清理 |
+| Umbra.Attributes.DebugOperations | 历史结果为 Success；当前19项版本需重跑，覆盖服务器开关、固定伤害、统一增益、比例值按0.2、多层叠加、暴击率封顶、按目标清除全部自有层、其他来源同类效果保留、治疗封顶、伤害不重复及目标销毁清理 |
 | 自动化进程 | 退出码 0；两个测试的 BeginEvents/EndEvents 内无错误 |
 | git diff --check | 通过；未提交或推送；未改写二进制资产 |
 

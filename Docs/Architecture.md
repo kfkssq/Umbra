@@ -1,5 +1,11 @@
 # Umbra 架构与维护地图
 
+CharacterMenu 四维复用 `UUmbraCharacterStatsPanel` 的 PlayerState/ASC 生命周期订阅和 `UUmbraStatEntry` 纯 View；扩展原 Stat 枚举与属性映射，只监听已注册行。父级配置本地化名称/纹理，子行接收格式化快照。空槽图标由既有 `EUmbraEquipmentSlot` 查 WBP Class Defaults 的 `EmptySlotIcons`，不涉及装备计算。现有 WBP_PrimaryAttribute 的迁移步骤与本轮证据见 [四维与空槽接线](CharacterMenuStatsAndIcons.md)。
+
+装备页：`UUmbraEquipmentSlotWidget` 按枚举接收显示快照；`UUmbraEquipmentMenu` 建立十槽映射，使用既有头像 BP 的独立实例；`UUmbraCharacterPreviewComponent` 默认读取子 BP 的 Mesh/Capture/灯光配置，直接输出到用户配置的专用 RT，UI 使用 Designer 材质创建 MID；`UUmbraCharacterMenu` 通过可见性和 Switcher FieldNotify 启停。没有装备 Gameplay 计算或装备 Tick 轮询。当前流程见 [Capture 蓝图编辑](BlueprintCapturePreview.md)，证据与架构见 [EquipmentMenu](EquipmentMenu.md)，资产接入待编辑器确认。
+
+属性菜单 Tab：`UUmbraMenuTabButton` 绑定既有按钮 WBP 的内部 `Button_0`，点击时广播实例 `TabIndex`；`UUmbraAttributeMenu` 监听三个子控件的事件，并统一更新 `WidgetSwitcher_0`、按钮选中状态和 `CurrentTabIndex`。选中视觉由按钮 WBP 实现 `BP_OnSelectedChanged`。页面内容与 GAS 属性读取仍由各自现有 WBP 负责。编辑器接线见 [EditorSetup](EditorSetup.md#属性菜单-tab-接线)。
+
 正式角色属性面板的数据流与 Editor 接线见 [CharacterStatsPanel](CharacterStatsPanel.md)。`UUmbraCharacterStatsPanel` 观察本地 PlayerState 的 ASC 委托，`UUmbraStatEntry` 通过 Blueprint 事件更新格式化数值，图标 Brush 由条目 WBP 设置，`UUmbraStatTooltip` 单独显示属性名称及说明；根 HUD 由既有 PlayerController 创建。
 
 依据：2026-09-16 仓库 C++、配置、维护修复及回归检查。资产文件存在不代表其 Graph 或全部引用已确认；专项自动化读取的资产范围见 [Progress](Progress.md)。配置见 [EditorSetup](EditorSetup.md)。本文记录现有实现，不要求建立新的框架。
@@ -43,7 +49,7 @@
 
 - 玩家：PlayerState 创建并拥有 ASC / AttributeSet，Character 是 Avatar。换 Pawn 不等于换属性容器；此布局支持属性与技能跨 Pawn 绑定存续，但**当前没有实现完整重生**。
 - 敌人：Character 自己拥有 ASC / AttributeSet，生命周期随敌人结束；ASC 使用 Minimal 效果复制，玩家使用 Mixed。常驻属性由 AttributeSet 显式复制；是否在实际网络地图正确工作需 PIE。
-- 15 个常驻属性是 GAS 当前数据源；`AttackSpeed` 直接存攻速倍率，1.0 是基础攻速。`IncomingDamage` 是瞬时结算中间值，不复制、不展示、不当作持续增益。技能只持有本次攻击目标、连招进度、攻速快照与命中集合。
+- 19 个常驻属性是 GAS 当前数据源；其中 `Strength`、`Dexterity`、`Intelligence`、`Faith` 是无硬上限的非负点数，本阶段没有派生收益。`AttackSpeed` 直接存攻速倍率，1.0 是基础攻速。`IncomingDamage` 是瞬时结算中间值，不复制、不展示、不当作持续增益。技能只持有本次攻击目标、连招进度、攻速快照与命中集合。
 - Controller 拥有本地指针操作状态与 UI 实例；UI 持有弱目标和委托句柄，不另存一套战斗数值。血条比例、百分比文字和显示舍入属于表现计算，不是重复伤害结算。
 - 调试面板的 GE 句柄由服务器 Controller 按目标 ASC 保存，仅清除自己创建的增益。调试按钮不负责属性初始化。
 
@@ -98,7 +104,7 @@ Execution 写本 Spec 的 Damage.ResultCritical，并输出正 IncomingDamage �
 - 血条组件 InitWidget 注入 Enemy → 血条 Bind 订阅 Health/MaxHealth → Refresh 读取 GAS、生成 `FUmbraEnemyHealthBarViewState` 并调用 Blueprint 表现事件；WBP 将0..1比例写入任意原生/材质/复合控件，Health≤0时由 C++ 隐藏整棵 Widget。C++ 不依赖 Designer 子控件名或具体 UMG 类型。
 - 血条布局：WBP 根 SizeBox 定义宽高；组件 OnRegister 强制 Draw at Desired Size，覆盖旧资产固定尺寸模式，C++ 不指定数值宽高。预览用 Desired 模式，运行遵循相同布局和视口 DPI。
 - 飘字：AttributeSet 仅在唯一扣血点调用 FUmbraDamageNotification::Capture / Dispatch；Notification 内部在扣血前捕获敌人 Mesh Bounds 与攻击者 PC，扣血后发 ClientShowDamageNumber（Unreliable）→ Controller 屏外过滤和 CreateWidget → DamageNumber::Start。Start 按缩写前实际伤害选择并规范化字体档位，只随机一次基础字号，暴击再乘字体倍率并受最终上限限制；数字格式独立按 k/M/B/T 格式化且在舍入到下一阈值时进位。随后保存世界起点/终点，NativeTick 仅处理既有投影、移动、缩放和淡出，不再随机字号。快照不引用受害者，过量伤害不裁成生命差；丢包只丢表现。
-- 调试：F1/F2 → Controller → Panel::ViewPlayer/ViewEnemy → 订阅 15 个属性 → 生成 `FUmbraAttributeDebugViewState`；AttackSpeed 保留直接倍率并提供两位小数显示文本（1.00、2.30），CriticalChance/CriticalDamageMultiplier 乘100后交给 WBP。WBP 决定窗口尺寸、控件和样式。WBP 按钮调用 `RequestOperation` → Controller RPC 校验目标、距离、开发开关 → 原生调试 GE → GAS 修改。固定伤害10绕过公式，无飘字；治疗10修改 Health；Add Effect 每次给全部15项新增一层，普通值+20、攻速倍率及两个暴击值+0.2，层数不限但 AttackSpeed/CriticalChance 分别受10.0/1.0上限；Remove Effect 移除本控制器在当前目标上的全部层。
+- 调试：F1/F2 → Controller → Panel::ViewPlayer/ViewEnemy → 订阅 19 个属性 → 生成 `FUmbraAttributeDebugViewState`；AttackSpeed 保留直接倍率并提供两位小数显示文本（1.00、2.30），CriticalChance/CriticalDamageMultiplier 乘100后交给 WBP。WBP 决定窗口尺寸、控件和样式。WBP 按钮调用 `RequestOperation` → Controller RPC 校验目标、距离、开发开关 → 原生调试 GE → GAS 修改。固定伤害10绕过公式，无飘字；治疗10修改 Health；Add Effect 每次给全部19项新增一层，普通值（含四主属性）+20、攻速倍率及两个暴击值+0.2，层数不限但 AttackSpeed/CriticalChance 分别受10.0/1.0上限；Remove Effect 移除本控制器在当前目标上的全部层。
 
 ## 生命周期清理检查
 

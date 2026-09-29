@@ -1,5 +1,47 @@
 # 编辑器配置入口
 
+## CharacterMenu 四维与空槽图标
+
+本轮操作见 [四维与空槽接线](CharacterMenuStatsAndIcons.md)：在现有 WBP_EquipmentSlot 新增 EmptyIcon，并在该类的 Empty Slot Icons 映射中配置十种纹理；WBP_PrimaryAttribute 改用已有 UmbraCharacterStatsPanel，四行使用唯一 WBP_StatEntry 的四个实例。文档列出准确控件名、需要替换的旧实例、参数覆盖顺序及 PIE 步骤；Preview、高亮和页面切换不变。
+
+## 装备页面与动态全身角色
+
+当前默认流程见 [Capture 蓝图编辑](BlueprintCapturePreview.md)：复用已有头像子 BP 的 Capture，由用户新建专用 RT / UI 材质，直接在子 BP 编辑镜头、人物与 Idle，在 Designer 指定材质。三个 WBP 的父类与十槽配置、资产检查证据、菜单启停及 PIE 清单见 [EquipmentMenu](EquipmentMenu.md)。本次未代改二进制资产；需保存当前编辑工作、重建原项目并重新打开编辑器后接线。
+
+## 角色菜单按键开关
+
+`AUmbraPlayerController` 复用现有 Enhanced Input 和 `/Game/Input/IMC_Default`。编辑器内的配置来源与覆盖顺序是：`IA_ToggleCharacterMenu` 只定义 Digital/Bool；`IMC_Default` 定义实际按键（测试可用 C，C++ 不固定）；`BP_UmbraPlayerController` 的 Class Defaults 指定 `ToggleCharacterMenuAction=IA_ToggleCharacterMenu`、`CharacterMenuClass=WBP_CharacterMenu`；运行时 Controller 读取这些配置并创建 Widget。不要把同一动作放到角色的 `AbilityInputActions`，也不要为菜单新建或移除 Mapping Context。
+
+1. Content Browser → Input → Input Action，新建 `IA_ToggleCharacterMenu`，Value Type 选 **Digital (bool)**，保存。
+2. 打开 `IMC_Default`，新增映射 `IA_ToggleCharacterMenu`，测试键选 **C**；保持该 IMC 在 `BP_UmbraPlayerController.DefaultMappingContexts` 中，保存。
+3. 打开 `BP_UmbraPlayerController` → Class Defaults：在 **Input | Character Menu** 设置 `ToggleCharacterMenuAction`；在 **UI | Character Menu** 设置 `CharacterMenuClass` 为现有 `WBP_CharacterMenu`。Compile、Save。若地图的 GameMode 覆盖了 Player Controller Class，先确认运行时使用这个 BP。
+4. 从关卡编辑器启动 PIE（不是 WBP Designer 的预览），点击游戏视口使其获得键盘输入。按 C：菜单第一次创建并加入视口，鼠标保持显示，输入模式为 **Game and UI**；再按 C：菜单折叠但不销毁，鼠标仍显示，输入模式仍为 **Game and UI**。再次按 C 应复用原实例。菜单打开时测试三个页签可以点击，点击地面、敌人及移动/技能键不会下达新 gameplay 指令；关闭后测试原点击移动和攻击恢复。整个过程不暂停游戏，也不移除 `IMC_Default`。本项目的鼠标点地移动依赖持续可用的光标坐标；`Game Only` 会永久捕获鼠标并可能吞掉返回游戏后的第一次点击，因此这里按实际玩法恢复原有的 `Game and UI` 基线。菜单开关时的 gameplay 输入阻断由 C++ 状态检查负责，而不是靠切成 `Game Only`。不要在蓝图与 C++ 两处同时写输入模式或光标状态。
+
+Controller 只执行 `CreateWidget`、`AddToViewport` 与 `Visible/Collapsed`，**没有设置角色菜单的宽高、位置、缩放或锚点**。视口容器会承载 WBP，实际菜单面板的尺寸和布局由现有 `WBP_CharacterMenu` 的 Designer（例如 Canvas Slot、SizeBox、锚点与 DPI 缩放规则）决定，不需要改 C++。若看起来铺满全屏，先区分全屏的根容器与内部菜单面板；检查蓝图布局和根控件的可见性/命中设置。
+
+若 Designer 中菜单大小与 PIE 视觉不一致：先在 Designer 底部把预览 **Screen Size** 调为实际 PIE 视口分辨率，并把画布缩放调到 **1:1**；Designer 的截图缩放倍数不是菜单运行时的 Render Scale。再检查 `Project Settings → Engine → User Interface → DPI Scaling` 的规则/曲线；PIE 运行时的缩放可用蓝图 `Get Viewport Scale` 查看，不要仅凭两张截图像素估计实际尺寸。截图中的 `WBP_CharacterMenu` 使用全屏画布，菜单内容在 `SizeBox_Main`；如需固定菜单面板的逻辑宽高，选择该控件核对 Width/Height Override，并在其 Canvas Slot 使用居中锚点、Alignment=(0.5,0.5)、Position=(0,0)，让全屏背景与菜单面板分别布局。不要为了单个菜单随意改全项目 DPI 曲线，否则 HUD 和调试 UI 也会受影响。先匹配预览分辨率/DPI，再决定是否需要本 WBP 局部 ScaleBox/尺寸调整。
+
+`WBP_CharacterMenu` 必须能被鼠标命中，其交互子控件需保持可见/可命中；若 C 无反应，先查运行时 Controller 类、Action/IMC 配置，再查 Output Log 中 `No ToggleCharacterMenuAction` 或 `CharacterMenuClass is not configured`。若菜单能打开但 UI 无法点击，检查根控件的 Visibility 与是否被其他全屏 Widget 挡住。此处不要求重做角色菜单或属性页 Designer；既有属性页签的接线见下节。
+
+若菜单能显示但嵌套 WBP 的按钮点不到，先看当前 `WBP_CharacterMenu` 层级，不要重做 Designer。Controller 将菜单加到视口 ZOrder 100，保持高于现有 HUD/调试层；打开后使用 Game and UI。Designer 中对仅用于显示的全屏 `background` 和位于 `SizeBox_Main` 后面的同级 `border`，以及覆盖菜单的装饰 `Image_162`，设 **Visibility = Not Hit-Testable (Self Only)**（纯图片无子按钮时也可 Self & All Children）。尤其检查末尾 `border` 的 Canvas Slot ZOrder/实际覆盖范围：透明图片也可能挡住按钮命中。`SizeBox_Main → Overlay/SizeBox/ScaleBox → WBP_AttributeMenu → Button_page* → Button_0` 的每一级均不可是 **Not Hit-Testable (Self & All Children)**；真正的 `Button_0` 必须 Visible、Is Enabled。不要把带按钮的父容器设成 Self & All Children。检查旧 Level Blueprint/Widget Graph 是否仍另行 CreateWidget、AddToViewport 或 Set Input Mode；正式菜单只由 Controller 创建。
+
+验证命中路径：在 PIE 中 `Tools → Debug → Widget Reflector`（Ctrl+Shift+W），选 **Pick Hit-Testable Widgets**，把鼠标移到失效按钮上并按 Esc 固定查看命中层级。若顶层命中的是 `border`/`background`/装饰图像而不是按钮，就按上条调整该装饰控件的 Visibility；若命中了 `Button_0` 但页面不切换，再核对按钮 WBP 是否 Reparent 到 `UUmbraMenuTabButton`、`Button_0` BindWidget 名称及三个 TabIndex，并检查 Output Log 的蓝图编译错误。修改资产后 Compile、Save 并重新进入 PIE。
+
+## 属性菜单 Tab 接线
+
+构建新 C++ 类并重启 UE 5.8 编辑器后，在原资产上操作，不新建 Designer：
+
+1. 将现有三个 `Button_page` 实例使用的自定义按钮 WBP（当前资产名称线索为 `/Game/Asset/fantasy_gui_4/widgets/templates/buttons/W_ButtonBrownSquare_Icon`）Reparent 为 `UUmbraMenuTabButton`。该 WBP 的内部 **UButton** 必须名为 `Button_0`，并在 Designer 勾选 **Is Variable**。资产字符串含 `Button_0`，其实际类型、父类、Graph 与其他引用仍待编辑器确认；若三个实例实际引用不同 WBP，分别对其真实 WBP Reparent，并把内部按钮名称与 C++ `BindWidget` 对齐。共享模板被其他 UI 使用时，还需检查这些使用处。
+2. 将现有 `/Game/UI/CharacterMenu/WBP_AttributeMenu` Reparent 为 `UUmbraAttributeMenu`。Designer 中 `WidgetSwitcher_0` 必须是 `UWidgetSwitcher`；`Button_page1`、`Button_page2`、`Button_page3` 必须是上述按钮 WBP 的实例，四者都勾选 **Is Variable**。先编译按钮 WBP，再编译菜单 WBP；核对旧 Graph 的鼠标/可见性事件不会重复切页。
+3. 在菜单 Designer 中选择三个按钮实例，分别把 `TabIndex` 设为 `0`、`1`、`2`。顺序保持 `WidgetSwitcher_0` 子项 0=`HeroInfo`、1=`WBP_CombatInfo`、2=`WBP_TalentInfo`。类默认值可被各嵌入实例覆盖；C++ 打开菜单时会选 0，但不会替实例改写 `TabIndex`。
+4. 在按钮 WBP 实现 `BP_OnSelectedChanged(bool bSelected)`。现有 `W_ButtonBrownSquare_Icon` 的 `Button_0` 已配置 Normal/Hovered/Pressed/Disabled Brush，`icon_object` 使用动态材质 `IconTexture`/`IconColor`；选中态不需要新图片，也不应改图标材质。选中事件首次执行时，以 `bStyleCached` 防止重复缓存：从 `Button_0.Style` 保存 `UnselectedStyle`，复制为 `SelectedStyle`，只将副本的 Normal 与 Hovered Brush 改为原样式的 Pressed Brush，保留 Disabled、Padding、Sound 等其他字段。之后按 `bSelected` 对 `Button_0` 调用 `Set Style(SelectedStyle / UnselectedStyle)`；两种状态均完整赋值，重复打开菜单不会累积修改。`Button_0` 是 C++ 继承的 BlueprintReadOnly BindWidget，若未显示在 My Blueprint，启用 Show Inherited Variables，并确保关闭编辑器重建后打开的是 `UUmbraMenuTabButton` 子类；不要另建同名变量。C++ 每次 `SetSelected` 都调用事件，包括初次打开的三个初始状态。
+
+若误将 `WBP_AttributeMenu` Reparent 到 `UUmbraMenuTabButton`，编译器会在菜单上报缺少 `Button_0`。把菜单改回 `UUmbraAttributeMenu`，按钮 WBP 保持 `UUmbraMenuTabButton`；先编译按钮 WBP，再编译菜单。旧菜单 Graph 中若还保留三个 `On Visibility Changed (Button_page*)` 事件及旧切页逻辑，删除不再使用的事件节点，避免无效组件警告和重复切页。修改了 C++ `UPROPERTY` 标记后须保存其他编辑工作、关闭编辑器、完成构建并重新打开，不能用旧进程的蓝图编译结果判断新代码。
+
+PIE 中打开原属性菜单，应先显示 HeroInfo 且仅 page1 选中；依次点击 page2、page3、page1，页面应按 CombatInfo、TalentInfo、HeroInfo 切换，且每次仅一个按钮选中。重复打开菜单及连点同一按钮，确认没有多次回调或状态错乱；传入非法 `SetActiveTab(-1/3)` 时应保留当前页。在 Output Log 检查 `BindWidget`/WBP 编译错误。
+
+当前 C++ `AUmbraPlayerController` 仅负责创建现有 Combat HUD，并没有创建 `WBP_AttributeMenu`；WBP Designer 只是编辑预览。若项目尚无其他打开属性菜单的蓝图入口，可在 `/Game/Maps/L_Prototype` 的 Level Blueprint 临时接 `Event BeginPlay → Create Widget(Class=WBP_AttributeMenu, Owning Player=Get Player Controller 0) → Add to Viewport(ZOrder=100) → Set Input Mode Game and UI(Widget to Focus=菜单返回值, Player Controller=0) → Set Show Mouse Cursor(true)`。从关卡编辑器用 Play → New Editor Window (PIE) 测试，而不是在 Widget Blueprint Designer 中点预览。验证后移除临时 Level Blueprint 节点；正式打开/关闭入口应另行设计在游戏 UI/Controller 中，不将临时测试接线作为持久规则。
+
 八项正式角色属性面板的 WBP 创建与验证见 [CharacterStatsPanel](CharacterStatsPanel.md)。根 HUD 复用 `/Game/UI/HUD/WBP_CombatHUD` 与 `CombatHUDClass` 的现有创建流程。
 
 2026-09-19 更新普通攻击逻辑命中。关联：[架构](Architecture.md)、[状态与验收](Progress.md)。
@@ -35,10 +77,12 @@
 
 1. 类参数通常按 C++ 构造后备值 → Blueprint 类默认值 → 允许实例编辑的关卡实例覆盖取值。BeginPlay 的显式赋值仍会覆盖某些编辑器值：敌人 MaxWalkSpeed 取 EnemyMoveSpeed；玩家/敌人高亮初始状态也由 C++ 重设。
 2. GAS 初始数值：AttributeSet 后备值（角色 MoveSpeed 首次取已有 MaxWalkSpeed 作兼容初值）→ InitialAttributesEffect → 非 Shipping 且开启开关时的 **整组** DebugInitialAttributes Override → Health/Resource 填满。调试覆盖不是“仅覆盖你改过的字段”。每个 ASC 权威端只执行一次，PIE 中改配置不会重新初始化。
+
+四主属性 `Strength`、`Dexterity`、`Intelligence`、`Faith` 的 C++ 和 DebugInitialAttributes 后备值均为0，单位为点数、下限0、无硬上限。可在玩家/敌人的 InitialAttributesEffect 或整组 DebugInitialAttributes 中配置；当前不影响伤害、攻击力、法强、护甲、移速或攻速。
 3. 玩家初值配在实际 PlayerState 类，敌人初值配在 Enemy；初始 GE 不要设置 Health、Resource、IncomingDamage，不依赖施加条件，也不要用持续 GE。当前仓库没有在此确认具体初始 GE 资产引用；不要臆造路径。
 4. 普攻 DamageConfig 只配置类型和 AD/AP 系数；攻击力 AttackPower、法术强度 AbilityPower、双抗和暴击参数来自 GAS 属性。当前默认 AttackPower=10、AbilityPower=0、AD 系数=1、AP 系数=0；没有独立基础伤害或 Can Crit 参数。系数仍沿用 `AttackPowerCoefficient` / `AbilityPowerCoefficient` 字段及对应 SetByCaller Tag。
 
-恢复属性名后，UE 5.8 编辑器已编译/保存玩家和敌人蓝图及 `WBP_AttributeDebugPanel`。两份角色蓝图的调试初值保留 `AttackSpeed=1.0`；面板的攻击力、法术强度、攻速标签和连线已在编辑器中更新。若另建正式 Initial Attributes GE，应核对 Modifier Attribute 指向 `UmbraAttributeSet.AttackPower` / `AbilityPower` / `AttackSpeed`，其中 AttackSpeed 基础值为1.0；上一版本 Strength/Intelligence 的序列化引用由 `DefaultEngine.ini` 的 CoreRedirects 迁移。真实 PIE 显示仍待验证。
+恢复属性名后，UE 5.8 编辑器曾编译/保存玩家和敌人蓝图及 `WBP_AttributeDebugPanel`。新增同名四主属性后，旧 `Strength → AttackPower`、`Intelligence → AbilityPower` 属性重定向已因名称冲突移除，`AttackSpeedBonus → AttackSpeed` 保留。已知玩家/敌人资产的只读字符串核查未发现旧主属性名，但 `WBP_AttributeDebugPanel` 包仍残留 Strength/Intelligence 名称，不能据此证明其 Graph 已安全迁移。重新构建后必须打开玩家/敌人蓝图和该 WBP，Refresh All Nodes；确认旧攻击力/法强行仍接 `AttackPower`/`AbilityPower`，再新增四主属性行并分别接 `Strength`/`Dexterity`/`Intelligence`/`Faith`，Compile/Save。若另建正式 Initial Attributes GE，同时核对这些属性和 `AttackSpeed` 的 Modifier Attribute。真实 PIE 显示仍待验证。
 5. **MoveSpeed 已驱动实际移动**：ASC 绑定和属性变化时把 GAS 当前值写入 Avatar.MaxWalkSpeed，清除/更换 Avatar 时解绑。兼容初值为玩家 MovementComponent 默认500或现有 BP 覆盖；敌人 EnemyMoveSpeed 默认300或现有 BP 覆盖。AttributeSet 与 DebugInitialAttributes 的 C++ MoveSpeed 后备均为500；初始 GE / 已保存的 Blueprint Debug MoveSpeed 仍优先于后备值。旧 EnemyMoveSpeed 不再是独立的运行时控制入口，不必删除或重命名已有资产属性。`AUmbraPlayerCharacter.GetLocomotionAnimationPlayRate` 向 AnimBP 提供由当前 MaxWalkSpeed 推导的倍率，但 C++ 不直接修改动画资产。
 6. **普通攻击逻辑时序**：最终倍率直接取 AttackSpeed；每击开始快照倍率、周期、前摇和动画。周期=BaseAttackInterval/AttackSpeed，前摇=周期×AttackWindupRatio（默认0.3，运行时限制0.01～0.99）。前摇结束由服务端对原目标判定并提交本击间隔，挥空也消耗周期；前摇取消不新增周期。跨击间隔存在 ASC，不随 Ability End 清零。BaseAttackInterval=0 仅按普通 AttackMontages[0] 的原始完整时长和 Rate Scale 自动校准，不按高速动画或当前播放率重算。Montage 长度、Chain Point、Hit Window 和播放率上限均不推迟逻辑下一击。
 7. **自动攻击与移动**：BP_UmbraPlayerController 的 bEnableAutoAttack、bChaseAttackTarget 继续控制持续攻击和追击。起手与出手使用同一个 Character.PrimaryAttackRange，距离按目标胶囊半径计入；出手可加 GA.HitDistanceTolerance。移动立即停止自动攻击并取消当前前摇或后摇，已结算的伤害与剩余间隔保留。重复点击同一目标不重启当前前摇。周期到期若目标失效或出范围，当前 Ability 结束，Controller 依原有规则追击。

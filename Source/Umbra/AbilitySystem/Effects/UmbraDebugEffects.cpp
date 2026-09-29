@@ -28,6 +28,10 @@ UUmbraDebugAttributeEffect::UUmbraDebugAttributeEffect()
 	AddModifier(*this, UUmbraAttributeSet::GetMaxResourceAttribute(), DebugAttributeIncrease);
 	AddModifier(*this, UUmbraAttributeSet::GetResourceAttribute(), DebugAttributeIncrease);
 	AddModifier(*this, UUmbraAttributeSet::GetResourceRegenAttribute(), DebugAttributeIncrease);
+	AddModifier(*this, UUmbraAttributeSet::GetStrengthAttribute(), DebugAttributeIncrease);
+	AddModifier(*this, UUmbraAttributeSet::GetDexterityAttribute(), DebugAttributeIncrease);
+	AddModifier(*this, UUmbraAttributeSet::GetIntelligenceAttribute(), DebugAttributeIncrease);
+	AddModifier(*this, UUmbraAttributeSet::GetFaithAttribute(), DebugAttributeIncrease);
 	AddModifier(*this, UUmbraAttributeSet::GetAttackPowerAttribute(), DebugAttributeIncrease);
 	AddModifier(*this, UUmbraAttributeSet::GetAbilityPowerAttribute(), DebugAttributeIncrease);
 	AddModifier(*this, UUmbraAttributeSet::GetAttackSpeedAttribute(), DebugRatioIncrease);

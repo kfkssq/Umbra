@@ -16,6 +16,8 @@ namespace
 			UUmbraAttributeSet::GetHealthAttribute(), UUmbraAttributeSet::GetMaxHealthAttribute(),
 			UUmbraAttributeSet::GetHealthRegenAttribute(), UUmbraAttributeSet::GetResourceAttribute(),
 			UUmbraAttributeSet::GetMaxResourceAttribute(), UUmbraAttributeSet::GetResourceRegenAttribute(),
+			UUmbraAttributeSet::GetStrengthAttribute(), UUmbraAttributeSet::GetDexterityAttribute(),
+			UUmbraAttributeSet::GetIntelligenceAttribute(), UUmbraAttributeSet::GetFaithAttribute(),
 			UUmbraAttributeSet::GetAttackPowerAttribute(), UUmbraAttributeSet::GetAbilityPowerAttribute(),
 			UUmbraAttributeSet::GetAttackSpeedAttribute(), UUmbraAttributeSet::GetCriticalChanceAttribute(),
 			UUmbraAttributeSet::GetCriticalDamageMultiplierAttribute(), UUmbraAttributeSet::GetArmorAttribute(),
@@ -243,6 +245,10 @@ FUmbraAttributeDebugViewState UUmbraAttributeDebugPanel::MakeViewState(const UUm
 	State.Resource = Attributes->GetResource();
 	State.MaxResource = Attributes->GetMaxResource();
 	State.ResourceRegen = Attributes->GetResourceRegen();
+	State.Strength = Attributes->GetStrength();
+	State.Dexterity = Attributes->GetDexterity();
+	State.Intelligence = Attributes->GetIntelligence();
+	State.Faith = Attributes->GetFaith();
 	State.AttackPower = Attributes->GetAttackPower();
 	State.AbilityPower = Attributes->GetAbilityPower();
 	State.AttackSpeed = Attributes->GetAttackSpeed();

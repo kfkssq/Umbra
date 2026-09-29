@@ -21,6 +21,19 @@ struct UMBRA_API FUmbraDebugInitialAttributes
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0"))
 	float ResourceRegen = 0.f;
 
+	/** Primary attributes are stored only in this phase; they do not grant derived benefits yet. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes|Primary", meta = (ClampMin = "0.0", DisplayName = "力量"))
+	float Strength = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes|Primary", meta = (ClampMin = "0.0", DisplayName = "敏捷"))
+	float Dexterity = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes|Primary", meta = (ClampMin = "0.0", DisplayName = "智力"))
+	float Intelligence = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes|Primary", meta = (ClampMin = "0.0", DisplayName = "信仰"))
+	float Faith = 0.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0", DisplayName = "攻击力"))
 	float AttackPower = 10.f;
 

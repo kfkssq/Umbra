@@ -1,6 +1,83 @@
 # Umbra 进度与验证状态
 
+## 2026-09-29 Equipment Preview 回归调查更新
+
+- 已实际完成原流程及 A/B 真实 RHI 离屏游戏验证，三次均蓝灰；取消材质复制和 C++ Capture 覆盖均未恢复。17个材质槽逐一一致，灯光与 Materials/Lighting 最终开启。蓝灰具体根因、责任行与最小修复尚未确认，正式源码/资产未改。
+- Preview 核心源码与重构前保存副本哈希一致；相关文件未提交，无最后正常 Git 版本可指认。历史日志确认13:57删除关卡全身 Preview，17:37根菜单 Reparent；历史放置实例与当前自动 Spawn 实例状态不同，不能将其直接认定为颜色根因。用户确认最后正常画面来自真实 PIE。
+- 完整证据、结果、验证限制与复现命令见 [Preview 回归报告](PreviewRegression.md)。下节早先优先关闭雾的建议已被本轮证据流程取代，不再作为当前修复指导。
+
+## 2026-09-29 PIE 装备预览静止排查
+
+- 17:41 根据用户“RT 缩略图正常、UI 材质缩略图纯色”的截图追加检查：已保存 M_UI_CharacterFullBody 的纹理 RGB → Multiply、A → OneMinus 端口正确，不能归因为 Alpha 误接颜色。缩略图可能不同步，仍需 Capture 雾效开关及 PIE 实时 RT 对照；诊断脚本成功，未修改源码或资产。
+
+- 后续用户确认 Reparent 后人物会动，但出现蓝灰色剪影。17:39 只读复查确认根菜单现已继承 UmbraCharacterMenu，Capture 的 ShowFlagSettings 无覆盖、展示位置 Z=-100000cm，Image 白色 tint、灯光开启、材质节点来源符合预期。高度雾覆盖是优先排查项，建议仅关闭 PortraitCapture 的 Fog/Atmosphere/Volumetric Fog 后重新 PIE；未做实际渲染对照，不能宣称根因或修复已确认。证据与下一步见 [会动但纯色](BlueprintCapturePreview.md#人物会动但呈蓝灰色剪影)。本轮只读脚本0 error/0 warning，仅更新文档，无源码/资产修改。
+
+- 用户反馈 PIE 打开装备页后人物一直不动。17:32 用关联 UE 5.8.2 命令行编辑器只读加载当前保存资产：WBP_CharacterMenu 的实际 Parent Class 是 UserWidget，WBP_Equipment 是 UmbraEquipmentMenu；Controller 指向该 WBP_CharacterMenu。按当前源码，根类不匹配导致 Controller 跳过 SetMenuOpen，已有自动预览激活链路不执行。
+- BP_CharacterFullBodyPreview 的 PortraitMesh 已配置 Idle、循环/播放开启、速率1、PauseAnims/NoSkeletonUpdate关闭；Equipment 的 PreviewActorClass 指向该 BP，UseBlueprintConfiguration=true、CaptureRate=30。未发现日志中有缺 Idle 或 RT 冲突诊断。
+- 修正操作指南：WBP_CharacterMenu 需 Reparent 为已有 UmbraCharacterMenu，再编译/保存并重启 PIE；不要把根菜单误改为 UmbraCharacterStatsPanel。保持原布局和切页 Graph。详见 [预览排查](BlueprintCapturePreview.md)。上轮指南遗漏了这个既有父类前置条件，本次已补正。
+- 已验证：只读脚本成功（0 error/0 warning）、源码启动调用链与当前日志核对、文档差异检查。仅修改文档及 Saved 内诊断脚本/报告；没有修改源码或资产，无需新构建。GUI 未保存状态、Blueprint 完整 Graph 与实际 PIE 恢复仍待编辑器确认，不能宣称画面已恢复。
+
+## 2026-09-29 CharacterMenu 四维通用行与槽位空图标
+
+- 扩展现有 UmbraEquipmentSlotWidget：WBP Class Defaults 的 `EmptySlotIcons` 按原 `EUmbraEquipmentSlot` 十类型选择 `EmptyIcon`，无装备时显示，有装备时隐藏；缺配置清除旧 Brush。现有 ItemIcon、Hover/Selected/Locked/Rarity/BP_RefreshVisual 顺序保持。
+- 复用 UmbraStatEntry / UmbraCharacterStatsPanel：原 Stat 枚举末尾追加四维；父容器仅读取 AttributeSet 已有 Strength/Dexterity/Intelligence/Faith，按注册行订阅 GAS，单项变化只刷新对应行。StatDisplayData 配置本地化名称与 Icon；SetStatDisplay 是纯显示接口。保留旧八项 HUD 的图标/数值事件路径。Controller 既有 PlayerState 通知覆盖嵌套 CharacterMenu 面板。
+- 已用 UE 5.8.2 只读核对保存的槽位、菜单与四维资产：十槽身份已正确配置；Slot 缺 EmptyIcon；四维所属 WBP_PrimaryAttribute 及四个独立条目的原生父类均为 UserWidget，没有通用 WBP_StatEntry 资产。GUI 未保存状态、Graph 完整接线和新布局仍待编辑器确认。操作、配置覆盖顺序和完整修改清单见 [四维与空槽完整指南](CharacterMenuStatsAndIcons.md)。没有修改二进制资产、Preview 或战斗源码。
+- **构建通过**：关联 UE 5.8.2，UmbraEditor / Win64 / Development；完整 UHT、C++、链接，以及最终测试修正后的增量构建均成功。验证副本 `Saved/CharacterMenuStatsValidation-20260929` 的 Source 哈希与工作区一致；日志 `Saved/Logs/CharacterMenuStatsBuild.log`。原 Editor 保持运行，原项目 DLL 未替换，需要用户保存、关闭 Editor、构建原项目并重开。工具链有非首选 MSVC 提示，完整构建有引擎 Character.h 既有弃用警告。
+- **自动化通过（最终各项结果）**：`Umbra.UI.Equipment.EmptySlotIcons`、`SlotBindings`、`SlotContract` 在 `Saved/Automation/CharacterMenuStats-20260929` 为 Success，三项均0 warning/0 error。`Umbra.UI.CharacterStats.PrimaryRows` 修正临时 World 的控制器注册/重复组件初始化后，在 `Saved/Automation/CharacterMenuPrimaryRows-20260929` 单独重跑为 Success（0 error，1条 GameplayCueNotifyPaths 未配置警告）。首轮合并报告内 PrimaryRows 的失败不是最终结果。覆盖十种空图标、装备/清除/锁定/缺配置，以及四维当前值与表现数据、各项更新、单行更新隔离、GE 添加移除、ASC clear/ready、更换 ASC、旧回调隔离和销毁/重构。
+- **静态检查通过**：本次代码/文档差异空白、新增文件行尾、文档本地文件链接和验证副本 Source 一致性检查。保留此前用户的未提交修改，未提交或推送。
+- **未验证**：原项目加载本轮 DLL、WBP_StatEntry 创建、WBP_PrimaryAttribute Reparent/四实例替换、EmptyIcon 与纹理映射的 Editor 编译/保存、真实地图 PIE/图标字体与交互/实际 Pawn 切换、多客户端复制。NullRHI 自动化不证明实际 UI 画面；按完整指南执行最小 PIE。
+
+## 2026-09-29 全身预览改为直接读取 Capture 蓝图配置
+
+- 默认 `Use Blueprint Configuration=true`：复用现有头像子 BP 的 Mesh/Capture/灯光，读取组件的局部变换、FOV、Idle/AnimClass、CaptureSource/ShowFlags 和 TextureTarget。用户新建的全身 RT 是实际输出，不再默认复制；旧 WBP 覆盖/隔离 RT 模式保留为显式选项。检测其它已注册游戏 Capture 共用 RT 时拒绝开启并记录诊断。
+- Equipment 的 PreviewMaterial 变为可选覆盖，未指定时读取 CharacterPreview 的 Designer Brush 材质；运行时创建 MID，释放时恢复源材质。按菜单可见性启停、玩家主体外观同步和原 HUD 独立实例保持原职责，灯光恢复遵循子 BP 原可见性。
+- 新增 [Capture 蓝图编辑流程](BlueprintCapturePreview.md)，详细列出由用户新建 RT / UI 材质、在子 BP 调构图/Idle、Construction Script ShowOnly、编辑器观察 RT 和 Designer 的操作；同步替换旧指南中的相反配置步骤。本次未创建或保存任何 `.uasset/.umap`，最终视觉由用户编辑。
+- **验证通过**：UE 5.8.2 的隔离副本 `Saved/EquipmentBuildValidation-20260928` 完成 UmbraEditor / Win64 / Development 构建，包含 UHT、C++ 和 DLL 链接；最终增量日志为 `Saved/Logs/EquipmentBlueprintCaptureBuild.log`。源码与验证副本哈希一致。保留编译器非首选版本/引擎既有弃用警告。
+- **自动化四项通过**：`Umbra.UI.Equipment.PreviewLifecycle`、`PageVisibility`、`SlotBindings`、`SlotContract`；报告 `Saved/Automation/BlueprintCapture-20260929/index.json` 为4项Success、0失败，其中PageVisibility空测试树带一条0/10槽位诊断。新增断言验证子 BP 镜头/人物变换/FOV保留、专用 RT 直接使用、缺失/冲突拒绝和关闭停止更新。引擎启动阶段日志另有测试框架Condition failed信息，发生在本次四项执行之前；未将整份引擎启动日志标成零错误。
+- **未验证**：当前 GUI Editor 未重载新 DLL；新 RT / 材质编译、用户子 BP/Widget 实际接线、编辑器实时捕获、真实地图 PIE、透明度/Idle/构图与 HUD 同屏画面仍待用户配置后验收。NullRHI 自动化不验证渲染。需保存并关闭 Editor，在 Rider 构建原项目后重开。
+
+## 2026-09-28 EquipmentSlot 单层 UI 高亮方案更新
+
+- 通过UE 5.8.2只读检查 `M_PP_EnemyOutline` 的Post Process Domain、Before Bloom、SceneDepth邻域函数/CustomStencil掩码/Lerp输入；默认Color为线性(1,0.054443,0,1)，作为独立UMG材质的橙红色参考。未修改或复用该Post Process资产。
+- 将Blueprint指南的HoverFrame/SelectedFrame方案替换为单个HighlightFrame，BP_RefreshVisual先关、Hovered/Selected共用视觉开启、其它状态关闭；C++状态仍分开，没有源码变更。新增 [UIInteractionHighlight](UIInteractionHighlight.md)，说明透明中心/细边/柔和Glow的UI材质参数和节点、Hit Test设置、可选0.12秒淡入以及验收。
+- 本轮只读材质检查成功（0错误/0警告），核对源码契约与文档链接/差异。新Material和WBP由用户亲自创建/编辑；没有生成或修改二进制资产，未执行新材质编译/视觉PIE，也未为文档修改重跑C++构建。
+
+## 2026-09-28 装备页面 C++ 基础与全身预览
+
+- 用户确认分工：Blueprint/Designer、材质、RT、灯光、镜头和动画资产由用户亲自编辑，Codex只负责逻辑及完整操作说明。新增 [Blueprint逐步指南](EquipmentBlueprintGuide.md)，明确现有C++对Icon/稀有度等数据驱动字段的写入、BP状态视觉事件接线、参数覆盖位置、Switcher层级、临时测试与PIE步骤。本次跟进仅修改文档，未改源码/资产；仅做文档与源码契约、相对链接和差异检查，不重跑构建或宣称新的PIE结果。
+
+- 新增 `EUmbraEquipmentSlot` 十种槽位、显示快照、通用 `UUmbraEquipmentSlotWidget`，支持 Empty/Equipped/Hovered/Selected/Locked 和事件驱动更新；`UUmbraEquipmentMenu` 按 Designer 实例的枚举建表，重复类型不静默覆盖。未引入 Inventory、装备计算或 GAS 效果。
+- 用 UE 5.8.2 只读检查原头像 BP、组件模板、RT、材质和相关 WBP。全身页复用 `BP_HerorPortraitCapture` 的独立实例及原 Mesh/Idle/Capture/两盏灯、`M_UI_HeroPortrait.PortraitTexture` 参数；新组件只扩展运行时 RT/MID 隔离、来源 Mesh/Materials 同步、独立镜头和30 Hz按需捕获。HUD 原实例/输出不变。外观刷新接口已预留。
+- `UUmbraCharacterMenu` 递归监听 WidgetSwitcher/Visibility；原 Controller 打开/关闭菜单时通知它。切离装备页、关闭或隐藏时停捕获、Mesh Tick 和灯，销毁/换 Pawn 时清理。处理 UE 5.8 FieldNotify 早于 Slate active-index 更新的顺序，避免切页读到旧索引。
+- **本轮构建通过**：项目关联的 UE 5.8.2，`UmbraEditor / Win64 / Development`，UHT、C++ 与 DLL 链接均成功，验证副本在 `Saved/EquipmentBuildValidation-20260928`，日志 `Saved/Logs/EquipmentBuild.log`。当前 GUI Editor 保持打开，原项目 DLL 未替换、未加载本轮新类。模块/Target 未修改。
+- **本轮自动化通过**：`Umbra.UI.Equipment.PageVisibility`（包含真实缓存 Slate 的 Switcher）、`PreviewLifecycle`、`SlotBindings` 在 `Saved/Automation/Equipment-20260928` 报告为 Success；最后修正测试占位对象后，`SlotContract` 在 `Saved/Automation/EquipmentSlot-20260928` 单独重跑为 Success。PageVisibility 的空装备测试树有一条0/10槽位诊断警告；这不是已配置 WBP 的验收。NullRHI 下验证逻辑/生命周期，不代表渲染通过。源码与验证副本核对一致，Git 差异空白检查通过。
+- **尚未验证/接入**：三个 WBP 的 Reparent、十槽 Designer 配置、CharacterPreview Image、装备页加入现有 Switcher、真实材质透明度/Idle/全身构图、地图 PIE、同时显示 HUD 头像、多本地玩家。没有修改任何 `.uasset/.umap`；已保存的 Equipment 只有一个槽位、CharacterMenu 尚未引用它，GUI 未保存内容未读取。完整资产证据、文件清单、参数覆盖顺序和接线/PIE步骤见 [EquipmentMenu](EquipmentMenu.md)。
+
+## 2026-09-27 角色菜单运行时开关
+
+- `AUmbraPlayerController` 新增可配置的 `ToggleCharacterMenuAction` 和 `CharacterMenuClass`，首次按键创建 `WBP_CharacterMenu` 实例并加入视口，后续使用 Visible/Collapsed 复用；打开与关闭态均使用 Game and UI/显示鼠标。点地移动要求可用的鼠标坐标；先前关闭态 Game Only 的永久鼠标捕获导致关闭面板后点地移动失效，已恢复项目原有 Game and UI 基线，菜单开启期间仍由 C++ 阻断 gameplay 输入。菜单宽高/布局由现有 WBP Designer 控制，C++ 不设置。不暂停、不移除默认 IMC，也不创建新 Tick。菜单开启时挡住既有点击移动/普攻、手动移动及 Character 的技能按下入口，并清掉待执行命令与技能输入缓冲；不取消已经激活的技能或改属性。
+- 实际 IA/IMC 按键映射、Controller BP 的 Action/Widget 类赋值、WBP 可点击性和 PIE 多次开关均需编辑器配置/验证；步骤见 [EditorSetup](EditorSetup.md#角色菜单按键开关)。本条不把源码实现等同于蓝图资产已配置。
+- 本次用本机关联 UE 5.8 构建 `UmbraEditor Win64 Development`：UHT、相关 C++ 编译与 DLL 链接均成功；有引擎 `Character.h` 的既有弃用警告。尚未在编辑器内配置新 IA/IMC/BP，也未运行真实 PIE 或菜单交互测试。
+- 后续按用户反馈把初始与关闭菜单时的 `bShowMouseCursor` 改回 `true`；此前成功构建发生在这次光标修正之前。当前 Unreal Editor 正在运行，本轮仅做源码与 diff 检查，尚未对光标修正重新编译或 PIE 验证；请保存资产、关闭编辑器后构建/重启再验收。
+- 随后根据 PIE 反馈恢复初始化与关闭菜单时的 Game and UI；UE 5.8 `PlayerController.cpp` 显示 Game Only 默认永久捕获鼠标且消耗首次捕获点击，Game and UI 使用按下时捕获。截图中的 Designer 与 PIE 菜单大小比较还需核对预览 Screen Size、画布缩放、运行时 DPI Scale 及 `SizeBox_Main` 的布局；未直接修改 WBP 资产。此修正仍待保存资产、关闭运行中的 Editor 后重建与 PIE 验收。
+- 针对菜单可见但嵌套 WBP 按钮无法点击，Controller 以 ZOrder 100 把菜单加入视口，避免现有 HUD/调试层覆盖；具体 WBP 内部命中是否被全屏 `border`、`background`、`Image_162` 或祖先 Visibility 阻断，仍须按 [EditorSetup](EditorSetup.md#角色菜单按键开关) 在 Editor 用 Widget Reflector 检查。未直接修改 `.uasset`，不声称按钮交互已在 PIE 通过。
+
+## 2026-09-26 属性菜单 C++ Tab 切换
+
+- 新增 `UUmbraMenuTabButton` 和 `UUmbraAttributeMenu`：内部 UButton 点击广播实例索引，菜单验证索引后驱动三页 Switcher 并同步三个按钮的选中状态；按钮视觉由 Blueprint 事件实现，默认页为 0。委托在 `NativeConstruct` 唯一绑定、`NativeDestruct` 解绑，不使用 Tick。
+- 已用项目关联的 UE 5.8 构建 `UmbraEditor / Win64 / Development`：UHT、两个新增 `.cpp` 的编译与 DLL 链接成功（引擎 `Character.h` 有既有弃用警告）。两个既有 WBP 的 Reparent、内部 UButton/子控件类型与 Is Variable、三实例 `TabIndex`、按钮选中视觉及真实 PIE 切换仍待编辑器确认和保存。操作与最小验收见 [EditorSetup](EditorSetup.md#属性菜单-tab-接线)。本条记录不代表资产已接好。
+- 2026-09-26 编辑器日志显示：菜单最初 Reparent 到正确的 `UUmbraAttributeMenu` 时，三个按钮实例尚未满足 `UUmbraMenuTabButton` 类型，产生同名属性/必需 BindWidget 错误；随后菜单误 Reparent 到 `UUmbraMenuTabButton`，直接报缺少内部 `Button_0`，旧可见性事件亦失效。已将菜单四个 BindWidget 属性标为 `BlueprintReadOnly`，修复旧 Graph 读取 Switcher 的 C++ 暴露错误。修正后 UHT 与 C++ 编译成功，但当前 Editor 占用 DLL，原目录链接报 LNK1104；需保存编辑工作、关闭 Editor 后重建并按正确顺序重新编译两个 WBP。未宣称本轮 DLL 链接或 WBP 编译已通过。
+- 按实际按钮 WBP 的截图，`Button_0` 已有 Normal/Hovered/Pressed/Disabled Brush，`icon_object` 由 PreConstruct 的动态材质设置图标与 `IconColor`。最终蓝图接线建议缓存原 `FButtonStyle`，复制后用现有 Pressed Brush 作选中样式的 Normal/Hovered，不新增图像、不覆盖图标材质。已将 `Button_0` C++ BindWidget 标为 `BlueprintReadOnly` 供该 WBP Graph 引用；该反射标记变更仍需关闭 Editor 后完成构建与蓝图验证。
+- 当前 C++ Controller 只创建 CombatHUD，没有创建属性菜单；最近的 PIE 日志记录了 CombatHUD 创建而未记录菜单创建。WBP Designer 内点击并不是该菜单的运行时交互验收；临时 Level Blueprint 创建菜单并添加到视口的最小 PIE 步骤见 [EditorSetup](EditorSetup.md#属性菜单-tab-接线)。蓝图内部是否另有正式菜单入口尚待编辑器确认。
+
 维护日期：2026-09-20。入口：[架构与问题证据](Architecture.md)、[编辑器配置](EditorSetup.md)、[开发规则](../AGENTS.md)。以仓库实现为准，不以文件名或规划推断已完成功能。
+
+## 2026-09-21 四主属性基础与调试接入
+
+- `UUmbraAttributeSet` 新增 Strength、Dexterity、Intelligence、Faith 四个非负点数属性，后备值0、无硬上限；包含 GAS 访问器、复制和 RepNotify。玩家/敌人既有一次性初始化顺序不变，DebugInitialAttributes 可整组覆盖四项。
+- 属性调试状态和属性变化委托扩展为19项；原生 Add Effect 每层给四主属性各+20，Remove Effect 仍只清理当前控制器记录的句柄。正式八格 HUD及既有伤害执行未接入四主属性。
+- 因新字段与历史 `Strength → AttackPower`、`Intelligence → AbilityPower` 同名，移除对应 AttributeSet、DebugInitialAttributes、AttributeDebugViewState 六条 PropertyRedirect；保留 AttackSpeedBonus 重定向。已知玩家/敌人资产未检出旧名，调试 WBP 包仍残留旧名，需在 UE 5.8 刷新节点、明确重接攻击力/法强与四主属性后 Compile/Save。
+- 新增/扩展自动化断言覆盖后备值、调试初始化、非负边界、复制声明、调试 GE 叠加/移除、ViewState 与委托更新，并在伤害测试中以高主属性值确认现有伤害结果不变。`Saved/PrimaryAttributesBuildValidation-20260921` 隔离副本已通过 UE 5.8 `UmbraEditor / Win64 / Development` 构建；`Umbra.Attributes.Lifecycle` 与 `Umbra.Damage.Types` 均为 Success。原项目源码也已编译到链接阶段，但运行中的 Editor 占用 DLL，未完成原目录链接。依赖实际 Content 的 DebugOperations/DebugInputAndWidget、WBP 重接、PIE 和多人复制仍待编辑器重启后验证。
 
 ## 2026-09-20 正式角色属性面板 C++ 基础
 
@@ -94,7 +171,7 @@
 ## 已实现（静态代码确认）
 
 - top-down 玩家移动/朝向、指针寻路与追击、可攻击目标高亮、Enhanced Input 与 GAS 标签输入。
-- 玩家 PlayerState / 敌人 Character 各自持有 ASC 和属性；15 个常驻属性、一次性初始化、初始调试覆盖、边界裁剪与复制声明。
+- 玩家 PlayerState / 敌人 Character 各自持有 ASC 和属性；19 个常驻属性、一次性初始化、初始调试覆盖、边界裁剪与复制声明。
 - 玩家普攻连招、socket 球扫掠；敌人简单 Tick AI 与近战距离命中；敌人受击、死亡状态和尸体处理。
 - 服务器物理/魔法结算、AD/AP 混合系数、暴击、双抗、IncomingDamage 最终扣血及可开关日志。
 - 敌人血条、攻击者飘字、F1/F2 属性调试面板与固定调试 GE；主要 UI 监听清理。

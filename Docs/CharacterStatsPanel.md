@@ -1,5 +1,7 @@
 # 正式角色属性面板
 
+2026-09-29 补充：以下八项 HUD 配置作为既有兼容路径保留。CharacterMenu 四维使用**同一个 WBP_StatEntry 模板的四个实例**，不按下面第4步再建四个子类；`EUmbraCharacterStat` 已追加四维，父面板允许属性子集并仅订阅已注册项。新模板的 StatIcon / StatNameText / StatValueText 自动绑定，图标与名称由父级 StatDisplayData 配置，详见 [四维迁移指南](CharacterMenuStatsAndIcons.md)。
+
 实现位置：`UUmbraStatEntry` / `UUmbraStatTooltip` / `UUmbraCharacterStatsPanel`。此文是 UE 5.8 Editor 接线清单；WBP 资产须在 Editor 中创建并保存，不直接改 `.uasset`。当前 C++ 已编译，以下 WBP 操作和 PIE 结果仍待 Editor 确认。
 
 ## 数据契约

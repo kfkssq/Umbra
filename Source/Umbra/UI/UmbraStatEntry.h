@@ -6,8 +6,10 @@
 
 class UTexture2D;
 class UUmbraStatTooltip;
+class UImage;
+class UTextBlock;
 
-/** Stable identifiers for the eight slots in the character sheet. */
+/** Stable presentation identifiers; append values to preserve existing Blueprint defaults. */
 UENUM(BlueprintType)
 enum class EUmbraCharacterStat : uint8
 {
@@ -18,10 +20,14 @@ enum class EUmbraCharacterStat : uint8
 	AttackSpeed,
 	AbilityHaste,
 	CriticalChance,
-	MoveSpeed
+	MoveSpeed,
+	Strength,
+	Dexterity,
+	Intelligence,
+	Faith
 };
 
-/** Compact icon/value cell. Name and description are shown by a separate tooltip widget. */
+/** Pure view shared by compact HUD cells and icon/name/value character-menu rows. */
 UCLASS(Abstract, Blueprintable, meta = (DisableNativeTick))
 class UMBRA_API UUmbraStatEntry : public UUserWidget
 {
@@ -33,11 +39,20 @@ public:
 	/** The sole value update path, including unavailable values. */
 	UFUNCTION(BlueprintCallable, Category = "Character Stats")
 	void SetDisplayValue(const FText& Value);
+	/** Parent supplies presentation data and an already formatted value; no player/ASC lookup. */
+	UFUNCTION(BlueprintCallable, Category = "Character Stats")
+	void SetStatDisplay(UTexture2D* Icon, const FText& DisplayName, const FText& Value);
 
 protected:
 	virtual void NativePreConstruct() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	TObjectPtr<UImage> StatIcon;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> StatNameText;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> StatValueText;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character Stats", meta = (ExposeOnSpawn = "true"))
 	EUmbraCharacterStat Stat = EUmbraCharacterStat::AttackPower;
@@ -60,7 +75,11 @@ protected:
 	void BP_ApplyValue(const FText& Value);
 
 private:
+	void RefreshDisplay();
 	FText DisplayValue;
+	bool bHasDisplayIcon = false;
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> DisplayIcon;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUmbraStatTooltip> StatTooltip;

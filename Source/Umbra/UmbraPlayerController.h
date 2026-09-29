@@ -94,10 +94,25 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void HideCombatHUD();
 
+	/** Toggles the local character menu without removing gameplay input mappings. */
+	UFUNCTION(BlueprintCallable, Category = "UI|Character Menu")
+	void ToggleCharacterMenu();
+
+	UFUNCTION(BlueprintPure, Category = "UI|Character Menu")
+	bool IsCharacterMenuOpen() const { return bCharacterMenuOpen; }
+
 protected:
 	/** Root combat HUD configured by BP_UmbraPlayerController. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UUserWidget> CombatHUDClass;
+
+	/** Set to WBP_CharacterMenu on BP_UmbraPlayerController. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI|Character Menu")
+	TSubclassOf<UUserWidget> CharacterMenuClass;
+
+	/** Digital action mapped to the menu key in IMC_Default. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Character Menu")
+	TObjectPtr<UInputAction> ToggleCharacterMenuAction;
 
 	UPROPERTY(EditDefaultsOnly, Category="UI|Damage Numbers")
 	TSubclassOf<UUmbraDamageNumber> DamageNumberClass;
@@ -194,6 +209,11 @@ private:
 	/** Strong reflected reference prevents the viewport widget from being garbage collected. */
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> CombatHUD;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> CharacterMenu;
+
+	bool bCharacterMenuOpen = false;
 
 	void ClearDamageNumbers();
 	UPROPERTY(Transient)

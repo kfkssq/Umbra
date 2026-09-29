@@ -21,6 +21,7 @@
 #include "Umbra.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 #include "UI/UmbraAttributeDebugPanel.h"
+#include "UI/UmbraCharacterMenu.h"
 
 namespace UmbraAttackHighlightDebug
 {
@@ -40,7 +41,6 @@ void AUmbraPlayerController::BeginPlay()
 	{
 		bShowMouseCursor = true;
 		DefaultMouseCursor = EMouseCursor::Default;
-
 		FInputModeGameAndUI InputMode;
 		InputMode.SetHideCursorDuringCapture(false);
 		SetInputMode(InputMode);
@@ -118,11 +118,81 @@ void AUmbraPlayerController::HideCombatHUD()
 	}
 }
 
+void AUmbraPlayerController::ToggleCharacterMenu()
+{
+	if (!IsLocalPlayerController())
+	{
+		return;
+	}
+
+	if (bCharacterMenuOpen)
+	{
+		bCharacterMenuOpen = false;
+		if (IsValid(CharacterMenu))
+		{
+			if (UUmbraCharacterMenu* Menu = Cast<UUmbraCharacterMenu>(CharacterMenu)) Menu->SetMenuOpen(false);
+			CharacterMenu->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		// Pointer movement uses the cursor position; GameOnly permanently captures the mouse
+		// and consumes its first click after returning from UI.
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		SetInputMode(InputMode);
+		bShowMouseCursor = true;
+		return;
+	}
+
+	if (!IsValid(CharacterMenu))
+	{
+		if (!CharacterMenuClass)
+		{
+			UE_LOG(LogUmbra, Warning, TEXT("CharacterMenuClass is not configured on %s."), *GetNameSafe(this));
+			return;
+		}
+
+		CharacterMenu = CreateWidget<UUserWidget>(this, CharacterMenuClass);
+		if (!IsValid(CharacterMenu))
+		{
+			UE_LOG(LogUmbra, Error, TEXT("Failed to create character menu %s for %s."),
+				*GetNameSafe(CharacterMenuClass), *GetNameSafe(this));
+			return;
+		}
+	}
+
+	if (!CharacterMenu->IsInViewport())
+	{
+		// Keep the interactive menu above the combat HUD and debug overlays.
+		CharacterMenu->AddToViewport(100);
+	}
+	CharacterMenu->SetVisibility(ESlateVisibility::Visible);
+	bCharacterMenuOpen = true;
+	if (UUmbraCharacterMenu* Menu = Cast<UUmbraCharacterMenu>(CharacterMenu)) Menu->SetMenuOpen(true);
+	ResetPrimaryActionState();
+	CancelCombatCommandState();
+	if (const AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn()))
+	{
+		if (UUmbraAbilitySystemComponent* ASC = Cast<UUmbraAbilitySystemComponent>(UmbraCharacter->GetAbilitySystemComponent()))
+		{
+			// Discard only buffered/held ability input; do not cancel active abilities or alter attributes.
+			ASC->ClearAbilityInput();
+		}
+	}
+
+	FInputModeGameAndUI InputMode;
+	InputMode.SetHideCursorDuringCapture(false);
+	SetInputMode(InputMode);
+	bShowMouseCursor = true;
+}
+
 void AUmbraPlayerController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
 	if (!IsLocalPlayerController())
+	{
+		return;
+	}
+	if (bCharacterMenuOpen)
 	{
 		return;
 	}
@@ -146,6 +216,12 @@ void AUmbraPlayerController::Tick(float DeltaSeconds)
 
 void AUmbraPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (IsValid(CharacterMenu))
+	{
+		CharacterMenu->RemoveFromParent();
+		CharacterMenu = nullptr;
+	}
+	bCharacterMenuOpen = false;
 	if (IsValid(CombatHUD))
 	{
 		CombatHUD->RemoveFromParent();
@@ -200,6 +276,16 @@ void AUmbraPlayerController::SetupInputComponent()
 		{
 			UE_LOG(LogUmbra, Warning, TEXT("No PrimaryAttackAction is configured for %s."), *GetNameSafe(this));
 		}
+
+		if (ToggleCharacterMenuAction)
+		{
+			EnhancedInputComponent->BindAction(ToggleCharacterMenuAction, ETriggerEvent::Started,
+				this, &AUmbraPlayerController::ToggleCharacterMenu);
+		}
+		else
+		{
+			UE_LOG(LogUmbra, Warning, TEXT("No ToggleCharacterMenuAction is configured for %s."), *GetNameSafe(this));
+		}
 	}
 
 	if (IsLocalPlayerController())
@@ -245,6 +331,10 @@ void AUmbraPlayerController::HandlePrimaryAbilityReleased()
 
 void AUmbraPlayerController::PrimaryActionStarted()
 {
+	if (bCharacterMenuOpen)
+	{
+		return;
+	}
 	if (IsPointerOverAttributeDebugPanel())
 	{
 		StopPointerActionsForDebugUI();
@@ -290,6 +380,10 @@ void AUmbraPlayerController::PrimaryActionStarted()
 
 void AUmbraPlayerController::PrimaryAttackStarted()
 {
+	if (bCharacterMenuOpen)
+	{
+		return;
+	}
 	if (IsPointerOverAttributeDebugPanel())
 	{
 		return;
@@ -303,6 +397,10 @@ void AUmbraPlayerController::PrimaryAttackStarted()
 
 void AUmbraPlayerController::PrimaryActionCompleted()
 {
+	if (bCharacterMenuOpen)
+	{
+		return;
+	}
 	if (IsPointerOverAttributeDebugPanel())
 	{
 		StopPointerActionsForDebugUI();
@@ -763,6 +861,10 @@ void AUmbraPlayerController::ClearQueuedCommand()
 
 bool AUmbraPlayerController::HandlePrimaryAttackTransition(AActor* CurrentTarget)
 {
+	if (bCharacterMenuOpen)
+	{
+		return false;
+	}
 	AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn());
 	if (!UmbraCharacter || QueuedCommand != EUmbraQueuedPlayerCommand::None || !bEnableAutoAttack
 		|| !UmbraCharacter->ShouldContinuePrimaryAttack() || !IsAttackableTarget(CurrentTarget))
@@ -952,6 +1054,10 @@ void AUmbraPlayerController::CancelAutoMove()
 
 bool AUmbraPlayerController::TryBeginManualMovement(const FVector& WorldDirection)
 {
+	if (bCharacterMenuOpen)
+	{
+		return false;
+	}
 	if (bPrimaryActionIsHold)
 	{
 		return false;

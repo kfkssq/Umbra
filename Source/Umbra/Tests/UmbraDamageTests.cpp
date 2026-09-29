@@ -28,6 +28,11 @@ bool FUmbraTypedDamageTest::RunTest(const FString& Parameters)
 	auto* Target = CreateASC();
 	Source->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackPowerAttribute(), 20.f);
 	Source->SetNumericAttributeBase(UUmbraAttributeSet::GetAbilityPowerAttribute(), 40.f);
+	// Primary attributes are storage-only in this phase and must not alter damage.
+	Source->SetNumericAttributeBase(UUmbraAttributeSet::GetStrengthAttribute(), 1000.f);
+	Source->SetNumericAttributeBase(UUmbraAttributeSet::GetDexterityAttribute(), 1000.f);
+	Source->SetNumericAttributeBase(UUmbraAttributeSet::GetIntelligenceAttribute(), 1000.f);
+	Source->SetNumericAttributeBase(UUmbraAttributeSet::GetFaithAttribute(), 1000.f);
 	Source->SetNumericAttributeBase(UUmbraAttributeSet::GetCriticalChanceAttribute(), 1.f);
 	Target->SetNumericAttributeBase(UUmbraAttributeSet::GetArmorAttribute(), 100.f);
 	Target->SetNumericAttributeBase(UUmbraAttributeSet::GetMagicResistanceAttribute(), 300.f);

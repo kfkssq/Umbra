@@ -339,6 +339,10 @@ void UUmbraAbilitySystemComponent::InitializeAttributes(TSubclassOf<UGameplayEff
 		AddOverride(UUmbraAttributeSet::GetMaxResourceAttribute(), DebugAttributes->MaxResource);
 		AddOverride(UUmbraAttributeSet::GetHealthRegenAttribute(), DebugAttributes->HealthRegen);
 		AddOverride(UUmbraAttributeSet::GetResourceRegenAttribute(), DebugAttributes->ResourceRegen);
+		AddOverride(UUmbraAttributeSet::GetStrengthAttribute(), DebugAttributes->Strength);
+		AddOverride(UUmbraAttributeSet::GetDexterityAttribute(), DebugAttributes->Dexterity);
+		AddOverride(UUmbraAttributeSet::GetIntelligenceAttribute(), DebugAttributes->Intelligence);
+		AddOverride(UUmbraAttributeSet::GetFaithAttribute(), DebugAttributes->Faith);
 		AddOverride(UUmbraAttributeSet::GetAttackPowerAttribute(), DebugAttributes->AttackPower);
 		AddOverride(UUmbraAttributeSet::GetAbilityPowerAttribute(), DebugAttributes->AbilityPower);
 		AddOverride(UUmbraAttributeSet::GetAttackSpeedAttribute(), DebugAttributes->AttackSpeed);

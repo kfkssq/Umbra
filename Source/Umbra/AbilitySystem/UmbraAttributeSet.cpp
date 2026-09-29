@@ -13,6 +13,10 @@ UUmbraAttributeSet::UUmbraAttributeSet()
 	InitHealth(100.f);
 	InitMaxResource(100.f);
 	InitResource(100.f);
+	InitStrength(0.f);
+	InitDexterity(0.f);
+	InitIntelligence(0.f);
+	InitFaith(0.f);
 	InitAttackPower(10.f);
 	InitAttackSpeed(1.f);
 	InitCriticalDamageMultiplier(2.f);
@@ -105,6 +109,10 @@ void UUmbraAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, Resource, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, MaxResource, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, ResourceRegen, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, Strength, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, Dexterity, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, Intelligence, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, Faith, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, AttackPower, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, AbilityPower, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, AttackSpeed, COND_None, REPNOTIFY_Always);
@@ -138,6 +146,22 @@ void UUmbraAttributeSet::OnRep_MaxResource(const FGameplayAttributeData& OldValu
 void UUmbraAttributeSet::OnRep_ResourceRegen(const FGameplayAttributeData& OldValue)
 {
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, ResourceRegen, OldValue);
+}
+void UUmbraAttributeSet::OnRep_Strength(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, Strength, OldValue);
+}
+void UUmbraAttributeSet::OnRep_Dexterity(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, Dexterity, OldValue);
+}
+void UUmbraAttributeSet::OnRep_Intelligence(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, Intelligence, OldValue);
+}
+void UUmbraAttributeSet::OnRep_Faith(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, Faith, OldValue);
 }
 void UUmbraAttributeSet::OnRep_AttackPower(const FGameplayAttributeData& OldValue)
 {

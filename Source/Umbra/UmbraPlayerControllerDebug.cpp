@@ -22,18 +22,22 @@ void AUmbraPlayerController::OnRep_PlayerState()
 	{
 		AttributeDebugPanel->NotifyPlayerContextChanged();
 	}
-	if (IsValid(CombatHUD) && CombatHUD->WidgetTree)
+	// CharacterMenu contains nested UserWidgets; each panel still owns its own ASC subscription.
+	TFunction<void(UUserWidget*)> NotifyStatsPanels = [&NotifyStatsPanels](UUserWidget* Root)
 	{
+		if (!IsValid(Root)) return;
+		if (UUmbraCharacterStatsPanel* Panel = Cast<UUmbraCharacterStatsPanel>(Root))
+			Panel->NotifyPlayerContextChanged();
+		if (!Root->WidgetTree) return;
 		TArray<UWidget*> Widgets;
-		CombatHUD->WidgetTree->GetAllWidgets(Widgets);
+		Root->WidgetTree->GetAllWidgets(Widgets);
 		for (UWidget* Widget : Widgets)
 		{
-			if (UUmbraCharacterStatsPanel* Panel = Cast<UUmbraCharacterStatsPanel>(Widget))
-			{
-				Panel->NotifyPlayerContextChanged();
-			}
+			if (UUserWidget* Child = Cast<UUserWidget>(Widget)) NotifyStatsPanels(Child);
 		}
-	}
+	};
+	NotifyStatsPanels(CombatHUD);
+	NotifyStatsPanels(CharacterMenu);
 }
 
 bool AUmbraPlayerController::IsAttackableTarget(AActor* Target)

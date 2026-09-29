@@ -13,6 +13,7 @@
 /** Shared player/enemy attributes. Change through GEs.
 	* Regen: points/sec; MoveSpeed: cm/sec; AttackSpeed: direct multiplier (1 = base speed); crit chance: fraction.
 	* Crit multiplier: total damage (2 = double); haste: numeric rating (50).
+	* Strength/Dexterity/Intelligence/Faith are nonnegative point values with no derived benefits yet.
 	* GAS BaseValue is an aggregation input, not a character progression stat.
 	*/
 UCLASS()
@@ -53,6 +54,22 @@ public:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_ResourceRegen, Category = "Attributes", meta = (ClampMin = "0.0"))
 	FGameplayAttributeData ResourceRegen;
 	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, ResourceRegen)
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Strength, Category = "Attributes", meta = (ClampMin = "0.0", DisplayName = "力量"))
+	FGameplayAttributeData Strength;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, Strength)
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Dexterity, Category = "Attributes", meta = (ClampMin = "0.0", DisplayName = "敏捷"))
+	FGameplayAttributeData Dexterity;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, Dexterity)
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Intelligence, Category = "Attributes", meta = (ClampMin = "0.0", DisplayName = "智力"))
+	FGameplayAttributeData Intelligence;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, Intelligence)
+
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Faith, Category = "Attributes", meta = (ClampMin = "0.0", DisplayName = "信仰"))
+	FGameplayAttributeData Faith;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, Faith)
 
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_AttackPower, Category = "Attributes", meta = (ClampMin = "0.0", DisplayName = "攻击力"))
 	FGameplayAttributeData AttackPower;
@@ -108,6 +125,14 @@ protected:
 	void OnRep_MaxResource(const FGameplayAttributeData& OldValue);
 	UFUNCTION()
 	void OnRep_ResourceRegen(const FGameplayAttributeData& OldValue);
+	UFUNCTION()
+	void OnRep_Strength(const FGameplayAttributeData& OldValue);
+	UFUNCTION()
+	void OnRep_Dexterity(const FGameplayAttributeData& OldValue);
+	UFUNCTION()
+	void OnRep_Intelligence(const FGameplayAttributeData& OldValue);
+	UFUNCTION()
+	void OnRep_Faith(const FGameplayAttributeData& OldValue);
 	UFUNCTION()
 	void OnRep_AttackPower(const FGameplayAttributeData& OldValue);
 	UFUNCTION()

@@ -68,8 +68,16 @@ bool FUmbraAttributeDebugInputTest::RunTest(const FString& Parameters)
 	const FGameplayEffectSpecHandle DamageSpec = ASC->MakeOutgoingSpec(UUmbraDebugDamageEffect::StaticClass(), 1.f, ASC->MakeEffectContext());
 	ASC->ApplyGameplayEffectSpecToSelf(*DamageSpec.Data.Get());
 	TestEqual(TEXT("Enemy Health updates by delegate"), Panel->GetViewState().Health, 90.f);
+	const FGameplayEffectSpecHandle AttributeSpec = ASC->MakeOutgoingSpec(
+		UUmbraDebugAttributeEffect::StaticClass(), 1.f, ASC->MakeEffectContext());
+	const FActiveGameplayEffectHandle AttributeHandle = ASC->ApplyGameplayEffectSpecToSelf(*AttributeSpec.Data.Get());
+	TestEqual(TEXT("Primary attribute updates by delegate"), Panel->GetViewState().Strength, 20.f);
+	ASC->RemoveActiveGameplayEffect(AttributeHandle);
+	TestEqual(TEXT("Primary attribute removal updates by delegate"), Panel->GetViewState().Strength, 0.f);
 	TestTrue(TEXT("Enemy attribute listener installed"), ASC->GetGameplayAttributeValueChangeDelegate(
 		UUmbraAttributeSet::GetHealthAttribute()).IsBoundToObject(Panel));
+	TestTrue(TEXT("Primary attribute listener installed"), ASC->GetGameplayAttributeValueChangeDelegate(
+		UUmbraAttributeSet::GetStrengthAttribute()).IsBoundToObject(Panel));
 	Enemy->Destroy();
 	TestTrue(TEXT("Destroyed enemy falls back to player mode"), Panel->GetViewState().bViewingPlayer);
 	TestFalse(TEXT("No local player in isolated world is not ready"), Panel->GetViewState().bReady);

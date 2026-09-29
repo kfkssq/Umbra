@@ -66,6 +66,18 @@ struct UMBRA_API FUmbraAttributeDebugViewState
 	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes")
 	float ResourceRegen = 0.f;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes", meta = (DisplayName = "力量"))
+	float Strength = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes", meta = (DisplayName = "敏捷"))
+	float Dexterity = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes", meta = (DisplayName = "智力"))
+	float Intelligence = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes", meta = (DisplayName = "信仰"))
+	float Faith = 0.f;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Attribute Debug|Attributes", meta = (DisplayName = "攻击力"))
 	float AttackPower = 0.f;
 

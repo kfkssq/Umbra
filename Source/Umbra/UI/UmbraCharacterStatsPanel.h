@@ -11,6 +11,16 @@ class AUmbraPlayerState;
 class UUmbraAbilitySystemComponent;
 struct FOnAttributeChangeData;
 
+USTRUCT(BlueprintType)
+struct FUmbraStatDisplayData
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character Stats")
+	FText DisplayName;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character Stats")
+	TObjectPtr<UTexture2D> Icon = nullptr;
+};
+
 /** Observes the local character's GAS state and sends formatted values to registered rows. */
 UCLASS(Abstract, Blueprintable, meta = (DisableNativeTick))
 class UMBRA_API UUmbraCharacterStatsPanel : public UUserWidget
@@ -18,6 +28,7 @@ class UMBRA_API UUmbraCharacterStatsPanel : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	UUmbraCharacterStatsPanel(const FObjectInitializer& ObjectInitializer);
 	/** Called by the root HUD/controller when the local PlayerState changes. Safe to repeat. */
 	UFUNCTION(BlueprintCallable, Category = "Character Stats")
 	void NotifyPlayerContextChanged();
@@ -29,10 +40,16 @@ public:
 	void Shutdown();
 
 protected:
+	virtual void NativePreConstruct() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	/** WBP Class Defaults override localized native names and supply textures; no asset paths in C++. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Character Stats")
+	TMap<EUmbraCharacterStat, FUmbraStatDisplayData> StatDisplayData;
 
 private:
+	void RebuildEntries();
+	void BindStat(EUmbraCharacterStat Stat);
 	void BindPlayer();
 	void UnbindASC();
 	void RefreshAll();

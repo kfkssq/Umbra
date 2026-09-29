@@ -10,17 +10,14 @@
 
 namespace
 {
-	constexpr EUmbraCharacterStat AllStats[] = {
-		EUmbraCharacterStat::AttackPower, EUmbraCharacterStat::AbilityPower,
-		EUmbraCharacterStat::Armor, EUmbraCharacterStat::MagicResistance,
-		EUmbraCharacterStat::AttackSpeed, EUmbraCharacterStat::AbilityHaste,
-		EUmbraCharacterStat::CriticalChance, EUmbraCharacterStat::MoveSpeed
-	};
-
 	FGameplayAttribute AttributeFor(EUmbraCharacterStat Stat)
 	{
 		switch (Stat)
 		{
+		case EUmbraCharacterStat::Strength: return UUmbraAttributeSet::GetStrengthAttribute();
+		case EUmbraCharacterStat::Dexterity: return UUmbraAttributeSet::GetDexterityAttribute();
+		case EUmbraCharacterStat::Intelligence: return UUmbraAttributeSet::GetIntelligenceAttribute();
+		case EUmbraCharacterStat::Faith: return UUmbraAttributeSet::GetFaithAttribute();
 		case EUmbraCharacterStat::Armor: return UUmbraAttributeSet::GetArmorAttribute();
 		case EUmbraCharacterStat::MagicResistance: return UUmbraAttributeSet::GetMagicResistanceAttribute();
 		case EUmbraCharacterStat::AttackSpeed: return UUmbraAttributeSet::GetAttackSpeedAttribute();
@@ -31,10 +28,24 @@ namespace
 	}
 }
 
-void UUmbraCharacterStatsPanel::NativeConstruct()
+UUmbraCharacterStatsPanel::UUmbraCharacterStatsPanel(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
-	Super::NativeConstruct();
-	SetIsFocusable(false);
+	StatDisplayData.FindOrAdd(EUmbraCharacterStat::Strength).DisplayName = NSLOCTEXT("UmbraStats", "Strength", "力量");
+	StatDisplayData.FindOrAdd(EUmbraCharacterStat::Dexterity).DisplayName = NSLOCTEXT("UmbraStats", "Dexterity", "敏捷");
+	StatDisplayData.FindOrAdd(EUmbraCharacterStat::Intelligence).DisplayName = NSLOCTEXT("UmbraStats", "Intelligence", "智力");
+	StatDisplayData.FindOrAdd(EUmbraCharacterStat::Faith).DisplayName = NSLOCTEXT("UmbraStats", "Faith", "信仰");
+}
+
+void UUmbraCharacterStatsPanel::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+	if (IsDesignTime()) RebuildEntries();
+}
+
+void UUmbraCharacterStatsPanel::RebuildEntries()
+{
+	UnbindASC();
 	Entries.Reset();
 	if (WidgetTree)
 	{
@@ -48,11 +59,13 @@ void UUmbraCharacterStatsPanel::NativeConstruct()
 			}
 		}
 	}
-	if (Entries.Num() != UE_ARRAY_COUNT(AllStats))
-	{
-		UE_LOG(LogUmbra, Warning, TEXT("Character stats panel %s registered %d of %d unique stats. Set a different Stat in each entry WBP's Class Defaults."),
-			*GetNameSafe(this), Entries.Num(), UE_ARRAY_COUNT(AllStats));
-	}
+}
+
+void UUmbraCharacterStatsPanel::NativeConstruct()
+{
+	Super::NativeConstruct();
+	SetIsFocusable(false);
+	RebuildEntries();
 	if (APlayerController* PC = GetOwningPlayer())
 	{
 		PC->OnPossessedPawnChanged.AddUniqueDynamic(this, &ThisClass::OnPawnChanged);
@@ -91,11 +104,12 @@ void UUmbraCharacterStatsPanel::RegisterEntry(UUmbraStatEntry* Entry)
 	}
 	if (const TWeakObjectPtr<UUmbraStatEntry>* Existing = Entries.Find(Entry->GetStat()); Existing && Existing->IsValid() && Existing->Get() != Entry)
 	{
-		UE_LOG(LogUmbra, Warning, TEXT("Character stats panel %s: %s and %s both use Stat=%s. Set unique Stat values in entry Class Defaults."),
+		UE_LOG(LogUmbra, Warning, TEXT("Character stats panel %s: %s and %s both use Stat=%s. Set unique Stat values on Designer instances."),
 			*GetNameSafe(this), *GetNameSafe(Existing->Get()), *GetNameSafe(Entry),
 			*UEnum::GetValueAsString(Entry->GetStat()));
 	}
 	Entries.Add(Entry->GetStat(), Entry);
+	BindStat(Entry->GetStat());
 	RefreshStat(Entry->GetStat());
 }
 
@@ -123,17 +137,22 @@ void UUmbraCharacterStatsPanel::BindPlayer()
 	{
 		UnbindASC();
 		BoundASC = ASC;
-		for (EUmbraCharacterStat Stat : AllStats)
+		for (const auto& Entry : Entries)
 		{
-			const FGameplayAttribute Attribute = AttributeFor(Stat);
-			if (Attribute.IsValid())
-			{
-				AttributeHandles.Add(Attribute, ASC->GetGameplayAttributeValueChangeDelegate(Attribute)
-					.AddUObject(this, &ThisClass::OnAttributeChanged));
-			}
+			BindStat(Entry.Key);
 		}
 	}
 	RefreshAll();
+}
+
+void UUmbraCharacterStatsPanel::BindStat(EUmbraCharacterStat Stat)
+{
+	const FGameplayAttribute Attribute = AttributeFor(Stat);
+	if (UUmbraAbilitySystemComponent* ASC = BoundASC.Get(); ASC && Attribute.IsValid() && !AttributeHandles.Contains(Attribute))
+	{
+		AttributeHandles.Add(Attribute, ASC->GetGameplayAttributeValueChangeDelegate(Attribute)
+			.AddUObject(this, &ThisClass::OnAttributeChanged));
+	}
 }
 
 void UUmbraCharacterStatsPanel::UnbindASC()
@@ -151,11 +170,11 @@ void UUmbraCharacterStatsPanel::UnbindASC()
 
 void UUmbraCharacterStatsPanel::OnAttributeChanged(const FOnAttributeChangeData& Data)
 {
-	for (EUmbraCharacterStat Stat : AllStats)
+	for (const auto& Entry : Entries)
 	{
-		if (AttributeFor(Stat) == Data.Attribute)
+		if (AttributeFor(Entry.Key) == Data.Attribute)
 		{
-			RefreshStat(Stat);
+			RefreshStat(Entry.Key);
 			return;
 		}
 	}
@@ -163,6 +182,12 @@ void UUmbraCharacterStatsPanel::OnAttributeChanged(const FOnAttributeChangeData&
 
 void UUmbraCharacterStatsPanel::OnLifecycle(UUmbraAbilitySystemComponent* ASC, bool bReady)
 {
+	if (!bReady && BoundASC.Get() == ASC)
+	{
+		UnbindASC();
+		RefreshAll();
+		return;
+	}
 	const AUmbraPlayerState* PlayerState = GetOwningPlayerState<AUmbraPlayerState>();
 	if (!PlayerState || ASC != PlayerState->GetUmbraAbilitySystemComponent())
 	{
@@ -171,11 +196,6 @@ void UUmbraCharacterStatsPanel::OnLifecycle(UUmbraAbilitySystemComponent* ASC, b
 	if (bReady)
 	{
 		BindPlayer();
-	}
-	else if (BoundASC.Get() == ASC)
-	{
-		UnbindASC();
-		RefreshAll();
 	}
 }
 
@@ -186,9 +206,9 @@ void UUmbraCharacterStatsPanel::OnPawnChanged(APawn* OldPawn, APawn* NewPawn)
 
 void UUmbraCharacterStatsPanel::RefreshAll()
 {
-	for (EUmbraCharacterStat Stat : AllStats)
+	for (const auto& Entry : Entries)
 	{
-		RefreshStat(Stat);
+		RefreshStat(Entry.Key);
 	}
 }
 
@@ -200,9 +220,15 @@ void UUmbraCharacterStatsPanel::RefreshStat(EUmbraCharacterStat Stat)
 		return;
 	}
 	float Value = 0.f;
+	const auto ApplyDisplay = [this, Entry, Stat](const FText& Text)
+	{
+		if (const FUmbraStatDisplayData* Display = StatDisplayData.Find(Stat))
+			Entry->Get()->SetStatDisplay(Display->Icon, Display->DisplayName, Text);
+		else Entry->Get()->SetDisplayValue(Text);
+	};
 	if (!TryReadStat(Stat, Value) || !FMath::IsFinite(Value))
 	{
-		Entry->Get()->SetDisplayValue(FText::FromString(TEXT("—")));
+		ApplyDisplay(FText::FromString(TEXT("—")));
 		return;
 	}
 	if (Stat == EUmbraCharacterStat::AttackSpeed)
@@ -210,11 +236,11 @@ void UUmbraCharacterStatsPanel::RefreshStat(EUmbraCharacterStat Stat)
 		FNumberFormattingOptions Options;
 		Options.SetMinimumFractionalDigits(2);
 		Options.SetMaximumFractionalDigits(2);
-		Entry->Get()->SetDisplayValue(FText::AsNumber(Value, &Options));
+		ApplyDisplay(FText::AsNumber(Value, &Options));
 	}
 	else if (Stat == EUmbraCharacterStat::CriticalChance)
 	{
-		Entry->Get()->SetDisplayValue(FText::Format(NSLOCTEXT("UmbraStats", "Percent", "{0}%"),
+		ApplyDisplay(FText::Format(NSLOCTEXT("UmbraStats", "Percent", "{0}%"),
 			FText::AsNumber(FMath::RoundToInt(Value * 100.f))));
 	}
 	else
@@ -222,7 +248,7 @@ void UUmbraCharacterStatsPanel::RefreshStat(EUmbraCharacterStat Stat)
 		FNumberFormattingOptions Options;
 		Options.SetMinimumFractionalDigits(0);
 		Options.SetMaximumFractionalDigits(0);
-		Entry->Get()->SetDisplayValue(FText::AsNumber(double(Value), &Options));
+		ApplyDisplay(FText::AsNumber(double(Value), &Options));
 	}
 }
 
@@ -236,6 +262,10 @@ bool UUmbraCharacterStatsPanel::TryReadStat(EUmbraCharacterStat Stat, float& Out
 	}
 	switch (Stat)
 	{
+	case EUmbraCharacterStat::Strength: OutValue = Attributes->GetStrength(); return true;
+	case EUmbraCharacterStat::Dexterity: OutValue = Attributes->GetDexterity(); return true;
+	case EUmbraCharacterStat::Intelligence: OutValue = Attributes->GetIntelligence(); return true;
+	case EUmbraCharacterStat::Faith: OutValue = Attributes->GetFaith(); return true;
 	case EUmbraCharacterStat::Armor: OutValue = Attributes->GetArmor(); return true;
 	case EUmbraCharacterStat::MagicResistance: OutValue = Attributes->GetMagicResistance(); return true;
 	case EUmbraCharacterStat::CriticalChance: OutValue = Attributes->GetCriticalChance(); return true;

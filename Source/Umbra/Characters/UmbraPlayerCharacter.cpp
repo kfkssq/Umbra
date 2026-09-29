@@ -402,6 +402,11 @@ void AUmbraPlayerCharacter::FinishSpawnAnimation()
 
 void AUmbraPlayerCharacter::AbilityInputTagPressed(FGameplayTag InputTag)
 {
+	if (const AUmbraPlayerController* PlayerController = Cast<AUmbraPlayerController>(GetController());
+		PlayerController && PlayerController->IsCharacterMenuOpen())
+	{
+		return;
+	}
 	if (UUmbraAbilitySystemComponent* AbilitySystemComponent = Cast<UUmbraAbilitySystemComponent>(GetAbilitySystemComponent()))
 	{
 		AbilitySystemComponent->AbilityInputTagPressed(InputTag);
