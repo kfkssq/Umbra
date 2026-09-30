@@ -1,5 +1,36 @@
 # Umbra 进度与验证状态
 
+## 2026-09-30 当前文字按钮基础交互
+
+- 用户选择现成W_ButtonBrownSquare_1作为顶部五个过滤器与底部整理按钮。UE 5.8.2只读核对六个实例、模板父类UserWidget、内部Button_0/TextBlock_0、默认Text参数，以及Up/Over/Down/Disabled四种Brush与悬停/按下音效。报告 `Saved/InventoryButtonInspection.json`，命令行加载0 error/0 warning；实例变量的Instance Editable标记及完整Graph未通过此次反射读取确认，仍待Editor核对。
+- 更新[Inventory按钮步骤](InventoryPhase1.md#52-当前文字按钮w_buttonbrownsquare_1后续选择以本节为准)：优先修改各实例Text；保留UMG原生Hover/Pressed反馈。无需物品、标签、父类迁移或新增C++。文字未驱动时才补已有Text到TextBlock_0的PreConstruct接线；改模板时使用项目副本，避免影响其它UI。过滤/整理暂不改变内容或保持Selected。
+- 本轮未修改C++/二进制资产，未执行新构建或真实PIE。已核对资产配置、文档文件链接和差异；不能宣称实际鼠标命中、中文字体和显示已验收。
+
+## 2026-09-30 Inventory格子压窄与行距诊断
+
+- 已只读加载当前保存的Inventory/InventorySlot/CharacterMenu，报告 `Saved/InventoryLayoutInspection.json`，命令行检查0 error/0 warning。Slot根200×200；Inventory根1000×1500；Grid的ScrollBox Slot为Size Fill 1与双向Fill，Grid Slot Padding为0；右栏ScaleBox_2为Scale To Fit。
+- 结合截图及UE 5.8 SUniformGridPanel源码：8列200格需至少1600宽，父级仅1000导致每列约125宽，格子横向压窄；Grid纵向Fill分摊多余行高，造成不是Padding定义的行距。右栏ScaleBox等比缩放不直接改变宽高比。
+- [完整指南第8节](InventoryPhase1.md#8-2026-09-30-实际槽位压窄与行距诊断)给出准确层级：Grid的ScrollBox Slot改Auto/Left或Center/Top；ScrollBox本身仍Fill；通过Grid Slot Padding分别控制水平/垂直间距；保留200格/8列时增加根设计宽度，考虑整页缩放与DPI。修正了指南中遗漏ScrollBox Slot Size=Auto的步骤。
+- 本次没有修改C++或二进制资产，不需新构建；用户未保存Graph与修正后的PIE画面尚未验证。已做文档链接/差异检查，保留用户全部资产改动。
+
+## 2026-09-30 布局澄清：三栏并排与文字分类按钮
+
+- 用户确认Attribute、Equipment、Inventory在CharacterMenu内同时显示；未来SkillTreeMenu与整个CharacterMenu在外层并列。已撤回首轮误加的CharacterPageSwitcher、Tab_Character/Equipment/Inventory和SetActiveTab；CharacterMenu的h/cpp与本次Inventory开发前版本无差异。原预览监听/启停和属性页内部Tab不改。
+- 将误设的 `Umbra.UI.Inventory.CharacterMenuTabs` 测试替换为 `Umbra.UI.Inventory.CharacterMenuComposition`，检查三栏同时显示、Inventory可见性不关闭Equipment预览、整菜单关闭/重开与三栏保留。空Grid生命周期与Rarity修复继续保留。
+- 更新[完整指南](InventoryPhase1.md)：右侧加入Inventory容器；从AttributeMenu实际按钮复制WBP_InventoryFilterButton文字变体，保留原Style，隐藏icon_object，Label驱动LabelText。当前只使用Hover/Pressed视觉，无过滤或切页订阅，不新增按钮C++类。同步纠正旧Equipment接入指南。
+- **编译通过**：UE 5.8.2，UmbraEditor / Win64 / Development，日志 `Saved/Logs/InventoryCompositionBuild.log`。当前用户Editor保持打开，构建使用 `Saved/InventoryCompositionValidation` 独立源码副本，Source逐文件哈希与工作区一致；原项目DLL未替换。存在引擎弃用/非首选MSVC警告；加载修正需保存并关闭Editor后完整构建原项目，不使用Live Coding移除反射字段。
+- **自动化最终结果7项通过**：首批 `Saved/Automation/InventoryComposition` 中EmptyGridLifecycle及五项Equipment测试成功，PageVisibility仍有空夹具0/10槽的既有警告。新增CharacterMenuComposition最初因未构造Slate而使用IsVisible查询产生3个断言失败；修正为显式UMG可见性状态断言后，重新编译并单独重跑，在 `Saved/Automation/InventoryCompositionRetest` 为Success（0 warning/0 error）。其余预览启停与三栏保留断言首轮即通过。最终Source哈希复核一致；该测试只验证原生组合契约，不渲染真实WBP。
+- **资产与未验证边界**：保留用户已修改的WBP_InventorySlot、已新增的WBP_Inventory和MI_UI_InteractionHighlight_Inventory，未编辑或保存任何二进制资产。按钮实际Graph、三栏右侧布局、真实鼠标和PIE画面由用户按指南验证，不能由原生测试推断通过。文档本地文件链接和Source/Docs差异空白检查通过；未提交或推送。
+
+## 2026-09-30 第一阶段空背包（首轮记录；布局以随后的修正为准）
+
+- 新增 `UUmbraInventoryMenu / UUmbraInventorySlot`：40容量、8列、可配置SlotClass；C++动态UniformGrid与唯一Selected；同实例重构/重开复用格子，委托成对解绑/唯一绑定，无Tick、无物品系统或测试物品资产。容量显示0/40；所有物品内容层Collapsed，Hover/Selected只控制高亮。
+- CharacterMenu增加可选的顶层Switcher/三Tab绑定，复用UmbraMenuTabButton和既有SetActiveWidgetIndex流程。预览观察/启停实现、FullBody Preview资产、GAS属性和装备功能未改。EquipmentSlot在BP视觉刷新之后强制按HasItem显示RarityFrame，空槽始终隐藏。
+- 本轮只读加载已保存资产：CharacterMenu父类正确，但树仍为属性/装备HorizontalBox并排，没有顶层Switcher；InventorySlot为UserWidget父类且缺新绑定；EquipmentSlot的RarityFrame默认Visible。完整Graph、GUI未保存改动仍待编辑器确认。报告 `Saved/InventoryPhase1Inspection.json`；命令行只读检查成功，0 error/0 warning。没有改动或保存任何Content二进制资产。
+- **构建通过**：本机已核对UE 5.8.2路径，原项目 `UmbraEditor / Win64 / Development` 完整UHT/C++/链接及补充Tab后的最终构建成功，日志 `Saved/Logs/InventoryBuild.log`。工具链有非首选MSVC提示及引擎Character.h的既有弃用警告。不是Live Coding。
+- **自动化通过：7/7**，报告 `Saved/Automation/InventoryPhase1/index.json`，日志 `Saved/Logs/InventoryAutomation.log`。`Umbra.UI.Inventory.EmptyGridLifecycle` 验证40格/坐标、Hover与Selected、空内容层、重复Construct/Destruct及关闭/打开不追加、重绑、配置重建、非法容量/列数与缺类；`Umbra.UI.Inventory.CharacterMenuTabs` 验证三页选择、非法Index、重复打开/销毁重绑及装备预览激活通知；`Umbra.UI.Equipment.EmptySlotIcons` 增加所有空槽交互状态下RarityFrame隐藏及既有快照清空后的回归。另有Equipment的SlotContract、SlotBindings、PageVisibility、PreviewLifecycle通过。PageVisibility测试有原生空夹具0/10 unique slots的一条警告，其余六项0 warning/0 error；没有把该警告当成实际WBP缺槽。
+- **交付/未验证边界**：C++已可构建且原生测试通过；WBP_Inventory、Slot迁移、Inventory MI和顶层Tab的Designer/Graph操作尚由用户按[完整Blueprint指南](InventoryPhase1.md)执行。没有实际创建/保存这些WBP或运行最终地图PIE，不声称40格画面、真实鼠标命中/滚动、材质、FullBody颜色、输入模式或多人已验收。测试用NullRHI，不能验证渲染。本轮没有提交或推送。
+
 ## 2026-09-29 Equipment Preview 回归调查更新
 
 - 已实际完成原流程及 A/B 真实 RHI 离屏游戏验证，三次均蓝灰；取消材质复制和 C++ Capture 覆盖均未恢复。17个材质槽逐一一致，灯光与 Materials/Lighting 最终开启。蓝灰具体根因、责任行与最小修复尚未确认，正式源码/资产未改。

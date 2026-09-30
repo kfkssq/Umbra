@@ -97,7 +97,7 @@ Idle 循环，AnimInstance 使用 IgnoreRootMotion，不向 Actor 应用根运�
 
 ### CharacterMenu 与启停
 
-WBP_CharacterMenu Reparent 为 `UmbraCharacterMenu`，保留 Controller 的 CharacterMenuClass；将 Equipment 实例放入现有 WidgetSwitcher 的装备页面。按钮继续正常 SetActiveWidgetIndex / SetActiveWidget，无须固定页面编号，不修改 AttributeMenu 的父类。
+2026-09-30用户确认：WBP_CharacterMenu父类保持 `UmbraCharacterMenu`，保留Controller的CharacterMenuClass；Attribute、Equipment、Inventory是HorizontalBox中同时显示的三栏，不建立三页Switcher。AttributeMenu内部页签和父类不变；未来SkillTreeMenu与整个CharacterMenu在外层并列。完整接入见 [Inventory指南](InventoryPhase1.md)。
 
 打开 → Controller SetMenuOpen(true) → 激活分支中的装备页启动/恢复预览。切页/祖先 Hidden 或 Collapsed → FieldNotify → SetPageActive(false) → 清 Capture Timer、关闭 Mesh Tick/灯；EveryFrame、OnMovement 始终关闭。关闭菜单走同一路径，NativeDestruct 解除委托并销毁实例，换 Pawn 重建来源。HUD 原实例不参与。
 

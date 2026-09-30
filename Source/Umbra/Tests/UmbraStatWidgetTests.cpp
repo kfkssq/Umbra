@@ -25,6 +25,8 @@ bool FUmbraEmptySlotIconsTest::RunTest(const FString& Parameters)
 	auto* Empty = NewObject<UImage>(Slot);
 	auto* Item = NewObject<UImage>(Slot);
 	Slot->Configure(Empty, Item);
+	auto* Rarity = NewObject<UImage>(Slot);
+	Slot->SetRarityFrameForTest(Rarity);
 	TArray<UTexture2D*> Textures;
 	for (int32 Index = 0; Index < 10; ++Index)
 	{
@@ -37,6 +39,9 @@ bool FUmbraEmptySlotIconsTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Each type resolves its own icon"), Empty->GetBrush().GetResourceObject(), static_cast<UObject*>(Textures[Index]));
 		TestEqual(TEXT("Empty visible"), Empty->GetVisibility(), ESlateVisibility::HitTestInvisible);
 		TestEqual(TEXT("Item hidden"), Item->GetVisibility(), ESlateVisibility::Collapsed);
+		Slot->SetHovered(true);
+		Slot->SetSelected(true);
+		TestEqual(TEXT("Empty rarity hidden regardless of type and interaction"), Rarity->GetVisibility(), ESlateVisibility::Collapsed);
 	}
 	FUmbraEquipmentItemDisplay Display;
 	Display.Item = NewObject<UTexture2D>();
@@ -48,7 +53,9 @@ bool FUmbraEmptySlotIconsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Lock preserves equipped icon"), Item->GetBrush().GetResourceObject(), Display.Icon.GetResourceObject());
 	TestEqual(TEXT("Equipped hides empty"), Empty->GetVisibility(), ESlateVisibility::Collapsed);
 	TestEqual(TEXT("Equipped visible even when locked"), Item->GetVisibility(), ESlateVisibility::HitTestInvisible);
+	TestEqual(TEXT("Existing item rarity still visible"), Rarity->GetVisibility(), ESlateVisibility::HitTestInvisible);
 	Slot->ClearItem();
+	TestEqual(TEXT("Clear collapses rarity while locked"), Rarity->GetVisibility(), ESlateVisibility::Collapsed);
 	TestEqual(TEXT("Clearing locked item restores current slot icon"), Empty->GetBrush().GetResourceObject(), static_cast<UObject*>(Textures[9]));
 	TestEqual(TEXT("Lock state unchanged"), Slot->GetVisualState(), EUmbraEquipmentSlotState::Locked);
 	Slot->SetEmptyIconForTest(EUmbraEquipmentSlot::Head, nullptr);

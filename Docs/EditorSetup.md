@@ -1,5 +1,7 @@
 # 编辑器配置入口
 
+2026-09-30 第一阶段空背包的完整创建/迁移步骤见 [InventoryPhase1](InventoryPhase1.md)：两类Parent、全部控件名称与Is Variable、40/8配置、高亮节点、三栏并排接入、复用属性按钮制作文字分类按钮、Equipment空稀有度修复和PIE验收。Attribute、Equipment、Inventory同时显示；未来技能树与整个CharacterMenu在外层并列，当前不创建该外层切页。
+
 ## CharacterMenu 四维与空槽图标
 
 本轮操作见 [四维与空槽接线](CharacterMenuStatsAndIcons.md)：在现有 WBP_EquipmentSlot 新增 EmptyIcon，并在该类的 Empty Slot Icons 映射中配置十种纹理；WBP_PrimaryAttribute 改用已有 UmbraCharacterStatsPanel，四行使用唯一 WBP_StatEntry 的四个实例。文档列出准确控件名、需要替换的旧实例、参数覆盖顺序及 PIE 步骤；Preview、高亮和页面切换不变。

@@ -76,6 +76,9 @@ void UUmbraEquipmentSlotWidget::RefreshVisual()
 	if (RarityFrame) RarityFrame->SetColorAndOpacity(HasItem() ? CurrentItem.RarityColor : FLinearColor::White);
 	if (LockedOverlay) LockedOverlay->SetVisibility(bLocked ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	BP_RefreshVisual(GetVisualState(), CurrentItem, HasItem());
+	// Rarity belongs to the item, never SlotType, hover, selection, or lock state.
+	// Apply after Blueprint styling so legacy refresh graphs cannot reveal an empty frame.
+	if (RarityFrame) RarityFrame->SetVisibility(HasItem() ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 }
 
 void UUmbraEquipmentSlotWidget::NativePreConstruct()

@@ -41,4 +41,5 @@ public:
 		ItemIcon = Item;
 	}
 	void SetEmptyIconForTest(EUmbraEquipmentSlot Type, UTexture2D* Texture) { EmptySlotIcons.Add(Type, Texture); }
+	void SetRarityFrameForTest(UImage* Frame) { RarityFrame = Frame; }
 };

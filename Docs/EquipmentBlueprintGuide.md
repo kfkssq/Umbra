@@ -1,5 +1,7 @@
 # 装备页 Blueprint 逐步操作指南
 
+2026-09-30：空EquipmentSlot的RarityFrame必须Collapsed；C++现在在BP刷新返回后以HasItem设置可见性。Designer默认和旧Graph清理步骤见 [Inventory指南第6节](InventoryPhase1.md#6-equipmentslot的rarityframe修复)。FullBody Preview与EmptySlotIcons保持原契约。
+
 2026-09-29 增量步骤见 [四维与空槽接线](CharacterMenuStatsAndIcons.md)：新增独立 EmptyIcon Image、在 WBP_EquipmentSlot Class Defaults 配置 Empty Slot Icons；slot_background 仍是通用底板。十槽实例配置已在已保存资产中核对正确。四维模板与 WBP_PrimaryAttribute 的接线也以该新文档为准，无需重做全身 Preview 或高亮。
 
 ## 工作分工
@@ -36,11 +38,11 @@
 | 控件 | 每次 RefreshVisual 的基础处理 | 你编辑的部分 |
 | --- | --- | --- |
 | ItemIcon | Brush 设为传入的 ItemDisplay.Icon；ColorAndOpacity 恢复白色/alpha=1；有 Item 时显示，无 Item 时 Collapsed | ItemDisplay 中采用的图标、Brush参数；Designer 尺寸/布局；事件末尾可加你自己的 tint/动画 |
-| RarityFrame | 有 Item 时 tint=ItemDisplay.RarityColor，空槽时 tint=白色 | Designer 的边框资源与布局、外部传入的稀有度颜色；事件里可覆盖空槽/状态样式 |
+| RarityFrame | 有 Item 时 tint=ItemDisplay.RarityColor，空槽时 tint=白色；BP事件返回后，有Item设HitTestInvisible，无Item强制Collapsed | Designer 的边框资源与布局、物品稀有度颜色；不用于空槽底框或交互状态 |
 | LockedOverlay | bLocked 时显示，否则 Collapsed | 图案、位置、尺寸、透明度 |
 | slot_background | 不写它 | 全部由你配置 |
 
-**不要只改 RarityFrame 的 Designer tint 就期待它保留到运行时**，它是数据驱动色；要定制状态色，在下面的 BP_RefreshVisual 中设置。C++ 基础处理先执行，Blueprint 事件后执行，所以你在事件里定义的最终表现生效。
+**不要只改 RarityFrame 的 Designer tint 就期待它保留到运行时**，它是物品数据驱动色。交互状态色只修改HighlightFrame。C++基础处理先执行、Blueprint事件后执行；RarityFrame可见性是例外，事件返回后仍按HasItem约束，空槽永远Collapsed。不要使用绑定/延迟/动画在刷新之外重新显示它。
 
 ### 1.3 自己制作 Hover 与 Selected 外观
 
@@ -155,32 +157,17 @@ Button.OnUnhovered → SetHovered(Target=Self, false)
 
 Idle 仍由 C++ 循环并忽略向 Actor 应用的 RootMotion；选择骨架兼容的原地 Idle 或专用展示 AnimBP。最终构图和视觉由你在上述资产中编辑。
 
-## 第 6 步：把装备页接入你现有的 CharacterMenu
+## 第 6 步：把装备区域接入现有CharacterMenu
 
-1. 打开 WBP_CharacterMenu，Reparent 为 `UmbraCharacterMenu`，Compile。
-2. 找到负责“属性/装备”等大页面切换的 WidgetSwitcher。不要误把 WBP_AttributeMenu 内部已有的三个属性子Tab Switcher当成同一层。
-3. 若你的编辑器里已有该大页面 Switcher，直接把 WBP_Equipment 放入对应页面；若尚未创建，你自己在Designer创建一个大页面Switcher，将原属性内容和装备页分别放入，保持原内容的布局参数。
-4. 选中装备页实例，勾选Is Variable，给它一个易读名称，例如EquipmentPage。Switcher也勾选Is Variable。
-5. 已有按钮Graph若已能正确切页，保留它。需要新增接线时，以直接引用方式为例：
+2026-09-30用户澄清：Attribute、Equipment、Inventory三个区域同时显示。此前“将三个区域放入Switcher”的操作已取消，完整布局及背包文字分类按钮步骤见 [Inventory指南](InventoryPhase1.md#5-三栏并排接入与复用文字分类按钮)。
 
-```text
-装备按钮 OnClicked
-    → PageSwitcher.SetActiveWidget(Widget = EquipmentPage)
+1. WBP_CharacterMenu父类保持UmbraCharacterMenu。
+2. 在现有HorizontalBox中保留左侧属性和中间Equipment容器，在右侧加入Inventory容器。保持原WBP_Equipment、ScaleBox、预览尺寸与内容，不创建替代的装备页或Preview实例。
+3. 不创建Character/Equipment/Inventory顶部Tab，不调用CharacterMenu.SetActiveTab；WBP_AttributeMenu内部三个属性子Tab正常保留。
+4. BP_UmbraPlayerController的CharacterMenuClass仍为WBP_CharacterMenu；保留ToggleCharacterMenuAction/IMC及原CreateWidget/AddToViewport流程。
+5. Compile、Save。打开菜单时三栏同时出现，中间预览保持激活；关闭整个菜单时原SetMenuOpen链停止预览，重新打开恢复。
 
-属性按钮 OnClicked
-    → PageSwitcher.SetActiveWidget(Widget = 原属性页实例)
-```
-
-也可以沿用SetActiveWidgetIndex，但Index必须按你自己的Designer顺序填写，文档不替你固定数字。
-
-6. 自己配置大页面Tab按钮的Normal/Hovered/Selected视觉；新增菜单父类只负责预览生命周期，不自动绘制这些按钮。
-7. 需要默认属性页时，在你现有初始化逻辑中指定该页。无需在蓝图Tick持续SetActiveWidget。
-8. 在BP_UmbraPlayerController的Class Defaults确认CharacterMenuClass仍是WBP_CharacterMenu。保留既有ToggleCharacterMenuAction/IMC配置，不另写CreateWidget/AddToViewport流程。
-9. Compile、Save。
-
-正常Controller路径已处理SetMenuOpen；正常Switcher切页已处理预览启停。无需在Blueprint另外创建展示Actor、设置Capture定时器、每帧Capture、生成MID或启动/停止Mesh Tick。
-
-如果你另建测试入口绕过Controller，则该入口在显示菜单时调用SetMenuOpen(true)、关闭前调用SetMenuOpen(false)。这只针对自定义入口，正式入口无需重复调用。
+无需在Blueprint另外创建展示Actor、设置Capture定时器、每帧Capture、生成MID或启动/停止Mesh Tick。未来SkillTreeMenu位于CharacterMenu外层，当前不实现该外层切页。
 
 ## 第 7 步：只测 UI 数据，不制作装备 Gameplay 系统
 

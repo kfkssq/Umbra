@@ -1,5 +1,7 @@
 # Umbra 架构与维护地图
 
+第一阶段空背包：`UUmbraInventoryMenu` 持有生成的 `UUmbraInventorySlot`，按容量/列数构造UniformGrid，独占Selected状态；Construct幂等复用、Destruct解绑，所有格子保持Empty，无物品模型。CharacterMenu中Attribute、Equipment、Inventory三栏同时显示，不加互斥Tab；未来SkillTreeMenu应在CharacterMenu外层并列。背包分类按钮复用属性页按钮的文字变体，当前无过滤/切页订阅；预览监听链不改。InventorySlot空内容层强制Collapsed；EquipmentSlot的RarityFrame在BP刷新后仅按HasItem显示。配置、当前资产检查及完整接线见 [Inventory第一阶段](InventoryPhase1.md)。
+
 CharacterMenu 四维复用 `UUmbraCharacterStatsPanel` 的 PlayerState/ASC 生命周期订阅和 `UUmbraStatEntry` 纯 View；扩展原 Stat 枚举与属性映射，只监听已注册行。父级配置本地化名称/纹理，子行接收格式化快照。空槽图标由既有 `EUmbraEquipmentSlot` 查 WBP Class Defaults 的 `EmptySlotIcons`，不涉及装备计算。现有 WBP_PrimaryAttribute 的迁移步骤与本轮证据见 [四维与空槽接线](CharacterMenuStatsAndIcons.md)。
 
 装备页：`UUmbraEquipmentSlotWidget` 按枚举接收显示快照；`UUmbraEquipmentMenu` 建立十槽映射，使用既有头像 BP 的独立实例；`UUmbraCharacterPreviewComponent` 默认读取子 BP 的 Mesh/Capture/灯光配置，直接输出到用户配置的专用 RT，UI 使用 Designer 材质创建 MID；`UUmbraCharacterMenu` 通过可见性和 Switcher FieldNotify 启停。没有装备 Gameplay 计算或装备 Tick 轮询。当前流程见 [Capture 蓝图编辑](BlueprintCapturePreview.md)，证据与架构见 [EquipmentMenu](EquipmentMenu.md)，资产接入待编辑器确认。

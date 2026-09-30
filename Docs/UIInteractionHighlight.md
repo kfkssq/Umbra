@@ -1,5 +1,7 @@
 # 通用 UI 交互高亮：单个 HighlightFrame
 
+2026-09-30：Inventory已复用此材质契约，见 [空背包完整接线](InventoryPhase1.md)。EquipmentSlot空槽的RarityFrame由C++在视觉事件返回后强制Collapsed；本页Hovered/Selected只控制HighlightFrame，不得重新显示稀有度框。
+
 ## 检查结果与修改边界
 
 2026-09-28，使用项目关联的 UE 5.8.2 命令行编辑器只读加载材质，读取参数、材质函数和节点输入；结果保存于本地 `Saved/InteractionHighlightInspection.json`。
