@@ -1,5 +1,14 @@
 # Umbra 进度与验证状态
 
+## 2026-10-01 第二页战斗属性：C++ 支持完成，蓝图由用户手动接线
+
+- 新增 `UUmbraCombatInfo` 与 `UUmbraCombatStatEntry`，只实现分类折叠/展开和固定测试文本显示。后者复用原 StatEntry 的纯 View，不扩展 Stat 枚举；没有 GAS、AttributeSet、GameplayEffect、装备或伤害计算，没有 Tick。原菜单切页、第一页、HeroInfo、TalentInfo及原StatEntry代码不变。
+- UE 5.8.2 只读确认：实际 AttributeMenu 的 WidgetSwitcher_0 为 HeroInfo滚动容器（含HeroInfo+PrimaryAttribute）、CombatInfo、TalentInfo，CombatInfo仍为索引1。其内部 ScrollBox_1 → Overlay_151 → 原纸张Image_188 + VerticalBox_1，PrimaryAttribute仅为占位实例。检查报告 `Saved/CombatInfoInspection.json`、`Saved/CombatInfoProbe.json`；最终只读检查均0 error/0 warning。未保存资产，GUI未保存状态不在报告范围。
+- 用户明确选择手动编辑蓝图。完整[CombatInfoUI接线说明](CombatInfoUI.md)包含行副本/父类、六个BindWidget、16项攻击与10项防御测试值、原Overlay Slot Left→Fill、滚动、分类交互及三页PIE验收。**当前蓝图仍是占位状态，不能称UI或三页集成已完成。** Content工作区无改动，新行资产尚未创建；uasset的Git LFS规则已核对。
+- **完整构建通过**：关联UE 5.8.2，原项目 UmbraEditor / Win64 / Development，`Saved/Logs/CombatInfoBuild.log`。含最终测试代码的UHT/C++/链接成功；存在非首选MSVC版本提示和引擎Character.h既有弃用警告。未改变模块或Target，无需重新生成工程。
+- **自动化3/3通过，每项0 warning/0 error**：`Umbra.UI.CombatInfo.SectionLifecycle`验证初始展开、独立折叠、箭头、重复Construct不重复绑定、Destruct解绑、重开保留状态且不追加行；`Umbra.UI.CombatInfo.TestTextWithoutGameplay`验证没有World/Player/ASC时原样显示整数/百分号/小数及空值清除；既有`Umbra.UI.CharacterStats.PrimaryRows`回归通过。报告`Saved/Automation/CombatInfoUI/index.json`，日志`Saved/Logs/CombatInfoAutomation.log`，退出码0。
+- 文档本地文件链接、差异空白和改动范围检查通过。**未验证**：手动接线后的WBP编译、26行实际渲染、中文长名称、鼠标折叠/滚动、三页按钮集成及真实PIE。NullRHI原生测试不代表这些已验收。未提交或推送。
+
 ## 2026-09-30 当前文字按钮基础交互
 
 - 用户选择现成W_ButtonBrownSquare_1作为顶部五个过滤器与底部整理按钮。UE 5.8.2只读核对六个实例、模板父类UserWidget、内部Button_0/TextBlock_0、默认Text参数，以及Up/Over/Down/Disabled四种Brush与悬停/按下音效。报告 `Saved/InventoryButtonInspection.json`，命令行加载0 error/0 warning；实例变量的Instance Editable标记及完整Graph未通过此次反射读取确认，仍待Editor核对。

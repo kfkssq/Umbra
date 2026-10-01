@@ -1,5 +1,7 @@
 # Umbra 架构与维护地图
 
+第二页战斗属性 UI 的 C++ 支持与手动接线见 [CombatInfoUI](CombatInfoUI.md)。`UUmbraCombatInfo` 仅控制原第二页的两个分类折叠；`UUmbraCombatStatEntry` 复用 StatEntry 的纯显示路径，以实例 TestValue 显示固定文本，无 GAS 订阅。用户手动修改现有 WBP_CombatInfo，蓝图尚待接线/PIE；现有 AttributeMenu、PrimaryAttribute、HeroInfo、TalentInfo 未修改。
+
 第一阶段空背包：`UUmbraInventoryMenu` 持有生成的 `UUmbraInventorySlot`，按容量/列数构造UniformGrid，独占Selected状态；Construct幂等复用、Destruct解绑，所有格子保持Empty，无物品模型。CharacterMenu中Attribute、Equipment、Inventory三栏同时显示，不加互斥Tab；未来SkillTreeMenu应在CharacterMenu外层并列。背包分类按钮复用属性页按钮的文字变体，当前无过滤/切页订阅；预览监听链不改。InventorySlot空内容层强制Collapsed；EquipmentSlot的RarityFrame在BP刷新后仅按HasItem显示。配置、当前资产检查及完整接线见 [Inventory第一阶段](InventoryPhase1.md)。
 
 CharacterMenu 四维复用 `UUmbraCharacterStatsPanel` 的 PlayerState/ASC 生命周期订阅和 `UUmbraStatEntry` 纯 View；扩展原 Stat 枚举与属性映射，只监听已注册行。父级配置本地化名称/纹理，子行接收格式化快照。空槽图标由既有 `EUmbraEquipmentSlot` 查 WBP Class Defaults 的 `EmptySlotIcons`，不涉及装备计算。现有 WBP_PrimaryAttribute 的迁移步骤与本轮证据见 [四维与空槽接线](CharacterMenuStatsAndIcons.md)。

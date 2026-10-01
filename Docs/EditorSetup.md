@@ -1,5 +1,7 @@
 # 编辑器配置入口
 
+第二页战斗属性的手动接线见 [CombatInfoUI](CombatInfoUI.md)：保留原 WBP_CombatInfo/ScrollBox/纸张背景，仅移除其 PrimaryAttribute 占位实例；创建行副本、设置两个父类和六个必需绑定，填写16+10行测试文本。现有三页菜单不改，蓝图接线与PIE由用户完成。
+
 2026-09-30 第一阶段空背包的完整创建/迁移步骤见 [InventoryPhase1](InventoryPhase1.md)：两类Parent、全部控件名称与Is Variable、40/8配置、高亮节点、三栏并排接入、复用属性按钮制作文字分类按钮、Equipment空稀有度修复和PIE验收。Attribute、Equipment、Inventory同时显示；未来技能树与整个CharacterMenu在外层并列，当前不创建该外层切页。
 
 ## CharacterMenu 四维与空槽图标
