@@ -4,8 +4,11 @@
 
 namespace UmbraGameplayTags
 {
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Vulnerable, "State.Vulnerable", "Target vulnerability consumed by opt-in A/X typed damage.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage_ResultCritical, "Damage.ResultCritical", "Per-hit execution result, consumed by IncomingDamage settlement.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage_SourcePrimaryAttack, "Damage.SourcePrimaryAttack", "Per-hit marker for authoritative basic-attack damage measurement.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage_Source_BasicAttack, "Damage.Source.BasicAttack", "Damage spec source: basic attack, independent of ability implementation.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage_Source_Skill, "Damage.Source.Skill", "Damage spec source: active skill, not a basic attack.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Input, "Input", "Root tag for ability input routing.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability, "Ability", "Root tag for gameplay abilities.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State, "State", "Root tag for gameplay states.");

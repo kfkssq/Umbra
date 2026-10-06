@@ -22,6 +22,7 @@
 #include "GameplayEffect.h"
 #include "GameplayTags/UmbraGameplayTags.h"
 #include "Player/UmbraPlayerState.h"
+#include "Stats/UmbraDerivedStatsComponent.h"
 #include "UmbraPlayerController.h"
 #include "UObject/UnrealType.h"
 #include "HAL/IConsoleManager.h"
@@ -157,7 +158,17 @@ bool FUmbraCombatMaintenanceTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("GAS sets actual enemy speed"), Enemy->GetCharacterMovement()->MaxWalkSpeed, 230.f);
 
 	const FGameplayAbilitySpecHandle AttackHandle = ASC->GiveAbility(FGameplayAbilitySpec(AttackClass, 1));
-	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackPowerAttribute(), 20.f);
+	if (AttackClass->GetDefaultObject<UUmbraBasicAttackAbility>()->DamageConfig.Typed.Model == EUmbraDamageModel::WeaponChannels)
+	{
+		// Native test PlayerState has no BP-derived setup. Supply the authored mode's prerequisites
+		// on the transient actor, preserving the actual ability asset and hit/deduplication assertions.
+		auto* Derived = PS->FindComponentByClass<UUmbraDerivedStatsComponent>();
+		Derived->UnarmedProfile.Channels[0].BaseDamage = 20.f;
+		Derived->bUseWeaponDerivedPower = true;
+		Derived->Initialize(ASC);
+		TestTrue(TEXT("Weapon-mode fixture has a valid damage projection"), Derived->GetSnapshot().bValid);
+	}
+	else ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackPowerAttribute(), 20.f);
 	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetAttackSpeedAttribute(), 1.f);
 	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetCriticalChanceAttribute(), 0.f);
 	EnemyASC->SetNumericAttributeBase(UUmbraAttributeSet::GetMaxHealthAttribute(), 1000.f);

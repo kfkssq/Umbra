@@ -14,6 +14,7 @@ class UUserWidget;
 class UUmbraDamageNumber;
 class UUmbraAttributeDebugPanel;
 class UAbilitySystemComponent;
+class UGameplayEffect;
 
 UENUM(BlueprintType)
 enum class EUmbraPrimaryActionContext : uint8
@@ -41,6 +42,28 @@ class AUmbraPlayerController : public APlayerController
 	GENERATED_BODY()
 
 public:
+	/** Prototype shortcut only: 8 applies once, 9 removes the exact retained handle. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug|Quick Gameplay Effect")
+	bool bEnableQuickGameplayEffectKeys = true;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug|Quick Gameplay Effect")
+	TSoftClassPtr<UGameplayEffect> QuickTestGameplayEffect = TSoftClassPtr<UGameplayEffect>(FSoftObjectPath(
+		TEXT("/Game/Blueprints/GameplayEffect/GE_TestDamageBonuses.GE_TestDamageBonuses_C")));
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Debug|Quick Gameplay Effect", meta = (DevelopmentOnly))
+	FActiveGameplayEffectHandle ApplyQuickTestGameplayEffect();
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Debug|Quick Gameplay Effect", meta = (DevelopmentOnly))
+	void RemoveQuickTestGameplayEffect();
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "Debug|Quick Gameplay Effect")
+	FActiveGameplayEffectHandle QuickTestGameplayEffectHandle;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug|Quick Gameplay Effect")
+	TSoftClassPtr<UGameplayEffect> QuickVulnerableGameplayEffect = TSoftClassPtr<UGameplayEffect>(FSoftObjectPath(
+		TEXT("/Game/Blueprints/GameplayEffect/GE_TestVulnerable.GE_TestVulnerable_C")));
+	/** Retains one enemy test effect; changing target removes the previous test effect. */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Debug|Quick Gameplay Effect", meta = (DevelopmentOnly))
+	FActiveGameplayEffectHandle ApplyQuickVulnerableGameplayEffect(AActor* Target);
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Debug|Quick Gameplay Effect", meta = (DevelopmentOnly))
+	void RemoveQuickVulnerableGameplayEffect();
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "Debug|Quick Gameplay Effect")
+	FActiveGameplayEffectHandle QuickVulnerableGameplayEffectHandle;
 	virtual void SetPawn(APawn* InPawn) override;
 	UFUNCTION(Client, Unreliable)
 	void ClientShowDamageNumber(FVector WorldPosition, float Damage, uint8 Type, bool bCritical);
@@ -203,6 +226,13 @@ protected:
 	bool ShouldUseTouchControls() const;
 
 private:
+	friend class FUmbraQuickEffectTest;
+	void SetupQuickGameplayEffectInput();
+	void QuickGameplayEffectPressed();
+	void QuickVulnerableGameplayEffectPressed();
+	TWeakObjectPtr<UAbilitySystemComponent> QuickVulnerableGameplayEffectASC;
+	TWeakObjectPtr<UInputComponent> QuickGameplayEffectInput;
+	TWeakObjectPtr<UAbilitySystemComponent> QuickGameplayEffectASC;
 	friend class FUmbraCombatMaintenanceTest;
 	bool TraceAttackablePawn(const FVector& Start, const FVector& End, FHitResult& Hit) const;
 

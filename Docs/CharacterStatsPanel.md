@@ -1,5 +1,7 @@
 # 正式角色属性面板
 
+2026-10-04：StatsPanel与CombatInfo的八个重叠属性已统一使用UmbraCombatStats::Read，包括AD/AP、护甲/魔抗、攻速、暴击率、移速和技能急速；数值来源、精度及“仅存储”语义一致。武器派生启用时AD/AP订阅派生快照事件，失效/解绑清空；四主属性保留原局部属性通知。下文早期AD/AP或急速显示—的描述已被[CombatInfoBinding](CombatInfoBinding.md)的最新数据契约替代，无需改原Stat枚举或WBP布局。
+
 2026-09-29 补充：以下八项 HUD 配置作为既有兼容路径保留。CharacterMenu 四维使用**同一个 WBP_StatEntry 模板的四个实例**，不按下面第4步再建四个子类；`EUmbraCharacterStat` 已追加四维，父面板允许属性子集并仅订阅已注册项。新模板的 StatIcon / StatNameText / StatValueText 自动绑定，图标与名称由父级 StatDisplayData 配置，详见 [四维迁移指南](CharacterMenuStatsAndIcons.md)。
 
 实现位置：`UUmbraStatEntry` / `UUmbraStatTooltip` / `UUmbraCharacterStatsPanel`。此文是 UE 5.8 Editor 接线清单；WBP 资产须在 Editor 中创建并保存，不直接改 `.uasset`。当前 C++ 已编译，以下 WBP 操作和 PIE 结果仍待 Editor 确认。
@@ -8,18 +10,18 @@
 
 | 位置（行／列） | Stat 枚举 | 显示 | 来源 |
 | --- | --- | --- | --- |
-| 1／左 | AttackPower | — | 缺最终物理侧武器伤害接口 |
-| 1／右 | AbilityPower | — | 缺最终魔法侧武器伤害接口 |
+| 1／左 | AttackPower | 整数 | 武器派生快照AD；旧模式GAS当前值 |
+| 1／右 | AbilityPower | 整数 | 武器派生快照AP；旧模式GAS当前值 |
 | 2／左 | Armor | 整数 | GAS Armor |
 | 2／右 | MagicResistance | 整数 | GAS MagicResistance |
 | 3／左 | AttackSpeed | 每秒次数，仅显示两位小数 | GAS AttackSpeed ÷ `GA_BasicAttack` 的 1x 基础攻击周期 |
-| 3／右 | AbilityHaste | — | 现有 GAS AbilityHaste 仅是存储值，尚未接入冷却规则 |
-| 4／左 | CriticalChance | 整数百分比 | GAS CriticalChance × 100 |
+| 3／右 | AbilityHaste | 数值（仅存储） | GAS AbilityHaste；尚未接入冷却规则 |
+| 4／左 | CriticalChance | 至多一位小数百分比 | GAS CriticalChance × 100，与CombatInfo一致 |
 | 4／右 | MoveSpeed | 整数 | GAS MoveSpeed，cm/s |
 
-“—”表示无可信数值，也用于 ASC 尚未就绪和攻速周期未配置。当前伤害执行使用 `AttackPower × AD 系数 + AbilityPower × AP 系数`，没有独立武器基础伤害、物理／魔法两路最终值；`DamageType` 只选择目标抗性。不能把 `AttackPower`、`AbilityPower` 原值或某次攻击的混合伤害改名当作两项面板值。未来战斗层提供明确的最终派生值接口后，在 `UUmbraCharacterStatsPanel::TryReadStat` 的两个分支读取，并订阅该值依赖项的变化委托。技能急速需要冷却系统确定生效规则后同样接入；不要用冷却缩减百分比代替。
+“—”表示ASC尚未就绪、武器派生快照无效或攻速周期未配置。AD/AP是角色用于伤害缩放的数值，不是单次命中的最终伤害。八项通过UmbraCombatStats::Read共享CombatInfo的读取、单位、精度和占位语义；AD/AP订阅派生快照，不在UI重复计算补正。技能急速仍不表示已生效的冷却缩减。
 
-数值配置来源依次是 `BP_UmbraPlayerState.InitialAttributesEffect`、可选的 `DebugInitialAttributes` 覆盖、运行中 GAS Effect 聚合结果；面板只读取最终 GAS 当前值。攻速基础周期来自 `BP_UmbraPlayerState.InitialAbilities` 中的 `GA_BasicAttack` Class Defaults，正 `BaseAttackInterval` 优先于普通 A Montage 自动周期。条目正文只显示图标和数值；图标由各属性条目 WBP 的 Image → Brush 在 Details 中配置，C++ 不覆盖它。名称与说明在条目实例上配置并传给独立属性 Tooltip。字体、颜色、间距和布局由 WBP 控制。
+GAS初值来源依次是 `BP_UmbraPlayerState.InitialAttributesEffect`、可选的 `DebugInitialAttributes` 覆盖，运行中由GAS Effect聚合；武器派生启用后AD/AP读取派生快照。攻速基础周期来自 `BP_UmbraPlayerState.InitialAbilities` 中的 `GA_BasicAttack` Class Defaults，正 `BaseAttackInterval` 优先于普通 A Montage 自动周期。条目正文只显示图标和数值；图标由各属性条目 WBP 的 Image → Brush 在 Details 中配置，C++ 不覆盖它。名称与说明在条目实例上配置并传给独立属性 Tooltip。字体、颜色、间距和布局由 WBP 控制。
 
 Tooltip 计划分为属性、技能、物品三类。本次仅实现属性专用 `UUmbraStatTooltip` 与 `WBP_StatTooltip`；技能和物品 Tooltip 待各自的数据契约明确后另做。
 

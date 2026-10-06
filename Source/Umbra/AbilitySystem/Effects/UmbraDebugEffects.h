@@ -14,6 +14,14 @@ public:
 };
 
 UCLASS(NotBlueprintable)
+class UMBRA_API UUmbraDebugDerivedAttributeEffect : public UUmbraDebugAttributeEffect
+{
+	GENERATED_BODY()
+public:
+	UUmbraDebugDerivedAttributeEffect();
+};
+
+UCLASS(NotBlueprintable)
 class UMBRA_API UUmbraDebugDamageEffect : public UGameplayEffect
 {
 	GENERATED_BODY()

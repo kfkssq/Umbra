@@ -1,5 +1,33 @@
 # 编辑器配置入口
 
+2026-10-04 Tooltip第二阶段：手工复制现有素材制作WBP_ItemTooltip（父类UmbraItemTooltip）和WBP_TooltipStatEntry（父类UmbraTooltipStatEntry）。前者必需ItemName/TextBlock、StatRows/VerticalBox，后者必需EntryText/TextBlock；StatEntryClass指定行WBP，其余区域可选。物品的Presentation/Classification配置ItemCategory和WeaponType，默认Unknown兼容旧资产。完整绑定表、推荐树、Class Defaults、素材拖动逻辑清理和未来悬停接口见[ItemTooltipUI](ItemTooltipUI.md)；本轮没有创建或保存WBP资产。
+
+2026-10-04 物品Tooltip第一阶段：ItemDefinition.Presentation新增ItemLevel（默认1）、Rarity（默认Common）和可选FlavorText；原颜色/背景/框继续由资产配置。WeaponProfile.Weapon/Tooltip四项Grade可显式覆盖为S/A/B/C/D/None，默认自动；评级阈值在Game配置的UmbraTooltipSettings集中定义。本轮没有WBP/悬停接线，后续视图通过三个BlueprintPure构建入口消费统一数据，详见[字段、格式、需求和第二阶段API](ItemTooltipData.md)。
+
+2026-10-04 背包↔装备转移：PlayerState新增EquipFromInventory(Slot, InstanceId)与UnequipToInventory(Slot, ExpectedInstanceId, OutReturnedItem)，均为AuthorityOnly。临时测试事件在权威端AddItem后用同一GUID调EquipFromInventory；槽位占用/背包满/重复GUID按返回枚举处理。UI右键与背包点击尚未接入。见[InventoryTransfer](InventoryTransfer.md)。
+
+2026-10-04 背包容量改由PlayerState.InventoryComponent.InitialCapacity配置（默认96，0..512），WBP_Inventory默认Bind Inventory Data=true。原InventoryCapacity仅供独立原型/Designer；组件数据驱动物品格与实际容量文字。测试添加/移除和待编辑器验收项目见[InventoryFoundation](InventoryFoundation.md)，无需改变布局。
+
+2026-10-04 装备槽新增原生右键卸装。重新构建原项目后生效，无需更改布局；可在EquipmentMenu的BP_UnequipFinished将Message接入既有提示区。当前仅权威端执行，未接真实背包返还；手动验收及已有鼠标事件兼容说明见[EquipmentUIBinding](EquipmentUIBinding.md)。
+
+2026-10-04 物品品质背景/框在ItemDefinition.Presentation配置Slot Background Texture、Rarity Frame Texture，Icon同处。装备槽UImage命名ItemIcon、SlotBackground、RarityFrame；移除旧物品层Brush/Visibility绑定及空槽强制隐藏逻辑，交互效果仍由BP_RefreshVisual处理。此轮仅独立副本构建，保存/关闭编辑器后重编译原项目再配置，详见[EquipmentUIBinding](EquipmentUIBinding.md)。
+
+2026-10-04 固定词缀在ItemDefinition → Equipment → Affixes配置AttributeBonuses和DamageBonuses，无需另建装备GE。普通词缀使用原始属性单位，A为比例、X为倍率；伤害仍需开启Typed.UseDamageBuckets。具体范围、单位及有空时的手动验收见[EquipmentAffixes](EquipmentAffixes.md)。
+
+2026-10-04 StatsPanel与次要属性八个重叠项已统一。装备页默认开启Bind Equipment Data，给ItemDefinition填Presentation名称/图标/颜色，保留十个SlotType并移除旧手填装备假数据；接线、未就绪状态和验收见[EquipmentUIBinding](EquipmentUIBinding.md)。
+
+2026-10-03 CombatInfo运行时已转为真实数据绑定，行实例使用新的Combat Stat枚举；TestValue只供Designer预览，Utility三绑定可选。保留现有布局，具体行数据来源、状态与手动步骤见[CombatInfoBinding](CombatInfoBinding.md)，旧CombatInfoUI测试文本接线仅供历史参考。
+
+2026-10-03 敌人易伤测试：同一Controller配置组的`Quick Vulnerable Gameplay Effect`默认GE_TestVulnerable。鼠标指向敌人按7应用，6撤销；无需F2锁定。确认GE通过Grant Tags to Target Actor授予State.Vulnerable，详见[DamageBuckets](DamageBuckets.md#敌人易伤快捷键)。
+
+2026-10-03 新增测试GE快捷入口：Controller Class Defaults → Debug → Quick Gameplay Effect配置测试类，默认GE_TestDamageBonuses；8应用Level1、9按句柄撤销，重复应用不叠加，仅开发构建权威端。蓝图调用与按键冲突处理见[DamageBuckets](DamageBuckets.md#测试ge快捷入口)。
+
+2026-10-03 A/X与新暴击/易伤通过Typed.Use Damage Buckets显式启用；GE Components添加`Umbra Damage Bonuses (A/X)`管理增伤，目标GE授予`State.Vulnerable`。关闭开关保持第四阶段。编辑器运行期间采用独立副本验证，用户需关闭编辑器并重建原项目后配置新增反射类，详见[DamageBuckets](DamageBuckets.md)。
+
+2026-10-03 九类型伤害在实际GameplayAbility的DamageConfig → Typed选择Model，默认Legacy不改变已有攻击。WeaponChannels完整继承混合武器，原外层AD/AP系数仅用于Legacy；新模式使用原生GE，无需改旧伤害GE蓝图。数值验收和抗性规则资产配置见[TypedDamage](TypedDamage.md)。
+
+2026-10-03 最小装备组件的开关、ItemDefinition创建、服务器Equip/Unequip测试与数值验收见[EquipmentFoundation](EquipmentFoundation.md)。默认关闭；启用后由已穿戴主手取代InitialWeapon。UI/背包接线与PIE由用户完成，本阶段未保存Content资产。
+
 第二页战斗属性的手动接线见 [CombatInfoUI](CombatInfoUI.md)：保留原 WBP_CombatInfo/ScrollBox/纸张背景，仅移除其 PrimaryAttribute 占位实例；创建行副本、设置两个父类和六个必需绑定，填写16+10行测试文本。现有三页菜单不改，蓝图接线与PIE由用户完成。
 
 2026-09-30 第一阶段空背包的完整创建/迁移步骤见 [InventoryPhase1](InventoryPhase1.md)：两类Parent、全部控件名称与Is Variable、40/8配置、高亮节点、三栏并排接入、复用属性按钮制作文字分类按钮、Equipment空稀有度修复和PIE验收。Attribute、Equipment、Inventory同时显示；未来技能树与整个CharacterMenu在外层并列，当前不创建该外层切页。
@@ -211,3 +239,11 @@ C++ 后备 `AttackSpeed=1.0`；实际初值以 PlayerState 的初始 GE / 调试
 - [BlueprintAttributeAccess](BlueprintAttributeAccess.md)：初始调试参数与蓝图只读访问。
 - [MagicalDamage](MagicalDamage.md)：当前物理/魔法公式配置；[PhysicalDamageTroubleshooting](PhysicalDamageTroubleshooting.md)：旧 GE 迁移与日志排查。
 - [DamageNumbers](DamageNumbers.md)、[EnemyHealthBar](EnemyHealthBar.md)：现有 UI 的控件契约、表现参数与 PIE 步骤。
+
+## 统一伤害入口兼容阶段（2026-10-02）
+
+现有 GA 的 DamageEffectClass / DamageConfig 与伤害 GE 均无需重接或迁移，继续使用 UmbraPhysicalDamageExecution。来源 BasicAttack/Skill 由 C++ 请求指定，不新增蓝图开关；旧暴击总倍率、初始属性与调试 GE 保持。参见 [统一伤害入口与最小 PIE 验收](UnifiedDamageEntry.md)。本阶段不是 A/X 区或装备派生功能。
+
+## 武器与AD/AP派生（默认关闭）
+
+新组件与DataAsset配置、参数覆盖顺序、单位及手动验收见 [WeaponDerivedPower](WeaponDerivedPower.md)。原有资产无需开启；开启后AD/AP由武器与四主属性派生，调试AddEffect不再直接增加AD/AP。类型明细暂不代表混合伤害已经接入。

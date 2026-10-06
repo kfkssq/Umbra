@@ -9,6 +9,8 @@
 class APawn;
 class AUmbraPlayerState;
 class UUmbraAbilitySystemComponent;
+class UUmbraDerivedStatsComponent;
+struct FUmbraDerivedStatsSnapshot;
 struct FOnAttributeChangeData;
 
 USTRUCT(BlueprintType)
@@ -57,6 +59,7 @@ private:
 	bool TryReadStat(EUmbraCharacterStat Stat, float& OutValue) const;
 	void OnAttributeChanged(const FOnAttributeChangeData& Data);
 	void OnLifecycle(UUmbraAbilitySystemComponent* ASC, bool bReady);
+	UFUNCTION() void OnDerived(const FUmbraDerivedStatsSnapshot& Snapshot);
 
 	UFUNCTION()
 	void OnPawnChanged(APawn* OldPawn, APawn* NewPawn);
@@ -65,5 +68,6 @@ private:
 	TMap<FGameplayAttribute, FDelegateHandle> AttributeHandles;
 	TWeakObjectPtr<AUmbraPlayerState> BoundPlayerState;
 	TWeakObjectPtr<UUmbraAbilitySystemComponent> BoundASC;
+	TWeakObjectPtr<UUmbraDerivedStatsComponent> BoundDerived;
 	FDelegateHandle LifecycleHandle;
 };

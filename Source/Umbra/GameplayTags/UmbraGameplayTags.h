@@ -14,6 +14,8 @@ namespace UmbraGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Type);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_ResultCritical);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_SourcePrimaryAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Source_BasicAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Source_Skill);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_AbilityPowerCoefficient);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_AttackPowerCoefficient);
 
@@ -24,6 +26,7 @@ namespace UmbraGameplayTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Attacking);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_HitReact);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Dead);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Vulnerable);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Stunned);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_SuperArmor);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Attack_ComboInput);

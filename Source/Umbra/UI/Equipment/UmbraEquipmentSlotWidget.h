@@ -3,11 +3,13 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/Equipment/UmbraEquipmentTypes.h"
+#include "UI/Items/UmbraItemSlotVisual.h"
 #include "UmbraEquipmentSlotWidget.generated.h"
 
 class UUmbraEquipmentSlotWidget;
 class UImage;
 class UTexture2D;
+DECLARE_MULTICAST_DELEGATE_TwoParams(FUmbraEquipmentTooltipHover, UUmbraEquipmentSlotWidget*, bool);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUmbraEquipmentSlotEvent, UUmbraEquipmentSlotWidget*, Slot);
 
 /** One parent for all WBP_EquipmentSlot instances. Blueprint owns brushes and layout. */
@@ -16,6 +18,7 @@ class UMBRA_API UUmbraEquipmentSlotWidget : public UUserWidget
 {
 	GENERATED_BODY()
 public:
+ FUmbraEquipmentTooltipHover OnTooltipHoverChanged;
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	void SetSlotType(EUmbraEquipmentSlot InSlotType);
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
@@ -31,6 +34,9 @@ public:
 	void SetHovered(bool bInHovered);
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	void RequestSelection();
+	/** Right-click or an explicit Blueprint context-menu action. The menu validates the request. */
+	UFUNCTION(BlueprintCallable, Category = "Equipment") void RequestUnequip();
+	UFUNCTION(BlueprintPure, Category = "Equipment") bool IsLocked() const { return bLocked; }
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	void RefreshVisual();
 	UFUNCTION(BlueprintPure, Category = "Equipment")
@@ -39,13 +45,18 @@ public:
 	EUmbraEquipmentSlot GetSlotType() const { return SlotType; }
 	UFUNCTION(BlueprintPure, Category = "Equipment")
 	bool HasItem() const { return CurrentItem.Item != nullptr; }
+	UFUNCTION(BlueprintPure, Category = "Equipment")
+	FUmbraEquipmentItemDisplay GetItemDisplay() const { return CurrentItem; }
 
 	UPROPERTY(BlueprintAssignable, Category = "Equipment")
 	FUmbraEquipmentSlotEvent OnSelectionRequested;
+	UPROPERTY(BlueprintAssignable, Category = "Equipment") FUmbraEquipmentSlotEvent OnUnequipRequested;
 	UPROPERTY(BlueprintAssignable, Category = "Equipment")
 	FUmbraEquipmentSlotEvent OnSlotTypeChanged;
 
 protected:
+	UPROPERTY(Transient) FUmbraItemSlotVisual ItemVisual;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UImage> SlotBackground;
 	/** Shared by all instances through WBP_EquipmentSlot Class Defaults; no gameplay meaning. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment|Visual")
 	TMap<EUmbraEquipmentSlot, TObjectPtr<UTexture2D>> EmptySlotIcons;
@@ -58,6 +69,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	TObjectPtr<UImage> LockedOverlay;
 	virtual void NativePreConstruct() override;
+	virtual void NativeDestruct() override;
 	virtual void NativeOnMouseEnter(const FGeometry& Geometry, const FPointerEvent& Event) override;
 	virtual void NativeOnMouseLeave(const FPointerEvent& Event) override;
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry, const FPointerEvent& Event) override;

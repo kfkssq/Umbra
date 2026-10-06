@@ -229,6 +229,8 @@ void AUmbraPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	ClearDamageNumbers();
 	bEndingPlay = true;
+	RemoveQuickTestGameplayEffect();
+	RemoveQuickVulnerableGameplayEffect();
 	RemoveAttributeDebugPanel();
 	ClearAttributeDebugEffects();
 	ClearAttackHighlightDebugMessages();
@@ -254,6 +256,7 @@ void AUmbraPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 	SetupAttributeDebugInput();
+	SetupQuickGameplayEffectInput();
 
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
 	{

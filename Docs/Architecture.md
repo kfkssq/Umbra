@@ -1,5 +1,35 @@
 # Umbra 架构与维护地图
 
+2026-10-05 Tooltip第三阶段：InventorySlot / EquipmentSlotWidget 原生Hover → 所属Menu重取真实组件Snapshot并校验身份 → FromInventory / FromEquipment → 惰性缓存UUmbraItemTooltip → Slot.SetToolTip。CharacterMenu向两个Menu传递页面活动状态；快照、ASC生命周期及四主属性事件清理/刷新当前Hover，刷新保护内的查询延后到合并GameThread任务，不改变装备/GAS规则。TooltipQualityBackgroundColor经数据层只驱动quality_bg和SlotBackground的Tint，保留Brush。详情与人工验收见[ItemTooltipUI](ItemTooltipUI.md)。以下未接悬停为历史阶段记录。
+
+2026-10-04 Tooltip第二阶段：ItemDefinition新增显示专用ItemCategory/WeaponType，分类本地化/诊断与已计算结果的展示文本由Builder统一生成。UUmbraItemTooltip只投影FUmbraItemTooltipData，动态行由UUmbraTooltipStatEntry或TextBlock承接；整树HitTestInvisible，更新/析构清空旧行，无Tick/游戏状态读取或父窗口操作。未接槽位悬停，未改Content或装备/伤害系统；准确绑定与生命周期见[ItemTooltipUI](ItemTooltipUI.md)。
+
+2026-10-04 物品Tooltip数据层：ItemDefinition/WeaponProfile原始配置 + Inventory/Equipment快照 → UUmbraItemTooltipDataBuilder → FUmbraItemTooltipData（原始属性、来源、条件与格式化文本）。Equipment.QueryRequirements与正式Refresh共享过滤自身GE的规则；CombatInfo共享数字格式化函数。品质、物品等级、背景故事和参考评级仅用于展示；不改DerivedStats或伤害公式，不创建Widget或修改资产。完整API、配置与第二阶段边界见[ItemTooltipData](ItemTooltipData.md)。
+
+2026-10-04 背包↔装备转移：PlayerState.EquipFromInventory/UnequipToInventory统一协调InventoryComponent与EquipmentComponent，保持GUID、校验槽位/返还空间，失败回滚不丢物品。背包双击与装备右键现已接入此接口；双击只选唯一可用槽，歧义显式选槽，右键以原GUID返还。启动清单把TestSword/TestMace发入背包一次。详见[UI交互闭环](InventoryEquipmentInteraction.md)。
+
+2026-10-04 背包基础：PlayerState → InventoryComponent（权威非堆叠实例/固定槽位/容量，OwnerOnly快照）→ InventoryMenu事件投影 → InventorySlot共用品质表现。GAS不参与背包存储；PlayerState统一转移，现有UI卸装自动返还。配置与接口边界见[InventoryFoundation](InventoryFoundation.md)。
+
+2026-10-04 装备交互：EquipmentSlot的右键请求由EquipmentMenu校验活动页、锁定状态、当前PlayerState与快照来源，再调用PlayerState.UnequipToInventory校验容量与槽位/GUID。组件复用Unequip清理GE并发布快照，BP_UnequipFinished只提供结果展示和卸下实例信息。成功事件中的实例已返还背包，禁止再次发放；不含客户端RPC，见[EquipmentUIBinding](EquipmentUIBinding.md)。
+
+2026-10-04 槽位表现统一：ItemDefinition提供Icon、SlotBackgroundTexture、RarityFrameTexture；EquipmentItemDisplay.FromDefinition供装备/背包共用，ItemSlotVisual在BP交互刷新之后落实物品层并保存空槽默认Brush。装备菜单继续读真实快照；InventorySlot由InventoryMenu按真实快照绑定稳定身份与容量。详见[EquipmentUIBinding](EquipmentUIBinding.md)。
+
+2026-10-04 固定词缀：ItemDefinition.AttributeBonuses → 原生装备GE的SetByCaller → 已有GAS属性；DamageBonuses → 同一句柄的EquipmentDamageBonusComponent按Context.SourceObject读取 → 统一A/X结算及面板摘要。每实例仍一个GE句柄，属性/效果事件更新UI，固有防御需求惩罚与固定词缀分开。见[EquipmentAffixes](EquipmentAffixes.md)。
+
+2026-10-04 StatsPanel八项共用CombatInfo读取/格式化及AD/AP快照通知；装备槽位由所属PlayerState的Equipment快照按Slot+InstanceId投影，菜单成对订阅/解绑，组件注销通知清空视图。ItemDefinition提供只读展示元数据，UI不重算需求或修改装备。见[EquipmentUIBinding](EquipmentUIBinding.md)。
+
+2026-10-03 第六阶段CombatInfo数据绑定：现有页面订阅ASC、DerivedStats和Equipment事件；独立CombatStat标识和状态由CombatStatData读取/格式化，复用CombatStatEntry/StatEntry。伤害模块提供不假设目标的A分类摘要，条件项和X显式排除并标记，无新增GAS属性或UI伤害计算。最新配置与边界见[CombatInfoBinding](CombatInfoBinding.md)，下文旧纯展示说明为历史阶段。
+
+2026-10-03 敌人易伤快捷入口：数字7即时光标选敌/遮挡检查 → 玩家ASC创建Level1 Spec → 敌人ASC应用GE_TestVulnerable；数字6用独立句柄撤销，不影响玩家8/9 Buff。一次保存一个敌人目标，重复不叠加、换目标清理、EndPlay清理；无新增Tick/RPC。配置见[DamageBuckets](DamageBuckets.md#敌人易伤快捷键)。
+
+2026-10-03 测试GE快捷入口位于现有Controller Debug实现：本地数字8/9 → 权威校验 → PlayerState ASC → 配置的Level1 GE。Controller保存ASC弱引用与ActiveGameplayEffectHandle，阻止重复应用并精确撤销，EndPlay清理；无Tick或新增RPC。配置与蓝图接口见[DamageBuckets](DamageBuckets.md#测试ge快捷入口)。
+
+2026-10-03 第五阶段：Typed可显式开启Damage Buckets，攻击者有效GE内的UmbraDamageBonusComponent配置A/X条件条目，按类型/来源/暴击/易伤/双方标签筛选；基础C/V来自DamageRules，旧总暴击倍率保持兼容路径。GAS句柄管理效果生命周期，无额外Tick或AD/AP重复写入，见[DamageBuckets](DamageBuckets.md)。
+
+2026-10-03 第四阶段：统一入口可显式选择武器通道继承或显式AD/AP类型技能，九种GAS类型抗性参与分类型两层防御，汇总一次IncomingDamage；Legacy默认保留。模型、规则资产及迁移见[TypedDamage](TypedDamage.md)。
+
+2026-10-03 第三阶段：默认关闭的EquipmentComponent与ItemDefinition负责槽位/等级、排除自身贡献的四维需求、装备GE、防御惩罚和负重；接管DerivedStats武器输入，权威事件驱动更新。UI当前仍未订阅装备数据；规则与边界见[最小装备组件](EquipmentFoundation.md)。
+
 第二页战斗属性 UI 的 C++ 支持与手动接线见 [CombatInfoUI](CombatInfoUI.md)。`UUmbraCombatInfo` 仅控制原第二页的两个分类折叠；`UUmbraCombatStatEntry` 复用 StatEntry 的纯显示路径，以实例 TestValue 显示固定文本，无 GAS 订阅。用户手动修改现有 WBP_CombatInfo，蓝图尚待接线/PIE；现有 AttributeMenu、PrimaryAttribute、HeroInfo、TalentInfo 未修改。
 
 第一阶段空背包：`UUmbraInventoryMenu` 持有生成的 `UUmbraInventorySlot`，按容量/列数构造UniformGrid，独占Selected状态；Construct幂等复用、Destruct解绑，所有格子保持Empty，无物品模型。CharacterMenu中Attribute、Equipment、Inventory三栏同时显示，不加互斥Tab；未来SkillTreeMenu应在CharacterMenu外层并列。背包分类按钮复用属性页按钮的文字变体，当前无过滤/切页订阅；预览监听链不改。InventorySlot空内容层强制Collapsed；EquipmentSlot的RarityFrame在BP刷新后仅按HasItem显示。配置、当前资产检查及完整接线见 [Inventory第一阶段](InventoryPhase1.md)。
@@ -14,6 +44,10 @@ CharacterMenu 四维复用 `UUmbraCharacterStatsPanel` 的 PlayerState/ASC 生�
 
 依据：2026-09-16 仓库 C++、配置、维护修复及回归检查。资产文件存在不代表其 Graph 或全部引用已确认；专项自动化读取的资产范围见 [Progress](Progress.md)。配置见 [EditorSetup](EditorSetup.md)。本文记录现有实现，不要求建立新的框架。
 
+2026-10-02：统一伤害提交入口已接入双方普攻，公式仍为旧物理/魔法规则。来源标签与旧玩家测量标记分离，完整契约和验收见 [统一伤害入口](UnifiedDamageEntry.md)。
+
+2026-10-02 第二阶段：玩家PlayerState/敌人Character持有默认关闭的DerivedStatsComponent，武器类型基础伤害和四主属性补正生成AD/AP并发布复制快照；旧模式保持。类型结算仍未实现，见 [武器派生阶段](WeaponDerivedPower.md)。
+
 ## 模块与关键类
 
 只有一个游戏运行时模块 `Umbra`。下表路径均相对仓库根；同名 `.h` 声明契约，`.cpp` 实现行为。
@@ -25,7 +59,7 @@ CharacterMenu 四维复用 `UUmbraCharacterStatsPanel` 的 PlayerState/ASC 生�
 | ASC 初始化、输入队列、攻击意图 RPC、就绪通知 | `UUmbraAbilitySystemComponent` | [Source/Umbra/AbilitySystem/UmbraAbilitySystemComponent.cpp](../Source/Umbra/AbilitySystem/UmbraAbilitySystemComponent.cpp) |
 | 属性、边界、复制、最终扣血 | `UUmbraAttributeSet` | [Source/Umbra/AbilitySystem/UmbraAttributeSet.cpp](../Source/Umbra/AbilitySystem/UmbraAttributeSet.cpp) |
 | 初始调试覆盖数据 | `FUmbraDebugInitialAttributes` | [Source/Umbra/AbilitySystem/UmbraDebugInitialAttributes.h](../Source/Umbra/AbilitySystem/UmbraDebugInitialAttributes.h) |
-| GE 校验、构造并发送伤害 Spec | `UmbraPhysicalDamage::Apply` / `FUmbraPhysicalDamageConfig` | [Source/Umbra/AbilitySystem/Damage/UmbraPhysicalDamage.cpp](../Source/Umbra/AbilitySystem/Damage/UmbraPhysicalDamage.cpp) |
+| GE 校验、构造并发送伤害 Spec | `UmbraDamage::Apply` / `FUmbraDamageRequest`；旧 `UmbraPhysicalDamage::Apply` 为适配器 | [Source/Umbra/AbilitySystem/Damage/UmbraDamage.cpp](../Source/Umbra/AbilitySystem/Damage/UmbraDamage.cpp) |
 | 物理/魔法公式 | `UUmbraPhysicalDamageExecution` | [Source/Umbra/AbilitySystem/Damage/UmbraPhysicalDamageExecution.cpp](../Source/Umbra/AbilitySystem/Damage/UmbraPhysicalDamageExecution.cpp) |
 | 结算后的表现路由快照 | `FUmbraDamageNotification` | [Source/Umbra/AbilitySystem/Damage/UmbraDamageNotification.cpp](../Source/Umbra/AbilitySystem/Damage/UmbraDamageNotification.cpp) |
 | 技能输入标签与激活策略 | `UUmbraGameplayAbility` | [Source/Umbra/AbilitySystem/UmbraGameplayAbility.h](../Source/Umbra/AbilitySystem/UmbraGameplayAbility.h) |
@@ -53,7 +87,7 @@ CharacterMenu 四维复用 `UUmbraCharacterStatsPanel` 的 PlayerState/ASC 生�
 
 - 玩家：PlayerState 创建并拥有 ASC / AttributeSet，Character 是 Avatar。换 Pawn 不等于换属性容器；此布局支持属性与技能跨 Pawn 绑定存续，但**当前没有实现完整重生**。
 - 敌人：Character 自己拥有 ASC / AttributeSet，生命周期随敌人结束；ASC 使用 Minimal 效果复制，玩家使用 Mixed。常驻属性由 AttributeSet 显式复制；是否在实际网络地图正确工作需 PIE。
-- 19 个常驻属性是 GAS 当前数据源；其中 `Strength`、`Dexterity`、`Intelligence`、`Faith` 是无硬上限的非负点数，本阶段没有派生收益。`AttackSpeed` 直接存攻速倍率，1.0 是基础攻速。`IncomingDamage` 是瞬时结算中间值，不复制、不展示、不当作持续增益。技能只持有本次攻击目标、连招进度、攻速快照与命中集合。
+- 19 个常驻属性是 GAS 当前数据源；其中 `Strength`、`Dexterity`、`Intelligence`、`Faith` 是无硬上限的非负点数；旧模式无派生收益，显式启用武器派生后作为补正输入。`AttackSpeed` 直接存攻速倍率，1.0 是基础攻速。`IncomingDamage` 是瞬时结算中间值，不复制、不展示、不当作持续增益。技能只持有本次攻击目标、连招进度、攻速快照与命中集合。
 - Controller 拥有本地指针操作状态与 UI 实例；UI 持有弱目标和委托句柄，不另存一套战斗数值。血条比例、百分比文字和显示舍入属于表现计算，不是重复伤害结算。
 - 调试面板的 GE 句柄由服务器 Controller 按目标 ASC 保存，仅清除自己创建的增益。调试按钮不负责属性初始化。
 
@@ -79,7 +113,7 @@ Controller::SetupInputComponent 注册 PrimaryAction / PrimaryAttackAction。Pri
 
 Controller 只保留一条待执行指令。移动立即停止自动攻击并取消当前前摇或后摇；出手后的伤害与 ASC 已提交的攻击间隔仍保留。死亡、眩晕、外部 CancelAllAbilities、Controller EndPlay 和 Avatar 更换清理计时器、能力任务与目标。
 
-BasicAttackAbility 每击快照原目标、倍率、周期、前摇和动画。服务端在前摇结束核对实例/存活/攻击标签/原目标/范围及可选 Visibility 遮挡，只对原目标调用统一 UmbraPhysicalDamage.Apply 一次，并沿用受击事件、暴击与飘字链。旧 Hit Window Notify 不再驱动玩家普通攻击伤害；敌人及其他技能的 Notify/扫掠能力保留。LocalPredicted 客户端仅播放表现，不能扣血。
+BasicAttackAbility 每击快照原目标、倍率、周期、前摇和动画。服务端在前摇结束核对实例/存活/攻击标签/原目标/范围及可选 Visibility 遮挡，只对原目标调用统一 UmbraDamage::Apply 一次，并沿用受击事件、暴击与飘字链。旧 Hit Window Notify 不再驱动玩家普通攻击伤害；敌人及其他技能的 Notify/扫掠能力保留。LocalPredicted 客户端仅播放表现，不能扣血。
 
 激活首击和每个后续攻击段开始时，从 ASC 快照 `AttackSpeed`（AttributeSet 限制0.2～10.0）。倍率达到 `HighSpeedAttackThreshold`（默认3.0）时按 `HighSpeedAttackMontages` 顺序循环有效项；配置A、B即得到A-B-A-B，空项会跳过，数组无有效项则安全回退普通第一段。降回阈值以下从普通连招第一段恢复并重置高速索引，再次进入高速模式从A开始。模式、索引与倍率都只在每击开始决定。
 
@@ -97,7 +131,7 @@ Health 从正数降到零 → Enemy::HandleHealthChanged → authority Die → b
 
 ### 4. 伤害到最终数据修改
 
-双方普攻 → UmbraPhysicalDamage::Apply → 校验 Instant / 无 Modifiers / 恰好一个指定 Execution → Spec 写 Damage.Type、AD/AP 系数 → ApplyGameplayEffectSpecToTarget → PhysicalDamageExecution 实时捕获攻击方 AttackPower/AbilityPower、暴击率/倍率与目标对应抗性。
+双方普攻 → UmbraDamage::Apply（BasicAttack）→ 校验 Instant / 无 Modifiers / 恰好一个指定 Execution → Spec 写 Damage.Type、AD/AP 系数 → ApplyGameplayEffectSpecToTarget → PhysicalDamageExecution 实时捕获攻击方 AttackPower/AbilityPower、暴击率/倍率与目标对应抗性。
 
 `Raw = max(0, AttackPower × AD系数 + AbilityPower × AP系数)`；`Damage = Raw × 暴击总倍率（未暴击为1）× 100 / (100 + 对应抗性)`。物理用 Armor，魔法用 MagicResistance；类型与 AD/AP 缩放独立。系数及其 SetByCaller Tag 保留既有名称，以兼容攻击蓝图。保留 Physical 类名是为了兼容已引用资产，不代表仅支持物理。
 

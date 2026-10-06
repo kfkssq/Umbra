@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AbilitySystem/Damage/UmbraTypedDamage.h"
 #include "UmbraPhysicalDamage.generated.h"
 
 class UAbilitySystemComponent;
@@ -18,6 +19,10 @@ struct FUmbraPhysicalDamageConfig
 {
 	GENERATED_BODY()
 
+	/** Opt-in typed modes use a native GE; the fields below remain legacy-only. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage")
+	FUmbraTypedDamageConfig Typed;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage")
 	EUmbraDamageType DamageType = EUmbraDamageType::Physical;
 
@@ -30,7 +35,9 @@ struct FUmbraPhysicalDamageConfig
 
 namespace UmbraPhysicalDamage
 {
-	/** Creates a fresh hit spec on authority. Rejects legacy/mixed damage definitions. */
+	/** Compatibility adapter to UmbraDamage. False preserves an unspecified source, not Skill.
+	 * True preserves the player-primary measurement marker. New callers classify their source explicitly.
+	 */
 	bool Apply(UAbilitySystemComponent* Source, UAbilitySystemComponent* Target,
 		TSubclassOf<UGameplayEffect> EffectClass, const FUmbraPhysicalDamageConfig& Config, float Level,
 		bool bPrimaryAttack = false);

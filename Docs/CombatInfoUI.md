@@ -1,5 +1,7 @@
 # 第二页战斗属性 UI：现有 WBP_CombatInfo 接线
 
+**2026-10-03更新：运行时绑定以[CombatInfoBinding](CombatInfoBinding.md)为准。** 本文保留早期两分类/测试文本布局记录；当前有三分类、真实数据状态和事件订阅，TestValue只用于Designer预览。
+
 ## 当前交付与边界
 
 2026-10-01：用户确认蓝图手动修改。本轮只交付两个纯 UI C++ 类及原生测试；**没有保存任何 Content 资产，下面布局尚待手动接线与 PIE 验收**。磁盘尚无 WBP_CombatStatEntry，需按下文在编辑器创建。交付入口是本指南，不运行 Saved 下的临时编辑脚本。

@@ -13,7 +13,7 @@
 /** Shared player/enemy attributes. Change through GEs.
 	* Regen: points/sec; MoveSpeed: cm/sec; AttackSpeed: direct multiplier (1 = base speed); crit chance: fraction.
 	* Crit multiplier: total damage (2 = double); haste: numeric rating (50).
-	* Strength/Dexterity/Intelligence/Faith are nonnegative point values with no derived benefits yet.
+	* Primary points optionally feed WeaponDerivedPower; legacy mode has no derived benefits.
 	* GAS BaseValue is an aggregation input, not a character progression stat.
 	*/
 UCLASS()
@@ -112,7 +112,62 @@ public:
 	FGameplayAttributeData IncomingDamage;
 	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, IncomingDamage)
 
+public:
+	/** Nonnegative rating; typed execution converts it to capped damage reduction. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_SlashingResistance, Category = "Attributes|Type Resistance")
+	FGameplayAttributeData SlashingResistance;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, SlashingResistance)
+
+	/** Nonnegative rating; typed execution converts it to capped damage reduction. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_BluntResistance, Category = "Attributes|Type Resistance")
+	FGameplayAttributeData BluntResistance;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, BluntResistance)
+
+	/** Nonnegative rating; typed execution converts it to capped damage reduction. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_PiercingResistance, Category = "Attributes|Type Resistance")
+	FGameplayAttributeData PiercingResistance;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, PiercingResistance)
+
+	/** Nonnegative rating; typed execution converts it to capped damage reduction. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_FireResistance, Category = "Attributes|Type Resistance")
+	FGameplayAttributeData FireResistance;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, FireResistance)
+
+	/** Nonnegative rating; typed execution converts it to capped damage reduction. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_LightningResistance, Category = "Attributes|Type Resistance")
+	FGameplayAttributeData LightningResistance;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, LightningResistance)
+
+	/** Nonnegative rating; typed execution converts it to capped damage reduction. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_ColdResistance, Category = "Attributes|Type Resistance")
+	FGameplayAttributeData ColdResistance;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, ColdResistance)
+
+	/** Nonnegative rating; typed execution converts it to capped damage reduction. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_RadiantResistance, Category = "Attributes|Type Resistance")
+	FGameplayAttributeData RadiantResistance;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, RadiantResistance)
+
+	/** Nonnegative rating; typed execution converts it to capped damage reduction. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_PoisonResistance, Category = "Attributes|Type Resistance")
+	FGameplayAttributeData PoisonResistance;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, PoisonResistance)
+
+	/** Nonnegative rating; typed execution converts it to capped damage reduction. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_ShadowResistance, Category = "Attributes|Type Resistance")
+	FGameplayAttributeData ShadowResistance;
+	UMBRA_ATTRIBUTE_ACCESSORS(UUmbraAttributeSet, ShadowResistance)
+
 protected:
+	UFUNCTION() void OnRep_SlashingResistance(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_BluntResistance(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_PiercingResistance(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_FireResistance(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_LightningResistance(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_ColdResistance(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_RadiantResistance(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_PoisonResistance(const FGameplayAttributeData& OldValue);
+	UFUNCTION() void OnRep_ShadowResistance(const FGameplayAttributeData& OldValue);
 	UFUNCTION()
 	void OnRep_Health(const FGameplayAttributeData& OldValue);
 	UFUNCTION()

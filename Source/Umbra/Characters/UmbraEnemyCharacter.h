@@ -15,6 +15,8 @@ class UGameplayAbility;
 class UGameplayEffect;
 class UUmbraAbilitySystemComponent;
 class UUmbraAttributeSet;
+class UUmbraDerivedStatsComponent;
+class UUmbraEquipmentComponent;
 struct FOnAttributeChangeData;
 
 /** Reusable GAS-enabled base character for enemy Blueprints. */
@@ -43,6 +45,10 @@ public:
 	virtual void SetAttackHighlighted_Implementation(bool bHighlighted) override;
 
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Derived Stats")
+	TObjectPtr<UUmbraDerivedStatsComponent> DerivedStatsComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment")
+	TObjectPtr<UUmbraEquipmentComponent> EquipmentComponent;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UUmbraEnemyHealthBarComponent> HealthBarComponent;
 

@@ -23,6 +23,51 @@ UUmbraAttributeSet::UUmbraAttributeSet()
 	InitMoveSpeed(500.f);
 }
 
+void UUmbraAttributeSet::OnRep_SlashingResistance(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, SlashingResistance, OldValue);
+}
+
+void UUmbraAttributeSet::OnRep_BluntResistance(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, BluntResistance, OldValue);
+}
+
+void UUmbraAttributeSet::OnRep_PiercingResistance(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, PiercingResistance, OldValue);
+}
+
+void UUmbraAttributeSet::OnRep_FireResistance(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, FireResistance, OldValue);
+}
+
+void UUmbraAttributeSet::OnRep_LightningResistance(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, LightningResistance, OldValue);
+}
+
+void UUmbraAttributeSet::OnRep_ColdResistance(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, ColdResistance, OldValue);
+}
+
+void UUmbraAttributeSet::OnRep_RadiantResistance(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, RadiantResistance, OldValue);
+}
+
+void UUmbraAttributeSet::OnRep_PoisonResistance(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, PoisonResistance, OldValue);
+}
+
+void UUmbraAttributeSet::OnRep_ShadowResistance(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UUmbraAttributeSet, ShadowResistance, OldValue);
+}
+
 void UUmbraAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, float& Value) const
 {
 	if (Attribute == GetIncomingDamageAttribute()) return;
@@ -103,6 +148,15 @@ void UUmbraAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 void UUmbraAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, SlashingResistance, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, BluntResistance, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, PiercingResistance, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, FireResistance, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, LightningResistance, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, ColdResistance, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, RadiantResistance, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, PoisonResistance, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, ShadowResistance, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, Health, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UUmbraAttributeSet, HealthRegen, COND_None, REPNOTIFY_Always);

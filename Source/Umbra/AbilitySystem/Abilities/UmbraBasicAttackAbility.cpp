@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AbilitySystem/Abilities/UmbraBasicAttackAbility.h"
+#include "AbilitySystem/Damage/UmbraDamage.h"
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
@@ -722,7 +723,12 @@ void UUmbraBasicAttackAbility::ResolveLogicalStrike(uint32 ExpectedAttackInstanc
 	if (FCString::Strcmp(Result, TEXT("hit")) == 0)
 	{
 		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Target);
-		if (!UmbraPhysicalDamage::Apply(ASC, TargetASC, DamageEffectClass, DamageConfig, GetAbilityLevel(), true))
+		FUmbraDamageRequest Request(EUmbraDamageSource::BasicAttack);
+		Request.EffectClass = DamageEffectClass;
+		Request.Config = DamageConfig;
+		Request.Level = GetAbilityLevel();
+		Request.bRecordPrimaryAttackDamage = true;
+		if (!UmbraDamage::Apply(ASC, TargetASC, Request))
 			Result = TEXT("damage effect rejected");
 		else
 		{

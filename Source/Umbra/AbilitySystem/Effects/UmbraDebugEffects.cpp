@@ -44,6 +44,16 @@ UUmbraDebugAttributeEffect::UUmbraDebugAttributeEffect()
 #endif
 }
 
+UUmbraDebugDerivedAttributeEffect::UUmbraDebugDerivedAttributeEffect()
+{
+	// Primary bonuses derive power; adding power again would double count the debug effect.
+	Modifiers.RemoveAll([](const FGameplayModifierInfo& Modifier)
+	{
+		return Modifier.Attribute == UUmbraAttributeSet::GetAttackPowerAttribute()
+			|| Modifier.Attribute == UUmbraAttributeSet::GetAbilityPowerAttribute();
+	});
+}
+
 UUmbraDebugDamageEffect::UUmbraDebugDamageEffect()
 {
 	DurationPolicy = EGameplayEffectDurationType::Instant;

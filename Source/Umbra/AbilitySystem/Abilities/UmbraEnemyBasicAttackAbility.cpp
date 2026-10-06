@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AbilitySystem/Abilities/UmbraEnemyBasicAttackAbility.h"
+#include "AbilitySystem/Damage/UmbraDamage.h"
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
@@ -30,7 +31,8 @@ void UUmbraEnemyBasicAttackAbility::ActivateAbility(FGameplayAbilitySpecHandle H
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 	AUmbraEnemyCharacter* Enemy = ActorInfo ? Cast<AUmbraEnemyCharacter>(ActorInfo->AvatarActor.Get()) : nullptr;
 	if (!Enemy || !Enemy->IsAIBehaviorEnabled() || Enemy->IsDead() || !IsValid(Enemy->GetCombatTarget()) || !AttackMontage
-		|| !DamageEffectClass || !CommitAbility(Handle, ActorInfo, ActivationInfo))
+		|| (DamageConfig.Typed.Model == EUmbraDamageModel::Legacy && !DamageEffectClass)
+		|| !CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
 		FinishAttack(true);
 		return;
@@ -82,8 +84,11 @@ void UUmbraEnemyBasicAttackAbility::HandleHitWindow(FGameplayEventData Payload)
 	}
 	// Mark the confirmed hit before application, including blocked/rejected effects.
 	bDamageApplied = true;
-	UmbraPhysicalDamage::Apply(GetAbilitySystemComponentFromActorInfo(), TargetASC,
-		DamageEffectClass, DamageConfig, GetAbilityLevel());
+	FUmbraDamageRequest Request(EUmbraDamageSource::BasicAttack);
+	Request.EffectClass = DamageEffectClass;
+	Request.Config = DamageConfig;
+	Request.Level = GetAbilityLevel();
+	UmbraDamage::Apply(GetAbilitySystemComponentFromActorInfo(), TargetASC, Request);
 }
 
 void UUmbraEnemyBasicAttackAbility::FinishAttack(bool bCancelled)

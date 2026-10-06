@@ -18,6 +18,10 @@ public:
 		AttackRows = AttackBody; DefenseRows = DefenseBody;
 	}
 	void ConstructForTest() { NativeConstruct(); }
+	void ConfigureUtility(UButton* Toggle, UTextBlock* Arrow, UVerticalBox* Rows)
+	{
+		UtilityToggle = Toggle; UtilityArrow = Arrow; UtilityRows = Rows;
+	}
 	void DestructForTest() { NativeDestruct(); }
 };
 

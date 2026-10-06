@@ -1,6 +1,7 @@
 #include "UI/UmbraCharacterStatsPanel.h"
 
-#include "AbilitySystem/Abilities/UmbraBasicAttackAbility.h"
+#include "UI/Combat/UmbraCombatStatData.h"
+#include "Stats/UmbraDerivedStatsComponent.h"
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "Blueprint/WidgetTree.h"
@@ -10,19 +11,32 @@
 
 namespace
 {
+	EUmbraCombatStat CombatStatFor(EUmbraCharacterStat Stat)
+	{
+		switch (Stat)
+		{
+		case EUmbraCharacterStat::AttackPower: return EUmbraCombatStat::AttackPower;
+		case EUmbraCharacterStat::AbilityPower: return EUmbraCombatStat::AbilityPower;
+		case EUmbraCharacterStat::Armor: return EUmbraCombatStat::Armor;
+		case EUmbraCharacterStat::MagicResistance: return EUmbraCombatStat::MagicResist;
+		case EUmbraCharacterStat::AttackSpeed: return EUmbraCombatStat::AttackSpeed;
+		case EUmbraCharacterStat::CriticalChance: return EUmbraCombatStat::CriticalChance;
+		case EUmbraCharacterStat::MoveSpeed: return EUmbraCombatStat::MoveSpeed;
+		case EUmbraCharacterStat::AbilityHaste: return EUmbraCombatStat::AbilityHaste;
+		default: return EUmbraCombatStat::None;
+		}
+	}
+
 	FGameplayAttribute AttributeFor(EUmbraCharacterStat Stat)
 	{
+		const auto CombatStat = CombatStatFor(Stat);
+		if (CombatStat != EUmbraCombatStat::None) return UmbraCombatStats::AttributeFor(CombatStat);
 		switch (Stat)
 		{
 		case EUmbraCharacterStat::Strength: return UUmbraAttributeSet::GetStrengthAttribute();
 		case EUmbraCharacterStat::Dexterity: return UUmbraAttributeSet::GetDexterityAttribute();
 		case EUmbraCharacterStat::Intelligence: return UUmbraAttributeSet::GetIntelligenceAttribute();
 		case EUmbraCharacterStat::Faith: return UUmbraAttributeSet::GetFaithAttribute();
-		case EUmbraCharacterStat::Armor: return UUmbraAttributeSet::GetArmorAttribute();
-		case EUmbraCharacterStat::MagicResistance: return UUmbraAttributeSet::GetMagicResistanceAttribute();
-		case EUmbraCharacterStat::AttackSpeed: return UUmbraAttributeSet::GetAttackSpeedAttribute();
-		case EUmbraCharacterStat::CriticalChance: return UUmbraAttributeSet::GetCriticalChanceAttribute();
-		case EUmbraCharacterStat::MoveSpeed: return UUmbraAttributeSet::GetMoveSpeedAttribute();
 		default: return FGameplayAttribute();
 		}
 	}
@@ -137,6 +151,8 @@ void UUmbraCharacterStatsPanel::BindPlayer()
 	{
 		UnbindASC();
 		BoundASC = ASC;
+		BoundDerived = PlayerState->FindComponentByClass<UUmbraDerivedStatsComponent>();
+		if (BoundDerived.IsValid()) BoundDerived->OnDerivedStatsChanged.AddUniqueDynamic(this, &ThisClass::OnDerived);
 		for (const auto& Entry : Entries)
 		{
 			BindStat(Entry.Key);
@@ -155,8 +171,16 @@ void UUmbraCharacterStatsPanel::BindStat(EUmbraCharacterStat Stat)
 	}
 }
 
+void UUmbraCharacterStatsPanel::OnDerived(const FUmbraDerivedStatsSnapshot&)
+{
+	RefreshStat(EUmbraCharacterStat::AttackPower);
+	RefreshStat(EUmbraCharacterStat::AbilityPower);
+}
+
 void UUmbraCharacterStatsPanel::UnbindASC()
 {
+	if (BoundDerived.IsValid()) BoundDerived->OnDerivedStatsChanged.RemoveDynamic(this, &ThisClass::OnDerived);
+	BoundDerived.Reset();
 	if (UUmbraAbilitySystemComponent* ASC = BoundASC.Get())
 	{
 		for (const auto& Pair : AttributeHandles)
@@ -226,30 +250,21 @@ void UUmbraCharacterStatsPanel::RefreshStat(EUmbraCharacterStat Stat)
 			Entry->Get()->SetStatDisplay(Display->Icon, Display->DisplayName, Text);
 		else Entry->Get()->SetDisplayValue(Text);
 	};
+	const auto CombatStat = CombatStatFor(Stat);
+	if (CombatStat != EUmbraCombatStat::None)
+	{
+		ApplyDisplay(UmbraCombatStats::Read(BoundASC.IsValid() ? BoundPlayerState.Get() : nullptr, CombatStat).Text);
+		return;
+	}
 	if (!TryReadStat(Stat, Value) || !FMath::IsFinite(Value))
 	{
 		ApplyDisplay(FText::FromString(TEXT("—")));
 		return;
 	}
-	if (Stat == EUmbraCharacterStat::AttackSpeed)
-	{
-		FNumberFormattingOptions Options;
-		Options.SetMinimumFractionalDigits(2);
-		Options.SetMaximumFractionalDigits(2);
-		ApplyDisplay(FText::AsNumber(Value, &Options));
-	}
-	else if (Stat == EUmbraCharacterStat::CriticalChance)
-	{
-		ApplyDisplay(FText::Format(NSLOCTEXT("UmbraStats", "Percent", "{0}%"),
-			FText::AsNumber(FMath::RoundToInt(Value * 100.f))));
-	}
-	else
-	{
-		FNumberFormattingOptions Options;
-		Options.SetMinimumFractionalDigits(0);
-		Options.SetMaximumFractionalDigits(0);
-		ApplyDisplay(FText::AsNumber(double(Value), &Options));
-	}
+	FNumberFormattingOptions Options;
+	Options.SetMinimumFractionalDigits(0);
+	Options.SetMaximumFractionalDigits(0);
+	ApplyDisplay(FText::AsNumber(double(Value), &Options));
 }
 
 bool UUmbraCharacterStatsPanel::TryReadStat(EUmbraCharacterStat Stat, float& OutValue) const
@@ -266,32 +281,6 @@ bool UUmbraCharacterStatsPanel::TryReadStat(EUmbraCharacterStat Stat, float& Out
 	case EUmbraCharacterStat::Dexterity: OutValue = Attributes->GetDexterity(); return true;
 	case EUmbraCharacterStat::Intelligence: OutValue = Attributes->GetIntelligence(); return true;
 	case EUmbraCharacterStat::Faith: OutValue = Attributes->GetFaith(); return true;
-	case EUmbraCharacterStat::Armor: OutValue = Attributes->GetArmor(); return true;
-	case EUmbraCharacterStat::MagicResistance: OutValue = Attributes->GetMagicResistance(); return true;
-	case EUmbraCharacterStat::CriticalChance: OutValue = Attributes->GetCriticalChance(); return true;
-	case EUmbraCharacterStat::MoveSpeed: OutValue = Attributes->GetMoveSpeed(); return true;
-	case EUmbraCharacterStat::AttackSpeed:
-	{
-		const AUmbraPlayerState* PlayerState = BoundPlayerState.Get();
-		const UUmbraBasicAttackAbility* Attack = PlayerState ? PlayerState->GetPrimaryAttackAbilityDefaults() : nullptr;
-		const float BasePeriod = Attack ? Attack->GetConfiguredBaseAttackInterval() : 0.f;
-		if (BasePeriod <= 0.f)
-		{
-			return false;
-		}
-		const float Speed = FMath::Clamp(Attributes->GetAttackSpeed(),
-			UUmbraAttributeSet::MinAttackSpeedMultiplier, UUmbraAttributeSet::MaxAttackSpeedMultiplier);
-		OutValue = Speed / BasePeriod;
-		return true;
+	default: return false;
 	}
-	case EUmbraCharacterStat::AttackPower:
-	case EUmbraCharacterStat::AbilityPower:
-		// Combat does not expose separate final physical/magical weapon damage values yet.
-		// Wire a combat-owned derived-value provider here; do not mirror execution math in UI.
-		return false;
-	case EUmbraCharacterStat::AbilityHaste:
-		// AbilityHaste is stored but no effective cooldown/haste rule exists yet.
-		return false;
-	}
-	return false;
 }

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Characters/UmbraEnemyCharacter.h"
+#include "Stats/UmbraDerivedStatsComponent.h"
+#include "Equipment/UmbraEquipmentComponent.h"
 
 #include "AI/UmbraAIController.h"
 #include "AbilitySystem/Abilities/UmbraHitReactAbility.h"
@@ -26,6 +28,8 @@ AUmbraEnemyCharacter::AUmbraEnemyCharacter()
 	AbilitySystemComponent->SetIsReplicated(true);
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 	AttributeSet = CreateDefaultSubobject<UUmbraAttributeSet>(TEXT("AttributeSet"));
+	DerivedStatsComponent = CreateDefaultSubobject<UUmbraDerivedStatsComponent>(TEXT("DerivedStatsComponent"));
+	EquipmentComponent = CreateDefaultSubobject<UUmbraEquipmentComponent>(TEXT("EquipmentComponent"));
 	HealthBarComponent = CreateDefaultSubobject<UUmbraEnemyHealthBarComponent>(TEXT("HealthBarComponent"));
 	HealthBarComponent->SetupAttachment(GetRootComponent());
 	HealthBarComponent->SetRelativeLocation(FVector(0.f, 0.f, 120.f));
@@ -40,6 +44,8 @@ void AUmbraEnemyCharacter::BeginPlay()
 	GetCharacterMovement()->MaxWalkSpeed = EnemyMoveSpeed;
 	AbilitySystemComponent->InitAbilityActorInfo(this, this);
 	AbilitySystemComponent->InitializeAttributes(InitialAttributesEffect, bUseDebugInitialAttributes ? &DebugInitialAttributes : nullptr);
+	DerivedStatsComponent->Initialize(AbilitySystemComponent);
+	EquipmentComponent->Initialize(AbilitySystemComponent);
 	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UUmbraAttributeSet::GetHealthAttribute())
 		.AddUObject(this, &AUmbraEnemyCharacter::HandleHealthChanged);
 	if (HasAuthority())

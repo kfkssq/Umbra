@@ -17,6 +17,8 @@ public:
 	}
 	void EnterForTest() { NativeOnMouseEnter(FGeometry(), FPointerEvent()); }
 	void LeaveForTest() { NativeOnMouseLeave(FPointerEvent()); }
+	FReply MouseDownForTest(const FPointerEvent& Event) { return NativeOnMouseButtonDown(FGeometry(), Event); }
+	FReply DoubleClickForTest(const FPointerEvent& Event) { return NativeOnMouseButtonDoubleClick(FGeometry(), Event); }
 };
 
 UCLASS(Transient, NotBlueprintable)
@@ -28,6 +30,7 @@ public:
 	{
 		InventoryGrid = Grid; CapacityText = Text;
 		InventoryCapacity = Capacity; Columns = InColumns;
+		bBindInventoryData = false;
 		InventorySlotClass = UUmbraInventorySlotTestWidget::StaticClass();
 	}
 	void ClearClassForTest() { InventorySlotClass = nullptr; }

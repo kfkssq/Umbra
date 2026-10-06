@@ -21,7 +21,7 @@ struct UMBRA_API FUmbraDebugInitialAttributes
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", meta = (ClampMin = "0.0"))
 	float ResourceRegen = 0.f;
 
-	/** Primary attributes are stored only in this phase; they do not grant derived benefits yet. */
+	/** Primary points also feed weapon scaling when the owning derived component is opted in. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes|Primary", meta = (ClampMin = "0.0", DisplayName = "力量"))
 	float Strength = 0.f;
 

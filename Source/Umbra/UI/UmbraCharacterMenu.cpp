@@ -4,6 +4,7 @@
 #include "Components/PanelWidget.h"
 #include "Components/WidgetSwitcher.h"
 #include "UI/Equipment/UmbraEquipmentMenu.h"
+#include "UI/Inventory/UmbraInventoryMenu.h"
 
 namespace
 {
@@ -69,6 +70,7 @@ void UUmbraCharacterMenu::VisitWidget(UWidget* Widget, bool bAncestorsVisible)
 		INotifyFieldValueChanged::FFieldValueChangedDelegate::CreateUObject(this, &ThisClass::HandlePageFieldChanged));
 	const bool bVisible = bAncestorsVisible && HasVisibleState(Widget);
 	if (UUmbraEquipmentMenu* Equipment = Cast<UUmbraEquipmentMenu>(Widget)) Equipment->SetPageActive(bVisible);
+	if (UUmbraInventoryMenu* Inventory = Cast<UUmbraInventoryMenu>(Widget)) Inventory->SetPageActive(bVisible);
 	if (UUserWidget* UserWidget = Cast<UUserWidget>(Widget))
 	{
 		if (UserWidget->WidgetTree) VisitWidget(UserWidget->WidgetTree->RootWidget, bVisible);

@@ -1,5 +1,198 @@
 # Umbra 进度与验证状态
 
+## 2026-10-06 Tooltip 视口适配修复
+
+- 修复仅钳制位置却未处理 tooltip 自身超高/超宽，以及桌面绝对坐标与视口局部坐标混用的问题。运行时整体等比缩小到视口内，使用缩放后尺寸定位；显示期间仅跟踪布局、槽位与视口变化，保留所有数据行和鼠标穿透。
+- 修改 UmbraItemTooltip、背包/装备 Tooltip 接入及 UI 测试，新增 `Umbra.UI.Items.TooltipViewportFit`。当前契约、参数来源和 PIE 验收见 [ItemTooltipUI](ItemTooltipUI.md)。未修改 Content，未提交/推送，保留已有工作区修改。
+- 验证：UE 5.8.2 UmbraEditor Win64 Development 构建成功。首次编译的 FVector2f/FVector2D 显式转换问题已修正。最终定向回归 7/7 Success、0 警告、0 失败，包含新增 TooltipViewportFit、DesignerPreview、ReadOnly 和四项数据测试；报告 Saved/Automation/TooltipViewportVerified/index.json，日志 Saved/Logs/TooltipViewportVerified.log。源码/文档 diff 空白检查通过。
+- 完整 UI 回归未通过：原有 TooltipHover 仍通过 Slot.GetToolTip 读取实例，与已经使用 AddToViewport 的接入不一致；原有 TooltipLifecycle 把 ScalingRows（UniformGridPanel）强转 VerticalBox 导致中止，记录于 Saved/Logs/TooltipViewportFit.log。本轮保留这些旧测试，未宣称全套通过。未执行实际 WBP 视觉、真实 PIE 鼠标/窗口缩放或网络验证；需重启加载新 DLL，并 Compile WBP_ItemTooltip 后检查 NativeTick 和四边显示。
+
+## 2026-10-05 Tooltip 第三阶段：品质背景与正式 Hover（验证中）
+
+- ItemDefinition → 三个 Builder → TooltipData 新增独立 TooltipQualityBackgroundColor（默认 White）。quality_bg / SlotBackground 仅 Tint；Brush 保留，Icon 不继承背景色；名称/品质文字用 RarityColor。Designer Preview 契约保持。
+- InventoryMenu / EquipmentMenu 新增 ItemTooltipClass，原生 Slot Hover → 菜单重取最新快照 → Builder → 缓存一个 Tooltip → SetToolTip。校验真实来源、所属 PS、索引/槽、GUID、Definition；不自动选择背包装备目标槽。快照、组件与页面失效立即清空；四主属性/装备事件合并到一次 GameThread 任务刷新需求，无 Tick/网格重建/游戏状态修改。
+- 本轮修改文件：Items/UmbraItemDefinition.h、UmbraItemTooltipData.h/.cpp；UI/Items/UmbraItemTooltip.h/.cpp；InventoryMenu.h/.cpp、InventorySlot.h/.cpp、新增 UmbraInventoryTooltip.cpp；EquipmentMenu.h/.cpp、EquipmentSlotWidget.h/.cpp、新增 UmbraEquipmentTooltip.cpp；UI/UmbraCharacterMenu.cpp；Tests/UmbraItemTooltipUITestTypes.h、新增 UmbraItemTooltipHoverTests.cpp；Architecture、ItemTooltipData、ItemTooltipUI、InventoryFoundation、EquipmentUIBinding 与本记录。
+- 当前验证状态：首轮编译发现 UWidget.Slot 遮蔽与 UObject→ItemDefinition 参数类型问题，已修复并通过相关 C++ 编译；随后原项目 DLL 链接被正在运行的 UnrealEditor 占用（Saved/Logs/TooltipHoverBuildFixed.log）。已请求用户保存关闭。后续生命周期/测试补充尚待最终构建和自动化，不能视为验证通过。
+- 未修改/保存 Content，未提交/推送；真实 WBP Designer/PIE 鼠标路由、滚轮、视觉和网络仍待人工验收。配置及详细四组 PIE 清单见 [ItemTooltipUI](ItemTooltipUI.md)。
+
+## 2026-10-05 Tooltip 最小 Designer Preview 修复
+
+- UUmbraItemTooltip.RefreshDisplay在IsDesignTime()下仅保持自身HitTestInvisible并关闭焦点，提前返回，保留已有Designer文字/图标/静态行及区域设计显隐。不生成ItemDefinition、GUID、属性或需求，不把预览标为有效数据，不发送数据变化事件；运行时Set/Clear与无效数据Collapsed契约不变。未修改Content（包括用户新建的Content/UI/Tooltip）、未新增输入/拖动/Tick。
+- 新增Umbra.UI.Items.TooltipDesignerPreview，验证Title/Legendary/285及静态行在重复PreConstruct后保留，预览数据仍无效；运行时清除占位、真实数据覆盖及Clear后折叠。首轮仅测试错误假定VerticalBox默认Visibility为Visible而失败，已改为验证其原始设计显隐值保持不变。
+- UE5.8.2 UmbraEditor Win64 Development构建成功，原项目DLL已更新，日志Saved/Logs/TooltipDesignerBuildFinal.log。最终Tooltip专项及数据/生命周期回归7/7 Success、0警告/0失败，报告Saved/Automation/TooltipDesignerFinal/index.json；源码空白和文档diff检查通过。未进行实际WBP Designer视觉、真实PIE或网络验证；此前静态占位若已被旧预览实例清空，重新打开Designer检查。使用说明见[ItemTooltipUI](ItemTooltipUI.md)。
+
+## 2026-10-04 统一物品 Tooltip 第二阶段：分类与 UI 基础
+
+- ItemDefinition新增显示专用ItemCategory/WeaponType，默认Unknown，枚举显式稳定数值；旧资产按有效WeaponProfile/AllowedSlots/普通物品后备。类型和六级品质均本地化；分类冲突输出带资产路径的警告及ClassificationWarnings，不改资产、不改变槽位/动作/伤害规则。三个Builder入口统一携带分类和已格式化的标题/伤害/评级/需求/重量文本，原GUID、原始StatLine、失败与要求契约保留。
+- 新增UUmbraItemTooltip（SetTooltipData/ClearTooltipData/GetTooltipData/BP_TooltipDataChanged）和UUmbraTooltipStatEntry（SetEntryText/Text+Style）。前者只写绑定控件、重建动态行和显隐区域，后者只显示已格式化文本及可配置状态颜色。无效数据、切换、重复Construct、Destruct清理不保留旧条目；整树HitTestInvisible、不可聚焦，无Tick/轮询/拖动/父窗口操作。默认StatEntryClass为空时使用原生TextBlock降级；所有有效物品显示零或实际重量。
+- **构建成功**：实查项目关联UE5.8.2，原项目UmbraEditor / Win64 / Development；最终日志`Saved/Logs/ItemTooltipUIBuildVerified.log`，DLL已更新。首次完整构建与测试加入后的构建均通过；保留已有MSVC14.51非首选版本和引擎GetMovementBase弃用提示。
+- **实际测试过程**：第一次新增UI测试未保存TakeWidget返回的Slate引用，立即触发Destruct清空后CastChecked空行导致进程中止（`ItemTooltipUITests.log`）；改为持有Slate引用后TooltipLifecycle通过。第二次TooltipReadOnly测试在已初始化的测试World中重复InitializeComponent触发引擎断言（`ItemTooltipUITestsFinal.log`）；改为HasBeenInitialized检查。两处均为测试夹具修正，没有修改生产装备/ASC规则。
+- **最终自动化**：`Saved/Automation/ItemTooltipUIVerified/index.json`，日志`Saved/Logs/ItemTooltipUITestsVerified.log`；33/33 Success，32项无警告，1项既有警告，0失败/0未执行。新增`Umbra.Items.Tooltip.Classification`、`Umbra.UI.Items.TooltipLifecycle`、`Umbra.UI.Items.TooltipReadOnly`均无警告；第一阶段3项Tooltip及Inventory/Equipment/Attributes/Damage、相关UI/CombatInfo回归全部通过。唯一警告仍是`Umbra.UI.Equipment.PageVisibility`测试空菜单0/10槽位配置提示。
+- **新增覆盖**：全部分类与14种具体武器类型本地化、六级品质/Epic、真实旧DA_Item_TestSword默认兼容、火焰伤害与单手剑分类独立、三个入口分类传递；有效标题/颜色/区域、None评级过滤、曲线参考说明、同一Stats列表、Unknown需求、空故事/效果折叠、零重量、无效数据清空、切换/重复刷新/构造析构、可选绑定缺失/原生行降级、行颜色复位、文本不被UI重算、命中测试不可见状态和Inventory/Equipment/GAS无副作用。
+- **未验证**：实际WBP_ItemTooltip/WBP_TooltipStatEntry尚未创建，因此未执行它们的蓝图编译、素材图表审查、渲染/DPI/字体/动画、真实PIE鼠标和滚轮、正式悬停以及网络验证。原生测试使用临时WidgetTree和NullRHI，不替代完整UI验收；素材残留拖动/隐藏其他窗口逻辑需用户手动排除。
+- 本轮未修改Content、Config、InventoryComponent、EquipmentComponent、PlayerState、DerivedStats或伤害规则，未提交/推送。全部文件清单、准确BindWidget名称/类型、推荐层级、Class Defaults、编辑器步骤及下一阶段Tool Tip Widget接口见[ItemTooltipUI](ItemTooltipUI.md)。下文第一阶段“不创建Widget”为历史范围。
+- **静态检查**：13个本轮源码/专题文件行尾空白检查通过；入口文档git diff --check通过，五份受影响文档148个相对链接存在性检查通过（未验证锚点渲染）。已检查前后Git状态，保留既有未提交内容，生成日志/二进制仍在忽略目录。
+
+## 2026-10-04 统一物品 Tooltip 第一阶段：数据与格式化
+
+- 新增 FUmbraItemTooltipData 与三个 BlueprintPure 构建入口（定义、背包实例、已装备实例）；保留原GUID、完整来源/属性/单位/伤害条件，失败返回全新空数据。复用库存快照校验与槽位标题后备，不创建 Widget、不接悬停或对比、不修改Content。
+- ItemDefinition 新增独立 ItemLevel=1、六级 Rarity=Common、可选 FlavorText；品质明确数值0..5，Epic=3，保留既有颜色/背景/框。WeaponProfile 四维可手动覆盖评级（可显式None）；默认按基础伤害加权系数自动S/A/B/C/D，集中Game配置阈值，曲线只标记参考强度。原伤害、GAS与DerivedStats算法不变。
+- Equipment.QueryRequirements与正式Refresh共享排除自身/目标槽GE的过滤规则，区分等级禁止、主属性惩罚、满足和上下文未知；倍率读取组件配置。所有属性在统一列表保留Intrinsic/FixedAffix来源；攻速/暴击百分比、移速cm/s、类型抗性评分、A比例/X因子和双方标签/攻击来源/暴击/易伤条件统一格式化。CombatInfo沿用原渲染参数并复用提取的数字函数。
+- **构建**：已实查Launcher安装记录的UE5.8.2；UmbraEditor / Win64 / Development原项目构建成功，DLL已更新，日志 `Saved/Logs/ItemTooltipBuild.log`。最初沙箱构建因ProgramData缓存权限中止；首次沙箱外链接因用户编辑器占用DLL失败，用户保存关闭后重新构建成功。保留MSVC14.51非首选版本提示，初次全量编译也有既有引擎GetMovementBase弃用警告，无本轮编译错误。
+- **自动化**：`Saved/Automation/ItemTooltip/index.json`，日志 `Saved/Logs/ItemTooltipTests.log`；30/30 Success（29项无警告、1项带既有警告），0失败、0未执行。新增 `Umbra.Items.Tooltip.DefinitionAndScaling`、`Formatting`、`IdentityAndRequirements` 全部无警告，覆盖真实旧DA_Item_TestSword读取默认字段、品质序号、等级独立、九通道/总基础、加权/阈值/零值/曲线/手动覆盖、全部词缀单位与A/X条件、过滤自身GE（含倍率情形）、同定义不同GUID/非法数据/过期装备快照、构建前后Inventory/Equipment/GAS不变。
+- **回归范围**：Umbra.Attributes（4）、Damage（4）、Equipment（2）、Inventory（2）、UI.Inventory（4）、UI.Equipment（6）、UI.CombatInfo（3）、UI.Items.Presentation（1）、UI.CharacterStats.PrimaryRows（1），加新增Tooltip（3），合计30。唯一警告为既有 `Umbra.UI.Equipment.PageVisibility` 的空测试菜单0/10槽配置提示；没有把它列为新增Tooltip警告。
+- **未验证**：真实地图PIE、鼠标输入/渲染、网络/远程客户端；本次为NullRHI编辑器自动化，不能替代视觉验收。完整客户端穿戴前逐项需求预览未实现（现有Equipment仅权威绑定ASC），复制快照可提供聚合主属性状态。真实资产除测试读取旧默认字段外的蓝图内容及视觉配置均待编辑器确认。本轮不创建或修改Content资产，不提交/推送，保留用户原有工作区改动。
+- 字段/API、完整格式表、文件清单、配置来源与覆盖顺序，以及第二阶段UUmbraItemTooltip/WBP_ItemTooltip接入见[ItemTooltipData](ItemTooltipData.md)。下文“不含Tooltip”为历史阶段记录。
+- **静态检查**：本轮新增/修改源码与专题文档无行尾空白；受影响入口文档的git diff --check通过，四份文档132个相对链接存在性检查通过（未验证锚点渲染）；已复查前后Git状态，生成的构建/测试输出仍在忽略的Binaries/Intermediate/Saved目录。
+
+## 2026-10-04 背包与装备 UI 交互闭环、初始物品
+
+- 复用既有Inventory快照、容量、网格列数和SetItemDefinition/ClearItem；新增NotReady/Ready/InvalidSnapshot区分，背包与装备按GUID保留同实例选择，移除/换人/无效数据清除，Destruct清显示但保留可重验的选择身份。PlayerController.OnRep_PlayerState补发背包上下文通知。没有Tick、轮询、Text Binding或布局重建。
+- 背包左键选择，原生双击一次提交到PlayerState.EquipFromInventory；空格不提交。单合法槽直接使用，多合法槽仅唯一空槽自动选择；多个空槽返回SlotSelectionRequired并提供RequestEquipInSlot显式接口；全部占用不替换。LastEquipResult/Message与BP_EquipFinished提供可本地化反馈。
+- 装备右键经PlayerState.UnequipToInventory检查容量和快照GUID，成功返还同一实例，失败不清格子。BP_UnequipFinished保留原签名，但成功实例已在背包，禁止再次AddItem。准确转移结果在LastUnequipTransferResult，旧枚举将InventoryFull等映射为Failed。转移入口增加重入/库存广播保护；修复旧OutReturnedItem读取临时快照悬空指针。
+- 按追加要求，DefaultGame.ini配置DA_Item_TestSword/DA_Item_TestMace为InitialInventoryItems。PlayerState.BeginPlay在权威端只发放一次到背包，不自动装备；重开菜单、重复初始化和组件重注册不补发。可由PlayerState BP显式覆盖清单。加载失败/容量不足记录警告并跳过，不轮询补发。
+- **分步验证**：背包绑定构建通过，Umbra.UI.Inventory 3/3 Success（Saved/Automation/InventoryUIBinding）；双击穿戴构建通过，背包及Transfer 5/5 Success（Saved/Automation/InventoryEquipUI）。初次新增快照用例错误地向数组追加自身引用触发容器断言，已改为复制后追加；随后通过，不隐藏失败记录。
+- **返还与初始物品首轮**：UE5.8.2 UmbraEditor Win64 Development构建通过；27/27 Success，0失败（含2项既有警告，Saved/Automation/InventoryEquipmentUI）。实际加载BP_UmbraPlayerState及两个ItemDefinition，验证配置继承、两件入包、独立GUID、初始化不复制/不补回、无自动穿戴。最后新增的重开选择用例发现Construct中绑定前空快照清除选择，已调整绑定顺序并回归通过。
+- **最终验证**：UE5.8.2 UmbraEditor Win64 Development构建通过，原项目DLL已更新，日志Saved/Logs/InventoryEquipmentUIBuildFinal.log。31/31 Success，0测试错误，报告Saved/Automation/InventoryEquipmentUIFinal/index.json，日志Saved/Logs/InventoryEquipmentUITestsFinal.log。覆盖Inventory/Equipment/Attributes/Damage全部相关用例及CombatInfo、选择、表现、预览生命周期等回归；新用例无警告，Maintenance保留6条既有动画警告、PageVisibility保留1条空测试菜单警告。构建保留既有MSVC非首选版本/引擎弃用提示。git diff --check与文档相对链接检查通过。
+- **未验证**：实际WBP鼠标路由/渲染、真实PIE、Listen Server运行及远程客户端网络。原生测试调用真实鼠标处理函数，不等于真实窗口输入通过；滚轮与人物预览视觉需人工确认。远程请求RPC与选槽弹窗未实现；不扩展拖放、Tooltip、掉落、存档、排序或伤害规则。
+- 未修改Content资产，保留原有未提交代码/资产；未提交或推送。配置、API审查、完整文件清单与编辑器/单人PIE操作见[InventoryEquipmentInteraction](InventoryEquipmentInteraction.md)。下文同日早期“UI未接转移”等描述为历史阶段状态。
+
+## 2026-10-04 背包↔装备权威转移
+
+- PlayerState新增EquipFromInventory(Slot, InstanceId)与UnequipToInventory(Slot, ExpectedInstanceId, OutReturnedItem)，以及GetInventoryComponent/GetEquipmentComponent只读访问。转移统一协调两个组件：装备成功后才消费背包，卸装成功后才放回背包；槽位占用、背包满、重复GUID、未知/过期身份在修改前拒绝，意外失败走回滚并返回TransferFailed。GUID全程不变，失败不丢物品。EUmbraTransferResult覆盖全部分支。
+- 本轮直接构建主项目并更新DLL；编辑器已关闭，无需再提示“关闭编辑器重编译”。未新增UI入口，装备页右键和背包点击仍沿用旧原型，尚未接转移接口。详见[InventoryTransfer](InventoryTransfer.md)。
+- **构建通过**：UE5.8.2 UmbraEditor Win64 Development，主项目日志Saved/Logs/InventoryTransferBuild.log。仅保留既有非首选MSVC与引擎GetMovementBase弃用提示，无新错误。
+- **自动化**：新增Umbra.Inventory.Transfer；结果见Saved/Automation/InventoryTransfer/index.json。覆盖未知GUID、非法身份、成功装备并消费背包、槽位占用、错误槽位、成功卸装返还并保留GUID、过期GUID、重复实例拦截、背包满拦截。既有装备/词缀/属性/伤害/UI回归见该报告。
+- **未验证**：真实WBP、PIE与多人网络复制；由用户后续编辑器验收。未修改Content资产；未提交/推送。
+
+## 2026-10-04 InventoryComponent与背包实时数据
+
+- 新增PlayerState原生InventoryComponent，最小非堆叠存储包含物品定义、稳定GUID、固定槽位索引和容量。默认InitialCapacity=96，首次注册限制0..512；AddItem/RemoveItem仅允许权威端，拒绝非法/重复身份、无效定义、满容量和广播重入，移除不移动其他槽位。快照OwnerOnly复制，无客户端请求RPC、存档或装备转移。
+- InventoryMenu默认绑定当前PlayerState，事件驱动物品图标、品质背景/框和真实占用容量；未就绪显示“—/—”。菜单/Pawn/组件生命周期重绑，无Tick；同实例保留选择，移除清除选择。原InventoryCapacity仅用于Designer/关闭绑定的展示原型，运行时由组件决定。接入说明见[InventoryFoundation](InventoryFoundation.md)。
+- **构建通过**：UE5.8.2 UmbraEditor Win64 Development，Saved/DamageBucketsValidation独立副本，日志Saved/Logs/InventoryFoundationBuild.log。首轮重复成员声明已修正后构建成功；保留既有MSVC非首选与引擎弃用提示。原编辑器运行中，原项目DLL未替换；用户保存关闭后需重编译原项目。原Source文件与验证副本哈希一致，副本保留此前额外诊断测试源，本轮未运行该诊断。
+- **28/28 Success，0测试错误**：Saved/Automation/InventoryFoundation/index.json，日志Saved/Logs/InventoryFoundationAutomation.log。新增Umbra.UI.Inventory.LiveStorage覆盖满容量/重复GUID/非法输入/未注册拒绝、固定槽位和空格复用、同定义多实例、注销重注册保留、UI延迟上下文/计数/实例/选择、重复构造、关闭重开、换PlayerState解绑。新测试无警告；Maintenance保留6条、PageVisibility保留1条既有警告，其他26项无警告。已有装备卸装、词缀、属性、伤害与UI回归通过，源码/文档空白检查通过。
+- **未验证**：真实WBP接线/外观/输入、PIE与多人网络复制。未修改Content资产或布局，未提交/推送。当前卸装仍不自动返还背包；下一阶段需接权威背包↔装备转移，统一验证身份、槽位与返还空间，不能用两个独立蓝图调用模拟原子交易。
+
+## 2026-10-04 装备页右键卸装与结果反馈
+
+- 用户结束UI拖拽问题排查，继续下一阶段。本轮未修复拖拽资产，新增EquipmentSlot原生右键请求、EquipmentMenu活动页/归属/锁定/数据来源检查、EquipmentComponent.TryUnequipInstance槽位与GUID校验。成功复用原卸装GE清理及派生/快照广播，拒绝不提前清空UI；保留左键选择与hover，无Tick。BP_UnequipFinished返回结果、原物品定义/GUID与Message，LastUnequipMessage可读。接线和验收见[EquipmentUIBinding](EquipmentUIBinding.md)。
+- 边界：只有权威端修改，未新增客户端RPC；没有InventoryComponent，不自动转移到背包或持久化卸下物品。返回的实例信息供后续权威物品转移接口接入，不能宣称已入背包。AppliedInvalid代表卸下已执行但后续快照无效，其他失败返回空物品。
+- **构建通过**：UE5.8.2 UmbraEditor Win64 Development，Saved/DamageBucketsValidation独立副本，日志Saved/Logs/UnequipInteractionBuild.log。原编辑器运行中，未替换原项目DLL；用户需保存并关闭编辑器后构建原项目。所有原项目Source文件与验证副本逐文件哈希一致；副本保留此前仅用于诊断的额外测试文件，本次未运行其诊断测试。编译保留既有非首选MSVC及引擎GetMovementBase弃用提示。
+- **27/27 Success，0测试错误**：报告Saved/Automation/UnequipInteraction/index.json；日志Saved/Logs/UnequipInteractionAutomation.log。扩展Umbra.UI.Equipment.LiveSnapshot覆盖原生右键到组件、空槽重复操作、锁定/外来槽位、旧GUID及手工视图拒绝、无效GUID、原实例返回、页面未激活、未通知的PlayerState切换，测试无警告。属性、伤害、固定词缀、UI与调试GE相关回归通过；Maintenance保留6条既有警告，PageVisibility保留1条既有警告。
+- **未验证**：真实WBP鼠标路由、Tooltip/视觉、PIE及多人网络；由用户后续进行编辑器验收。源码/文档空白检查通过。未保存或修改Content，保留已有资产及其他工作；未提交/推送。
+
+## 2026-10-04 槽位图标刷新与物品品质贴图
+
+- 用户反馈主手图标不显示，并要求装备/背包槽背景和品质框由物品信息配置。ItemDefinition.Presentation新增SlotBackgroundTexture、RarityFrameTexture；共享FromDefinition投影及ItemSlotVisual负责图标/背景/品质框。贴图按白色Tint显示，背景缺失恢复Designer默认，品质框缺失兼容原默认Brush+RarityColor；替换和清空不残留上一件物品图。未引入随机品质或背包所有权逻辑。
+- 原EquipmentSlot在写入Icon之后执行BP_RefreshVisual，允许旧蓝图再隐藏/覆盖图标；改为BP交互样式先执行，C++最后落实物品层。InventorySlot原先无条件隐藏物品层，现提供SetItemDefinition/ClearItem/HasItem/GetItemDisplay，同样从物品定义取图；数量、已装备标记和InventoryMenu容量计数仍未接真实背包。没有Tick，未修改Content。
+- **构建通过**：UE5.8.2 UmbraEditor Win64 Development，独立副本Saved/DamageBucketsValidation，日志Saved/Logs/ItemPresentationBuild.log。原编辑器运行中，因此原项目DLL未替换；需用户保存并关闭编辑器后在Rider重编译原项目，再使用新增反射字段。保留引擎弃用和非首选MSVC提示。
+- **27/27 Success，0测试错误**：前轮24项+Umbra.UI.Inventory.EmptyGridLifecycle、CharacterMenuComposition、Umbra.UI.Items.Presentation。报告Saved/Automation/ItemPresentation/index.json，日志Saved/Logs/ItemPresentationAutomation.log。Maintenance原有6条警告、PageVisibility原有1条警告，其余25项无警告。新测试验证两个槽位图标/品质资产、贴图不叠乘颜色、替换缺失贴图回退、清空及交互状态，并只读加载已保存WBP_EquipmentSlot，确认其MainHand实例ItemIcon资源及可见性正确。
+- **诊断边界**：现有保存的WBP包含可用ItemIcon绑定，修复后槽位级真实蓝图测试通过；未复现当前编辑器PIE中原始完整主手接线状态，不能确认唯一原因就是BP刷新覆盖。未验证未保存的蓝图、实际主菜单到主手的PIE状态、贴图视觉/遮挡、多人网络。检查MainHand枚举、已穿戴ItemDefinition、EquipmentDataReady、父容器可见性及Brush/Visibility绑定的步骤见[EquipmentUIBinding](EquipmentUIBinding.md)。
+- 保留现有用户资产改动（含WBP_EquipmentSlot及Equipment_Icon目录），无资产保存、提交或推送。后续需重编译后配置物品Presentation，并在两个槽位确认背景→物品图→透明中心品质框的层次。
+
+## 2026-10-04 固定词缀与装备效果
+
+- 用户暂不能进行编辑器测试，明确选择继续固定词缀与装备效果。ItemDefinition新增16种既有属性的AttributeBonuses白名单和复用FUmbraDamageBonus的DamageBonuses；四维沿用PrimaryBonuses，AD/AP仍派生，未新增GAS属性、随机生成或背包系统。配置来源、单位和验收见[EquipmentAffixes](EquipmentAffixes.md)。
+- 每实例仍一个Infinite原生EquipmentEffect句柄，二十个SetByCaller Modifier承载四维、固有防御及固定属性；装备专用GE组件从Spec.Context.SourceObject读取只读ItemDefinition的A/X，统一结算和面板摘要通过GetBonuses复用数据。需求惩罚只影响固有防御，固定防御词缀完整生效；非法重复属性/数值/增伤配置在替换前拒绝。卸下、替换、注销清理同一句柄，无Tick。
+- **原项目构建通过**：UE5.8.2 UmbraEditor Win64 Development，DLL已更新。最终日志Saved/Logs/EquipmentAffixesBuildFinal.log。修正了测试误调用私有Shutdown（改为销毁组件验证清理），并在无界面启动中发现且修复构造GE时AddComponent内部NewObject导致的启动断言，改用命名CreateDefaultSubobject。最终启动及测试进程退出码0；保留既有MSVC非首选工具链提示。
+- **24/24 Success，0测试错误**：上一阶段23项加Umbra.Equipment.FixedAffixesAndDamage。报告Saved/Automation/EquipmentAffixesFinal/index.json，日志Saved/Logs/EquipmentAffixesAutomationFinal.log。新测试无警告；Maintenance保留6条既有动画警告，PageVisibility保留1条空测试菜单提示，其余22项无测试警告。
+- 新测试验证MaxHealth增加不回血、攻速增量、固有防御惩罚与词缀隔离、真实100→132→156扣血、A摘要及X标志、同GE类不同装备资产来源、重复替换只有两个句柄、非法配置不影响旧装备、卸下回到120及组件销毁后效果/面板清理。原有四维派生、装备需求、伤害兼容、属性初始化、CombatInfo、StatsPanel及装备槽位回归均通过。源码/文档git diff空白检查通过。
+- **未验证**：实际DataAsset配置、真实WBP与PIE按键/视觉、多人网络复制；仍由用户稍后验收，未将前阶段UI待测项视为已通过。未修改或保存Content资产，保留既有用户修改；未提交/推送。下一阶段可接装备页卸装交互及结果反馈。
+
+## 2026-10-04 StatsPanel一致性修复与装备槽位实时绑定
+
+- 先修复StatsPanel旧AD/AP占位：八个重叠属性共用UmbraCombatStats::Read，统一来源/精度/单位/“仅存储”语义；AD/AP额外监听DerivedStats快照，四主属性保留局部通知。独立修复构建通过，StatsParity自动化4/4 Success、0错误/警告，覆盖两个页面共享显示与原四主属性回归。日志Saved/Logs/StatsParityBuild.log、StatsParityAutomation.log，报告Saved/Automation/StatsParity/index.json。
+- 随后按用户明确选择推进装备槽位UI对接。EquipmentMenu默认订阅所属PlayerState的Equipment快照，按Slot及InstanceId投影到现有槽位，更新名称/图标/颜色/实例GUID/需求状态；ItemDefinition新增Presentation字段，不改变属性。相同实例保留选择，替换或清空移除旧选择；重复槽位不投影。未就绪、无效引用/快照时清空数据且EquipmentDataReady=false；Construct重绑、Destruct解绑、PS/Pawn/ASC变化重绑。组件注销新增无效快照广播，避免陈旧装备显示，无Tick。
+- **原项目最终构建通过**：UE5.8.2 UmbraEditor Win64 Development。发现编辑器已关闭后直接构建原项目，DLL已更新，包含本轮StatsPanel修复、装备槽位绑定及上一阶段CombatInfo代码。日志Saved/Logs/EquipmentUIBindingBuild.log、EquipmentUIBindingBuildFinal.log。首轮局部Slot遮蔽UWidget成员且auto指针无法推导TObjectPtr，已改为显式类型EquipmentSlot并重建通过；保留引擎弃用/MSVC非首选版本提示。
+- **最终23/23 Success，0测试错误**：上阶段22项加Umbra.UI.Equipment.LiveSnapshot。报告Saved/Automation/EquipmentUIBinding/index.json，日志Saved/Logs/EquipmentUIBindingAutomation.log，退出码0。Maintenance保留6条既有动画警告、PageVisibility保留1条空测试菜单提示，其余21项无测试警告。新测试覆盖已有槽位填充、名字/图标/颜色、GUID、同定义双戒指、需求变化、同实例选择保持/新实例重置、卸下隔离、阻止手工假数据、重复Construct、关闭解绑/重开、ASC失效恢复、PS更换、组件注销清空。
+- **未验证**：真实WBP图标/文本/布局、PIE视觉、多人网络。未实现背包拖拽、点击卸装RPC、完整物品Tooltip、模型换装或装备随机词缀。穿戴/卸下仍使用现有组件接口及测试事件；本阶段完成真实数据展示与已有选择行为对接。
+- 编辑器只需给ItemDefinition配置Presentation，确认Menu.BindEquipmentData开启，移除旧手填装备数据；保留现有十槽位和预览布局。详细步骤见[EquipmentUIBinding](EquipmentUIBinding.md)，StatsPanel契约见[CharacterStatsPanel](CharacterStatsPanel.md)。本轮未修改Content，保留既有用户/前阶段修改；未提交/推送。
+
+## 2026-10-04 CombatInfo真实数据绑定：第六阶段代码完成
+
+- 用户确认敌人易伤测试通过，继续第六阶段。现有UmbraCombatInfo/CombatStatEntry接入GAS、DerivedStats和Equipment事件，保持原WBP布局和行实例；新增CombatStatData的43个独立行标识及Live/StoredOnly/Placeholder/Unavailable状态。TestValue仅供Designer预览，运行时不伪装真实数据。Utility三绑定可选，三分类折叠独立，关闭页面解绑、重开刷新；Controller通知PlayerState变更，ASC生命周期和Pawn变更重绑。
+- AD/AP及有效基础武器伤害读取派生快照（旧模式AD/AP读GAS），负重读取装备快照；类型抗性显示rating，攻速为现有普攻周期下的理论次/秒。伤害模块新增只读A分类摘要，按有效GE等级/层数/抑制状态汇总，全伤/类型/暴击/易伤分别展示；额外条件和X不混入标量，并以*及状态字段提示。旧CriticalDamageMultiplier不进入新暴击加成。无新增GAS属性、UI伤害计算、Tick或Content修改。
+- **构建通过**：UE5.8.2 UmbraEditor Win64 Development，因原编辑器仍运行而使用独立验证副本Saved/DamageBucketsValidation。日志Saved/Logs/CombatBindingBuild.log、最终Saved/Logs/CombatBindingBuildFinal.log。原项目DLL未更新，需关闭编辑器并在Rider重建原项目后使用新增反射字段。首次测试代码调用Inhibit接口与UE5.8签名不符，已改用返回句柄及三参数版本，最终编译链接成功；存在既有引擎弃用/MSVC非首选提示。
+- **最终22/22 Success，0测试错误**：上一阶段19项加Umbra.UI.CombatInfo.LiveBinding、SectionLifecycle、TestTextWithoutGameplay。报告Saved/Automation/CombatBindingFinal/index.json，日志Saved/Logs/CombatBindingAutomationFinal.log，退出码0。Maintenance既有6条动画警告、PageVisibility既有1条空菜单槽位提示，其余20项无测试警告。
+- 新绑定测试验证GAS变化、A分类隔离、旧暴击倍率排除、GE添加/两层叠加/单层及全部撤销/抑制恢复、条件与X提示、四维驱动AD、基础值不含补正、容量事件、PS重绑、ASC失效/恢复、关闭解绑/重开、精确实例名及显式标识优先、类型抗性单位。原分类测试扩展第三组；预览测试首轮因SetDesignerFlags只追加标记而复用Designer实例失败，改用独立运行时实例后通过，未放宽测试文本隔离要求。
+- **未验证**：真实WBP逐行身份配置与布局、PIE视觉、多人网络、自然到期专项。无Modifier的A/X GE若运行中直接SetActiveGameplayEffectLevel，引擎不发通用值变化事件；本阶段按移除重施或明确调用NotifyPlayerContextChanged处理，未增加通用等级变更通知框架。跨装备/派生/GAS复制不承诺原子UI更新。
+- 数据分类、43行来源、蓝图手动步骤、范围和验收见[CombatInfoBinding](CombatInfoBinding.md)。用户继续负责编辑器验收；本轮未保存Content，保留既有修改，未提交/推送。
+
+## 2026-10-03 敌人易伤GE快捷入口
+
+- 同一Controller开发开关新增7应用/6撤销，默认引用已有GE_TestVulnerable。7即时光标选取未被遮挡、可攻击的UmbraEnemyCharacter，从玩家PlayerState ASC创建Level1 Spec应用到敌人ASC；同目标重复不叠加，切目标撤销上一目标测试效果。保存独立敌人ASC弱引用/句柄，6不影响玩家8/9 Buff；外部同类来源保护、外部移除后可重加、EndPlay清理。无新增Tick/RPC，蓝图可显式传Target调用。配置见[DamageBuckets](DamageBuckets.md#敌人易伤快捷键)。
+- **原项目构建成功**：检查时编辑器已关闭，UE5.8.2 UmbraEditor Win64 Development直接更新原项目DLL。日志`Saved/Logs/QuickVulnerableBuild.log`、最终增量`Saved/Logs/QuickVulnerableBuildFinal.log`；保留引擎弃用和MSVC非首选版本提示。
+- **最终9/9 Success，0测试错误/警告**：Umbra.Debug.QuickGameplayEffect，Umbra.Attributes下4项，Umbra.Damage下4项。报告`Saved/Automation/QuickVulnerableFinal/index.json`、日志`Saved/Logs/QuickVulnerableAutomationFinal.log`，退出码0。新增断言覆盖四键绑定幂等、易伤资产类解析、敌人Level1/玩家来源、10次重复仅一份加成、非敌人拒绝保留原效果、切敌清理、撤销与玩家Buff隔离、外部来源保护和外部移除后重加。
+- 首轮测试世界未InitializeActorsForPlay，导致BlueprintNativeEvent可攻击判断被跳过；补齐世界上下文/初始化后又发现手动InitializeComponent与自动初始化重复，已加HasBeenInitialized判断，最终重建重跑全部9项成功。仅修正测试场景，没有绕过运行时目标检查。
+- **未验证**：PIE光标选择/遮挡/实体按键、GE_TestVulnerable资产内部标签配置与实际视觉、多人网络、自然到期/EndPlay专项。自动化用已知原生GE验证应用与句柄，实际易伤资产只确认类可加载。仍由用户编辑器验收；本轮没有编辑或保存Content，保留既有修改，源码空白检查通过；未提交/推送。
+
+## 2026-10-03 测试GE快捷应用与撤销
+
+- 现有Controller新增开发快捷键8/9及BlueprintCallable应用/撤销接口，默认软引用用户已有GE_TestDamageBonuses。权威端从PlayerState获取ASC，以Level1应用并保存句柄；重复按键不叠加、不刷新；按句柄撤销，不移除其它来源。同类效果已由外部应用则拒绝重复；外部移除后允许重新应用；切换PlayerState后下一次应用清理旧ASC，EndPlay清理。无Tick、无远端客户端RPC。配置、蓝图替代接线和日志见[DamageBuckets](DamageBuckets.md#测试ge快捷入口)。没有修改Content资产。
+- **构建通过**：UE5.8.2 UmbraEditor Win64 Development，独立验证副本`Saved/DamageBucketsValidation`，日志`Saved/Logs/QuickGEBuild.log`。存在引擎Character.h既有弃用警告；原项目DLL未替换，用户需保存/关闭编辑器并在Rider重建原项目。验证副本全部Source与工作区逐文件哈希一致。
+- **19/19 Success，0测试错误**：上一节第五阶段18项加新增`Umbra.Debug.QuickGameplayEffect`。报告`Saved/Automation/QuickGE/index.json`、日志`Saved/Logs/QuickGEAutomation.log`，进程退出码0。Maintenance保留6条动画警告、PageVisibility保留1条空菜单提示，其余17项无测试警告。新增测试覆盖输入绑定幂等、真实测试资产类可解析、Level1、连续10次应用同句柄且仅一份加成、撤销恢复、外部移除后重加、外部同类保护和PlayerState切换清理。
+- **未验证**：真实PIE按键分发、GE_TestDamageBonuses内部配置与实际增伤效果、多人网络、自然到期和EndPlay清理专项测试。自动化使用原生已知GE验证应用/撤销行为；真实资产仅验证类可加载。用户负责编辑器验收；未提交或推送，保留已有代码和资产修改。
+
+## 2026-10-03 A/X与暴击易伤：第五阶段代码完成，显式开启
+
+- 用户确认第四阶段测试完成后，本轮接入第五阶段。规则与编辑器步骤见[DamageBuckets](DamageBuckets.md)。新增GameplayEffect内部`UUmbraDamageBonusComponent`与条件化条目，按类型、BasicAttack/Skill、统一暴击、目标易伤及双方Tag Requirements筛选。A按分数加总，X按独立倍率连乘；GAS句柄、等级、层数、移除与Inhibition负责生命周期，无额外Tick或AD/AP写回。
+- Typed.UseDamageBuckets默认false，保留第四阶段总暴击倍率。显式开启后使用DamageRules的BaseCriticalMultiplier=1.5、BaseVulnerableMultiplier=1.2，CriticalDamageMultiplier不再参与新规则；额外暴击/易伤增伤仅作为满足条件的A项。新增State.Vulnerable标签，可由目标GE授予。Legacy始终保留旧公式。A/X不会自动接入现有装备生成或CombatInfo。
+- 完整伤害仍逐类型计算两层防御、一次IncomingDamage和统一暴击；日志新增A/X/C/V及Buckets/Vulnerable，仍一次总飘字。新GE数据在应用和命中时校验：拒绝Instant/周期GE、负值/非有限值、无效筛选/倍率溢出。普通GE叠层A=N×数值，X=数值^N，移除与禁用后下次命中不再贡献。
+- **构建成功**：UE5.8.2，UmbraEditor Win64 Development。因原编辑器仍运行，使用`Saved/DamageBucketsValidation`独立Source/Config/Intermediate/Binaries及Content目录联接，NoHotReloadFromIDE；没有替换原项目已加载DLL。完整日志`Saved/Logs/DamageBucketsBuild.log`，最终测试增量编译/链接`Saved/Logs/DamageBucketsBuildFinal.log`。最终验证副本与工作区全部Source逐文件哈希一致。用户需保存/关闭编辑器并在Rider重建原项目后使用新增反射类。
+- **最终18/18 Success，全部0测试错误**：`Umbra.Attributes.DebugInputAndWidget`、`DebugOperations`、`Lifecycle`、`WeaponDerivedPower`；`Umbra.Combat.Maintenance`；`Umbra.Damage.EntryCompatibility`、`Types`、`TypedChannels`、新增`BucketsAndMigration`；`Umbra.Equipment.RequirementsAndLifecycle`；`Umbra.UI.CharacterStats.PrimaryRows`、`DamageNumberLogic`、`PlayerAttributeBarState`；`Umbra.UI.Equipment.EmptySlotIcons`、`PageVisibility`、`PreviewLifecycle`、`SlotBindings`、`SlotContract`。报告`Saved/Automation/DamageBucketsFinal/index.json`，日志`Saved/Logs/DamageBucketsAutomationFinal.log`，退出码0。Maintenance既有6条动画警告、PageVisibility空测试菜单1条槽位提示；其余16项无测试警告，包括新测试。
+- 新测试覆盖四种暴击/易伤组合（185/345/258/468）、混合类型X得到603.9、来源隔离、双方标签条件、Buff撤销、两层叠加/移除一层、Inhibit/恢复、可配置基础C/V、CanCritical关闭、旧总倍率9与新基础1.5互不重复、非法GE拒绝、单次扣血及AD不变。
+- 首轮旧Maintenance因原生测试PlayerState没有武器派生数据、实际GA_BasicAttack已经由用户切到WeaponChannels而失败；已仅在临时测试角色上按能力模式初始化徒手20派生数据，保留原伤害/命中去重断言，未修改能力资产。测试叠层配置曾遇UE5.8 SetStackingType未导出导致链接失败，改用带说明的兼容字段写入后最终构建通过；无游戏代码绕过检查。
+- **未验证**：原编辑器加载本阶段类、增伤/易伤GE资产手动配置、真实PIE、持续时间到期专项测试、多人网络与UI显示。本阶段没有批量新增UI占位属性、完整威能/词缀、特殊AD/AP百分比或CombatInfo绑定。旧面板的CriticalDamageMultiplier仍是旧总倍率，不能当新A区暴击加成显示。
+- 本轮未操作编辑器或保存Content，保留用户已有GA_BasicAttack、BP_UmbraPlayerController、BP_UmbraPlayerState、WBP_CombatInfo和Content/Items修改；源码空白/文档链接/验证副本源文件一致性检查通过。未提交/推送；原项目DLL尚未更新。下一步可接CombatInfo真实数据来源与事件订阅。
+
+## 2026-10-03 九类型伤害：第四阶段代码完成，按能力选择模式
+
+- 用户已确认上一阶段装备测试成功；此确认不等于多人复制或全部UI验收。本轮继续实现九类型伤害，迁移步骤、参数来源及公式见[TypedDamage](TypedDamage.md)。未代改用户的能力/装备/Controller蓝图。
+- DamageConfig.Typed支持Legacy（默认）、WeaponChannels和ExplicitChannels。武器继承直接使用已补正/惩罚后的各类型明细乘WeaponMultiplier，不再叠加AD/AP；显式类型攻击使用各自Base+AD/AP系数，不隐式加入武器。统一入口选择原生Instant Typed GE，旧GE/旧公式默认保留，来源/测量标记继续独立。
+- AttributeSet新增九个实际参与结算的类型抗性rating，默认0、非负、GAS复制/通知完整。新Execution按Armor或MagicResistance及对应类型抗性逐项减伤，共用一次暴击判定，汇总一次IncomingDamage。可选DamageRules资产配置一般防御K、目标等级曲线、类型转换K和默认30%减伤上限。临时等级来源是目标EquipmentComponent.CharacterLevel，无组件时1；不使用技能等级代替目标等级。
+- 新模式仍用现有CriticalDamageMultiplier总倍率，未实现A/X或易伤。单个总伤害飘字用最终物理/魔法占比更大侧的现有颜色（平局物理），不扩展九类型颜色协议。伤害日志增加DamageChannel/ DamageTyped，原Health结算链不变。
+- **原项目构建成功**：UE5.8.2，UmbraEditor Win64 Development；新增UHT、C++和最终链接通过，日志`Saved/Logs/TypedDamageBuild.log`。首次新增测试类名与旧测试冲突导致链接失败，已改为独立类名；首轮自动化的重复类型输入触发TArray自引用断言，已改为先复制再添加，并重新构建、重新运行全组。既有MSVC非首选版本和引擎弃用提示未扩展处理。
+- **最终17/17 Success，全部0测试错误**：`Umbra.Attributes.DebugInputAndWidget`、`DebugOperations`、`Lifecycle`、`WeaponDerivedPower`；`Umbra.Combat.Maintenance`；`Umbra.Damage.EntryCompatibility`、`Types`、新增`TypedChannels`；`Umbra.Equipment.RequirementsAndLifecycle`；`Umbra.UI.CharacterStats.PrimaryRows`、`DamageNumberLogic`、`PlayerAttributeBarState`；`Umbra.UI.Equipment.EmptySlotIcons`、`PageVisibility`、`PreviewLifecycle`、`SlotBindings`、`SlotContract`。报告`Saved/Automation/TypedDamageFinal/index.json`、日志`Saved/Logs/TypedDamageAutomationFinal.log`，退出码0。Maintenance既有6条动画警告、PageVisibility空测试菜单1条槽位提示，其余15项无测试警告；启动自动化注册日志不等于用例事件。
+- 新测试验证：AD160/AP70武器完整继承230；Slashing160/Fire70、Armor100/MR300、对应抗性100/25结算70；统一必暴140/禁止暴击70；武器倍率；显式Fire技能46；九属性逐个映射与其它类型抗性隔离；30%上限/负数钳制；目标等级曲线与技能等级无关；无效K/重复类型/负伤害整体拒绝；零伤害；单次Spec、Health变化、元属性清零、来源与测量/飘字标记；Legacy仍174。
+- **未验证**：用户实际能力BP切换新模式、真实地图普攻/敌人攻击与受击死亡、多人网络和飘字视觉。用户继续负责编辑器验收。没有修改Content；保留用户已有BP_UmbraPlayerController、BP_UmbraPlayerState、WBP_CombatInfo与Content/Items修改。文档链接和源码空白检查通过；未提交/推送，模块/Target未修改。
+- 下一阶段：A区条件筛选、X区独立倍率、新暴击/易伤与旧CriticalDamageMultiplier兼容迁移；CombatInfo真实绑定后续接入。当前不应把类型抗性rating当百分比，或把暴击总倍率当A区加成。
+
+## 2026-10-03 最小装备组件：第三阶段代码完成，默认关闭
+
+- 新增ItemDefinition、EquipmentComponent及原生Infinite EquipmentEffect；玩家PlayerState/敌人Character持有默认关闭组件。复用现有槽位枚举，抽到Gameplay共享头并由旧UI头转引，枚举身份和顺序不变。规则、配置来源、接口语义及人工步骤见[EquipmentFoundation](EquipmentFoundation.md)。
+- 支持槽位/等级拒绝、实例GUID去重、同槽替换/卸下、无条件四维词缀、排除自身GE句柄的四维需求、武器基础/补正惩罚、自带Armor/MagicResistance惩罚、已穿戴负重/Strength容量/四档负重。普通词缀不提供直接AD/AP；未增加GAS负重属性或移动惩罚。
+- 装备接管DerivedStats武器输入，主属性变化先重算需求再发布AD/AP；GE添加/移除期间暂停派生发布，伤害入口对来源和目标的装备中间态均拒绝。外部误移除装备GE时快照失效，卸下可恢复；相同ASC重绑保留装备且不回血。UI通过复制快照/事件读取，当前WBP尚未接入。
+- **原项目构建通过**：UE 5.8.2，UmbraEditor / Win64 / Development，新增反射类UHT、C++和链接成功；最终日志`Saved/Logs/EquipmentBuild.log`。本轮编辑器未运行，直接更新原项目DLL，无独立验证副本。存在非首选MSVC及引擎Character.h既有弃用警告。模块/Target未修改。
+- **最终自动化16/16 Success，全部0测试错误**：`Umbra.Attributes.DebugInputAndWidget`、`DebugOperations`、`Lifecycle`、`WeaponDerivedPower`；`Umbra.Damage.EntryCompatibility`、`Types`；`Umbra.Combat.Maintenance`；新增`Umbra.Equipment.RequirementsAndLifecycle`；`Umbra.UI.CharacterStats.PrimaryRows`、`DamageNumberLogic`、`PlayerAttributeBarState`；`Umbra.UI.Equipment.EmptySlotIcons`、`PageVisibility`、`PreviewLifecycle`、`SlotBindings`、`SlotContract`。报告`Saved/Automation/EquipmentFoundationFinal/index.json`，日志`Saved/Logs/EquipmentAutomationFinal.log`，命令退出码0。
+- Maintenance的6条既有动画除零/播放率警告，以及PageVisibility纯C++空菜单测试的1条0/10槽位配置提示仍在；其余14项无测试警告。故障注入故意移除装备GE，捕获5次预期失效日志并断言伤害阻止及恢复。引擎启动自动化注册Condition failed不是测试用例失败，不称整个启动日志零错误。
+- 新增测试覆盖自身词缀不能满足自身需求（含外部乘法Buff的反例）、其它装备支持、武器/防御惩罚及恢复、负重不影响移速、GE拒绝保留旧装备、反复穿戴/初始化不叠加、双方伤害中间态保护、重绑不回血、销毁精确清理。新增测试单独放在`UmbraEquipmentGameplayTests.cpp`，旧`UmbraEquipmentTests.cpp`原样保留。
+- **未验证**：实际ItemDefinition/BP接线、真实输入/PIE、多人网络复制顺序、UMG显示。未做完整Inventory/拥有权校验、客户端换装RPC、随机词缀/威能、负重动作惩罚、九类型伤害结算或CombatInfo真实绑定。现有普攻AD/AP系数、暴击/护甲算法及Health/Resource/MoveSpeed规则不变；此前160+70×0.2=174仍为当前配置的正确结果。
+- 本轮未操作编辑器或保存Content资产，保留用户已有BP_UmbraPlayerState/WBP_CombatInfo及Content/Items修改。源码空白/文档相对链接检查通过；未提交或推送。后续顺序为九类型伤害结算与混合普攻继承，再推进A/X、新暴击与UI真实绑定。
+
+## 2026-10-02 武器与AD/AP派生：第二阶段代码完成，默认保持旧模式
+
+- 新增 `UUmbraWeaponProfile`：九类型基础伤害及逐类型四主属性补正，支持可选FloatCurve；新增 `UUmbraDerivedStatsComponent`，玩家PlayerState与敌人Character各持有一个，默认关闭。配置/公式/覆盖顺序及人工步骤见 [WeaponDerivedPower](WeaponDerivedPower.md)。
+- 服务器监听四主属性并从完整输入重算类型明细，用Instant Override GE发布AD/AP；不读取旧AD/AP累计。徒手后备Blunt10，可配置；SetWeaponProfile支持测试武器切换与回到徒手，尚不是正式装备接口。来源明确的普通AD/AP Modifier在新模式拒绝，派生调试GE仅去掉直接AD/AP加成，其余调试功能保留。
+- 支持复制的有效性/版本/徒手标识/类型明细/AD/AP快照及变化事件；重入主属性更新有界排空，发布期间统一伤害入口拒绝读取半更新结果。注销/销毁移除监听与应用查询。现有DamageExecution及AttackSpeed/Health/Resource/MoveSpeed算法未修改。
+- **构建通过**：关联UE 5.8.2，UmbraEditor Win64 Development，日志 `Saved/Logs/DerivedStatsBuild.log`。首次编译发现复制宏参数名错误，修正后最终完整构建成功。因用户编辑器仍在运行，构建使用 `Saved/DerivedStatsValidation` 独立Source/Config/Intermediate/Binaries，Content为只读测试使用的目录联接；使用NoHotReloadFromIDE，不触碰原项目正在加载的DLL。Source逐文件哈希与工作区一致。存在非首选MSVC/引擎弃用警告；模块/Target未改。
+- **自动化10/10 Success，全部0测试错误**：`Umbra.Attributes.DebugInputAndWidget`、`DebugOperations`、`Lifecycle`、新增`WeaponDerivedPower`；`Umbra.Damage.EntryCompatibility`、`Types`；`Umbra.Combat.Maintenance`；`Umbra.UI.CharacterStats.PrimaryRows`、`DamageNumberLogic`、`PlayerAttributeBarState`。报告 `Saved/Automation/WeaponDerivedPower/index.json`，日志 `Saved/Logs/WeaponDerivedPowerAutomation.log`，退出码0。Maintenance有6条既有动画/播放率警告，其余9项0警告。引擎启动自动化注册日志不等于测试用例事件。
+- 新测试覆盖：默认旧模式、徒手/混合武器/纯魔法与曲线算例、20次重算无累积、主属性Buff添加/移除、拒绝旧直接AD/AP GE、无效配置保持原选择、卸下/重选、同步回调改主属性、发布期间拒绝伤害、重绑不回血、销毁解绑；另验证派生AD180经旧Execution与Armor100结算90伤害。
+- **尚未实现**：装备要求/负重/背包、特殊AD/AP倍率、A/X区、新暴击、九类型伤害结算与混合普攻继承、CombatInfo派生快照接线。不要以九类型配置或AP汇总推断默认AP系数0的普攻已经继承魔法伤害。
+- **未验证**：用户原编辑器加载新类、实际DataAsset/BP配置、地图与多人PIE、快照网络时序及UI视觉。用户自行执行编辑器验收。需保存并关闭编辑器后完整构建原项目再加载新增反射类，不能把独立副本构建称为原DLL已更新。
+- 本轮未操作编辑器、未保存Content资产；原有WBP_CombatInfo资产哈希保持不变。源码差异空白、文档链接及验证副本源文件一致性检查通过；未提交或推送。
+
+## 2026-10-02 统一伤害入口：第一步代码完成，编辑器验收由用户执行
+
+- 新增 `FUmbraDamageRequest` / `UmbraDamage::Apply`；玩家、敌人普攻显式使用 `Damage.Source.BasicAttack`，主动技能调用方可选择 `Damage.Source.Skill`。旧 `UmbraPhysicalDamage::Apply` 保留为兼容适配；旧 false 参数不推断为 Skill。玩家伤害测量标记单独保留，敌人普攻不新增该标记。详见 [统一伤害入口](UnifiedDamageEntry.md)。
+- 只迁移提交入口：旧 Execution、AD/AP来源、暴击总倍率、初始化/调试 GE、生命/资源/移动、普攻前摇/周期/同击去重、受击死亡及飘字结算链未修改。尚未实现装备派生、九类型结算、A/X区或新暴击。
+- **修改前基线**：关联 UE 5.8.2，UmbraEditor / Win64 / Development 构建成功（目标已是最新）；日志 `Saved/Logs/DamageEntryBaselineBuild.log`。6项自动化全部 Success，报告 `Saved/Automation/DamageEntryBaseline/index.json`；Maintenance 有6条既有警告，其余5项无警告/错误。
+- **修改后构建**：原项目完整 UHT/C++/链接成功；日志 `Saved/Logs/DamageEntryBuild.log`。非首选MSVC版本及引擎 Character.h 弃用警告仍存在。模块/Target未改，无需重新生成工程。
+- **修改后自动化7/7通过，全部0测试错误**：`Umbra.Attributes.Lifecycle`、`Umbra.Damage.Types`、新增 `Umbra.Damage.EntryCompatibility`、`Umbra.Combat.Maintenance`、`Umbra.UI.CharacterStats.PrimaryRows`、`Umbra.UI.DamageNumberLogic`、`Umbra.UI.PlayerAttributeBarState`。报告 `Saved/Automation/DamageEntry/index.json`，日志 `Saved/Logs/DamageEntryAutomation.log`，退出码0。Maintenance仍有6条既有动画蓝图除零/高速动画播放率警告，其他6项0警告。引擎启动另有自动化注册 Condition failed 日志，不能把整个启动日志称为零错误。
+- 新增测试验证现有玩家伤害GE加载、物理/魔法及非暴击/必暴固定算例、新旧入口等价、单次提交与Health变化、IncomingDamage归零、来源互斥、玩家测量标记、Level传递、旧false语义、零伤害与非法请求拒绝。旧入口与新入口共用实现，固定预期数值断言用于防止仅比较两条相同错误路径。
+- **代码复核**：双方能力仅替换伤害提交调用，既有权威检查、命中去重、前摇和清理逻辑保留；执行器和AttributeSet无差异。此后仅补文档，未再次改动已编译的源码。
+- **未验证**：实际地图普攻/敌人攻击、受击死亡和飘字观感、真实输入、多人PIE。编辑器曾打开L_Prototype，但验收被用户停止，不能计为PIE通过。用户明确后续编辑器端验收自行完成；不再由代理操作编辑器，人工步骤见上述指南。
+- 保留工作区原有 `WBP_CombatInfo.uasset` 修改，本轮不保存任何Content资产；未提交或推送。生成日志与报告在Saved下，不提交。
+
 ## 2026-10-01 第二页战斗属性：C++ 支持完成，蓝图由用户手动接线
 
 - 新增 `UUmbraCombatInfo` 与 `UUmbraCombatStatEntry`，只实现分类折叠/展开和固定测试文本显示。后者复用原 StatEntry 的纯 View，不扩展 Stat 枚举；没有 GAS、AttributeSet、GameplayEffect、装备或伤害计算，没有 Tick。原菜单切页、第一页、HeroInfo、TalentInfo及原StatEntry代码不变。

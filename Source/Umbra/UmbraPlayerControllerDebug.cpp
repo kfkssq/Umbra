@@ -1,4 +1,6 @@
 #include "UmbraPlayerController.h"
+#include "UI/Inventory/UmbraInventoryMenu.h"
+#include "Stats/UmbraDerivedStatsComponent.h"
 
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
@@ -12,8 +14,185 @@
 #include "Interfaces/UmbraAttackable.h"
 #include "UI/UmbraAttributeDebugPanel.h"
 #include "UI/UmbraCharacterStatsPanel.h"
+#include "UI/Combat/UmbraCombatInfo.h"
+#include "UI/Equipment/UmbraEquipmentMenu.h"
 #include "Blueprint/WidgetTree.h"
 #include "Umbra.h"
+#include "GameplayEffect.h"
+#include "Components/InputComponent.h"
+
+void AUmbraPlayerController::SetupQuickGameplayEffectInput()
+{
+#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
+	if (!bEnableQuickGameplayEffectKeys || !IsLocalController() || !InputComponent || QuickGameplayEffectInput.Get() == InputComponent) return;
+	InputComponent->BindKey(EKeys::Eight, IE_Pressed, this, &ThisClass::QuickGameplayEffectPressed);
+	InputComponent->BindKey(EKeys::Nine, IE_Pressed, this, &ThisClass::RemoveQuickTestGameplayEffect);
+	InputComponent->BindKey(EKeys::Seven, IE_Pressed, this, &ThisClass::QuickVulnerableGameplayEffectPressed);
+	InputComponent->BindKey(EKeys::Six, IE_Pressed, this, &ThisClass::RemoveQuickVulnerableGameplayEffect);
+	QuickGameplayEffectInput = InputComponent;
+#endif
+}
+
+void AUmbraPlayerController::QuickGameplayEffectPressed() { ApplyQuickTestGameplayEffect(); }
+
+void AUmbraPlayerController::QuickVulnerableGameplayEffectPressed()
+{
+#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
+	if (!HasAuthority() || bEndingPlay || IsPointerOverAttributeDebugPanel()) return;
+	AActor* Candidate = nullptr;
+	FHitResult PawnHit, VisibilityHit;
+	const bool bHasPawnHit = GetAttackableUnderCursor(Candidate, &PawnHit);
+	const bool bHasVisibilityHit = GetCursorGroundHit(VisibilityHit);
+	// Match F2 selection: enemy capsules ignore Visibility, so trace Pawns and check occlusion separately.
+	const bool bOccluded = bHasVisibilityHit && VisibilityHit.GetActor() != Candidate
+		&& VisibilityHit.Distance + 1.f < PawnHit.Distance;
+	if (!bHasPawnHit || !Cast<AUmbraEnemyCharacter>(Candidate) || bOccluded)
+	{
+		UE_LOG(LogUmbra, Log, TEXT("Quick Vulnerable GE: point at an unobstructed living enemy; previous effect kept."));
+		return;
+	}
+	ApplyQuickVulnerableGameplayEffect(Candidate);
+#endif
+}
+
+FActiveGameplayEffectHandle AUmbraPlayerController::ApplyQuickVulnerableGameplayEffect(AActor* Target)
+{
+#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
+	if (!HasAuthority() || bEndingPlay) return FActiveGameplayEffectHandle();
+	auto* Enemy = Cast<AUmbraEnemyCharacter>(Target);
+	auto* ASC = IsValid(Enemy) && IsAttackableTarget(Enemy) ? Enemy->GetUmbraAbilitySystemComponent() : nullptr;
+	auto* SourceASC = Cast<UUmbraAbilitySystemComponent>(UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(PlayerState));
+	if (!ASC || !ASC->IsActorInfoReady() || !ASC->IsOwnerActorAuthoritative()
+		|| !SourceASC || !SourceASC->IsActorInfoReady() || !SourceASC->IsOwnerActorAuthoritative())
+	{
+		UE_LOG(LogUmbra, Warning, TEXT("Quick Vulnerable GE: living enemy and ready player/enemy ASCs required."));
+		return FActiveGameplayEffectHandle();
+	}
+	if (QuickVulnerableGameplayEffectASC.Get() == ASC && ASC->GetActiveGameplayEffect(QuickVulnerableGameplayEffectHandle))
+	{
+		UE_LOG(LogUmbra, Log, TEXT("Quick Vulnerable GE: already active on %s; press 6 to remove."), *GetNameSafe(Enemy));
+		return QuickVulnerableGameplayEffectHandle;
+	}
+	const TSubclassOf<UGameplayEffect> EffectClass = QuickVulnerableGameplayEffect.LoadSynchronous();
+	const UGameplayEffect* Effect = EffectClass ? EffectClass.GetDefaultObject() : nullptr;
+	if (!Effect || Effect->DurationPolicy == EGameplayEffectDurationType::Instant)
+	{
+		UE_LOG(LogUmbra, Warning, TEXT("Quick Vulnerable GE: configure a Duration/Infinite QuickVulnerableGameplayEffect."));
+		return FActiveGameplayEffectHandle();
+	}
+	for (const auto Handle : ASC->GetActiveEffects(FGameplayEffectQuery()))
+	{
+		const auto* Existing = ASC->GetActiveGameplayEffect(Handle);
+		if (Existing && Existing->Spec.Def == Effect)
+		{
+			UE_LOG(LogUmbra, Warning, TEXT("Quick Vulnerable GE: already active from another source; previous effect kept."));
+			return FActiveGameplayEffectHandle();
+		}
+	}
+	const auto Spec = SourceASC->MakeOutgoingSpec(EffectClass, 1.f, SourceASC->MakeEffectContext());
+	if (!Spec.IsValid()) return FActiveGameplayEffectHandle();
+	RemoveQuickVulnerableGameplayEffect();
+	const auto Handle = SourceASC->ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), ASC);
+	if (!ASC->GetActiveGameplayEffect(Handle))
+	{
+		UE_LOG(LogUmbra, Warning, TEXT("Quick Vulnerable GE: application rejected for %s."), *GetNameSafe(Enemy));
+		return FActiveGameplayEffectHandle();
+	}
+	QuickVulnerableGameplayEffectASC = ASC;
+	QuickVulnerableGameplayEffectHandle = Handle;
+	UE_LOG(LogUmbra, Log, TEXT("Quick Vulnerable GE: applied %s to %s at Level 1; press 6 to remove."),
+		*GetNameSafe(EffectClass), *GetNameSafe(Enemy));
+	return Handle;
+#else
+	return FActiveGameplayEffectHandle();
+#endif
+}
+
+void AUmbraPlayerController::RemoveQuickVulnerableGameplayEffect()
+{
+#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
+	if (!HasAuthority()) return;
+	const auto Handle = QuickVulnerableGameplayEffectHandle;
+	auto* ASC = QuickVulnerableGameplayEffectASC.Get();
+	QuickVulnerableGameplayEffectHandle.Invalidate();
+	QuickVulnerableGameplayEffectASC.Reset();
+	if (ASC && ASC->GetActiveGameplayEffect(Handle))
+	{
+		ASC->RemoveActiveGameplayEffect(Handle);
+		UE_LOG(LogUmbra, Log, TEXT("Quick Vulnerable GE: removed the saved enemy test effect."));
+	}
+#endif
+}
+
+FActiveGameplayEffectHandle AUmbraPlayerController::ApplyQuickTestGameplayEffect()
+{
+#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
+	// Match SwitchHasAuthority; this debug shortcut deliberately adds no client-to-server RPC.
+	if (!HasAuthority() || bEndingPlay) return FActiveGameplayEffectHandle();
+	auto* ASC = Cast<UUmbraAbilitySystemComponent>(UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(PlayerState));
+	if (!ASC || !ASC->IsActorInfoReady() || !ASC->IsOwnerActorAuthoritative())
+	{
+		UE_LOG(LogUmbra, Warning, TEXT("Quick GE: player ASC is not ready."));
+		return FActiveGameplayEffectHandle();
+	}
+	if (QuickGameplayEffectASC.IsValid() && QuickGameplayEffectASC.Get() != ASC) RemoveQuickTestGameplayEffect();
+	if (ASC->GetActiveGameplayEffect(QuickTestGameplayEffectHandle))
+	{
+		UE_LOG(LogUmbra, Log, TEXT("Quick GE: already active; repeated key ignored. Press 9 to remove."));
+		return QuickTestGameplayEffectHandle;
+	}
+	QuickTestGameplayEffectHandle.Invalidate();
+	QuickGameplayEffectASC.Reset();
+	const TSubclassOf<UGameplayEffect> EffectClass = QuickTestGameplayEffect.LoadSynchronous();
+	const UGameplayEffect* Effect = EffectClass ? EffectClass.GetDefaultObject() : nullptr;
+	if (!Effect || Effect->DurationPolicy == EGameplayEffectDurationType::Instant)
+	{
+		UE_LOG(LogUmbra, Warning, TEXT("Quick GE: configure a Duration/Infinite effect in QuickTestGameplayEffect (Instant cannot be undone)."));
+		return FActiveGameplayEffectHandle();
+	}
+	// Do not create another instance if this same effect was already applied outside the shortcut.
+	for (const auto Handle : ASC->GetActiveEffects(FGameplayEffectQuery()))
+	{
+		const auto* Existing = ASC->GetActiveGameplayEffect(Handle);
+		if (Existing && Existing->Spec.Def == Effect)
+		{
+			UE_LOG(LogUmbra, Warning, TEXT("Quick GE: this class is already active from another source; no extra instance or ownership taken."));
+			return FActiveGameplayEffectHandle();
+		}
+	}
+	const auto Spec = ASC->MakeOutgoingSpec(EffectClass, 1.f, ASC->MakeEffectContext());
+	if (!Spec.IsValid()) return FActiveGameplayEffectHandle();
+	const auto Handle = ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+	if (!ASC->GetActiveGameplayEffect(Handle))
+	{
+		UE_LOG(LogUmbra, Warning, TEXT("Quick GE: application rejected for %s."), *GetNameSafe(EffectClass));
+		return FActiveGameplayEffectHandle();
+	}
+	QuickGameplayEffectASC = ASC;
+	QuickTestGameplayEffectHandle = Handle;
+	UE_LOG(LogUmbra, Log, TEXT("Quick GE: applied %s to player at Level 1; press 9 to remove."), *GetNameSafe(EffectClass));
+	return Handle;
+#else
+	return FActiveGameplayEffectHandle();
+#endif
+}
+
+void AUmbraPlayerController::RemoveQuickTestGameplayEffect()
+{
+#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
+	if (!HasAuthority()) return;
+	// Clear first so synchronous callbacks cannot accidentally operate on the previous handle.
+	const auto Handle = QuickTestGameplayEffectHandle;
+	auto* ASC = QuickGameplayEffectASC.Get();
+	QuickTestGameplayEffectHandle.Invalidate();
+	QuickGameplayEffectASC.Reset();
+	if (ASC && ASC->GetActiveGameplayEffect(Handle))
+	{
+		ASC->RemoveActiveGameplayEffect(Handle);
+		UE_LOG(LogUmbra, Log, TEXT("Quick GE: removed the saved test effect."));
+	}
+#endif
+}
 
 void AUmbraPlayerController::OnRep_PlayerState()
 {
@@ -27,6 +206,12 @@ void AUmbraPlayerController::OnRep_PlayerState()
 	{
 		if (!IsValid(Root)) return;
 		if (UUmbraCharacterStatsPanel* Panel = Cast<UUmbraCharacterStatsPanel>(Root))
+			Panel->NotifyPlayerContextChanged();
+		if (UUmbraCombatInfo* Panel = Cast<UUmbraCombatInfo>(Root))
+			Panel->NotifyPlayerContextChanged();
+		if (UUmbraInventoryMenu* Panel = Cast<UUmbraInventoryMenu>(Root))
+			Panel->NotifyPlayerContextChanged();
+		if (UUmbraEquipmentMenu* Panel = Cast<UUmbraEquipmentMenu>(Root))
 			Panel->NotifyPlayerContextChanged();
 		if (!Root->WidgetTree) return;
 		TArray<UWidget*> Widgets;
@@ -284,6 +469,8 @@ void AUmbraPlayerController::ServerAttributeDebugOperation_Implementation(AActor
 	{
 	case EUmbraAttributeDebugOperation::AddEffect:
 		EffectClass = UUmbraDebugAttributeEffect::StaticClass();
+		if (const auto* Derived = ASC->GetOwnerActor()->FindComponentByClass<UUmbraDerivedStatsComponent>();
+			Derived && Derived->IsDerivedPowerActive()) EffectClass = UUmbraDebugDerivedAttributeEffect::StaticClass();
 		break;
 	case EUmbraAttributeDebugOperation::Damage:
 		EffectClass = UUmbraDebugDamageEffect::StaticClass();
