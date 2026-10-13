@@ -1,5 +1,7 @@
 # 背包↔装备权威转移
 
+2026-10-09：武器真实伤害区间、GUID 实例离散随机词缀、GAS 转移与 AffixEntry / SpecialEffects 新契约见 [ItemInstanceAffixes](ItemInstanceAffixes.md)。该文覆盖下文相关旧阶段说明；本轮未修改 Content，验证边界见 Progress。
+
 2026-10-04。PlayerState统一协调背包与装备转移。后续[UI交互闭环](InventoryEquipmentInteraction.md)已接入背包双击和装备页右键返还；不含拖拽、客户端请求RPC、整理/分类或存档。
 
 ## 接口

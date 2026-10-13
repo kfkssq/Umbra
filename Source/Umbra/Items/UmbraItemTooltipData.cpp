@@ -70,14 +70,8 @@ FText UmbraTooltipFormatting::StatValue(const FUmbraTooltipStatLine& Line)
 	return FText::Format(LOCTEXT("StatValue", "{0}{1}"), Signed, Unit);
 }
 
-FText UmbraTooltipFormatting::Format(const FUmbraTooltipStatLine& Line)
+FText UmbraTooltipFormatting::DamageAffixName(const FUmbraDamageBonus& Bonus)
 {
-	const FText Number = UmbraCombatStats::FormatNumber(Line.RawValue, Line.Unit == EUmbraTooltipUnit::Percent, 0, 2);
-	if (!Line.bDamageBonus)
-	{
-		return FText::Format(LOCTEXT("StatLine", "{0} {1}"), StatValue(Line), StatName(Line.StatId));
-	}
-	const auto& Bonus = Line.DamageBonus;
 	TArray<FString> Conditions;
 	if (Bonus.AttackSource == EUmbraBonusAttackSource::BasicAttack) Conditions.Add(LOCTEXT("BasicOnly", "仅普通攻击").ToString());
 	if (Bonus.AttackSource == EUmbraBonusAttackSource::Skill) Conditions.Add(LOCTEXT("SkillOnly", "仅技能").ToString());
@@ -91,11 +85,18 @@ FText UmbraTooltipFormatting::Format(const FUmbraTooltipStatLine& Line)
 	for (const auto Type : Bonus.Types) Types.Add(DamageName(Type).ToString());
 	const FText TypeText = Types.IsEmpty() ? LOCTEXT("AllDamage", "所有类型伤害")
 		: FText::Format(LOCTEXT("Types", "{0}伤害"), FText::FromString(FString::Join(Types, TEXT(" / "))));
-	const FText Value = Bonus.Bucket == EUmbraDamageBucket::Multiplicative
-		? FText::Format(LOCTEXT("XBonus", "×{0} {1}"), Number, TypeText)
-		: FText::Format(LOCTEXT("ABonus", "+{0} {1}"), Number, TypeText);
-	return Conditions.IsEmpty() ? Value : FText::Format(LOCTEXT("ConditionalBonus", "{0}；{1}"), Value,
+	return Conditions.IsEmpty() ? TypeText : FText::Format(LOCTEXT("ConditionalName", "{0}（{1}）"), TypeText,
 		FText::FromString(FString::Join(Conditions, TEXT("；"))));
+}
+
+FText UmbraTooltipFormatting::Format(const FUmbraTooltipStatLine& Line)
+{
+	if (!Line.bDamageBonus)
+		return FText::Format(LOCTEXT("StatLine", "{0} {1}"), StatValue(Line), StatName(Line.StatId));
+	if (Line.DamageBonus.Bucket == EUmbraDamageBucket::Multiplicative)
+		return FText::Format(LOCTEXT("SpecialDamageIncrease", "造成的{0}提高{1}"), DamageAffixName(Line.DamageBonus),
+			UmbraCombatStats::FormatNumber(Line.RawValue - 1., true, 0, 2));
+	return FText::Format(LOCTEXT("OrdinaryDamageIncrease", "{0} {1}"), StatValue(Line), DamageAffixName(Line.DamageBonus));
 }
 
 namespace
@@ -106,8 +107,49 @@ namespace
 		Out.Result = Result;
 		return Out;
 	}
-	bool Nonnegative(float Value) { return FMath::IsFinite(Value) && Value >= 0.f; }
-	bool ValidSlot(EUmbraEquipmentSlot Slot) { return uint8(Slot) <= uint8(EUmbraEquipmentSlot::OffHand); }
+	bool TooltipNonnegative(float Value) { return FMath::IsFinite(Value) && Value >= 0.f; }
+	bool TooltipValidSlot(EUmbraEquipmentSlot Slot) { return uint8(Slot) <= uint8(EUmbraEquipmentSlot::OffHand); }
+	void AddRolledLine(FUmbraItemTooltipData& Out, const FUmbraAffixIdentity& Identity,
+		const TArray<float>& Candidates, int32 Selected, float Value, bool bPreview)
+	{
+		const bool bSpecial = Identity.Kind == EUmbraAffixKind::Damage && Identity.DamageBonus.Bucket == EUmbraDamageBucket::Multiplicative;
+		auto& Line = (bSpecial ? Out.SpecialEffectStats : Out.Stats).AddDefaulted_GetRef();
+		Line.AffixId = Identity.AffixId;
+		Line.Source = EUmbraTooltipStatSource::RolledAffix;
+		Line.bRolled = !bPreview;
+		Line.bConfigurationPreview = bPreview;
+		Line.CandidateValues = Candidates;
+		Line.SelectedTier = Selected;
+		Line.RawValue = Value;
+		Line.bDamageBonus = Identity.Kind == EUmbraAffixKind::Damage;
+		if (Line.bDamageBonus)
+		{
+			Line.StatId = TEXT("DamageBonus");
+			Line.DamageBonus = Identity.DamageBonus;
+			Line.DamageBonus.Magnitude = FScalableFloat(Value);
+			Line.Unit = bSpecial ? EUmbraTooltipUnit::Factor : EUmbraTooltipUnit::Percent;
+		}
+		else if (Identity.Kind == EUmbraAffixKind::Primary)
+			Line.StatId = FName(*StaticEnum<EUmbraPrimaryAttribute>()->GetNameStringByValue(int64(Identity.Primary)));
+		else
+		{
+			const auto Stat = Identity.Attribute;
+			Line.StatId = FName(*StaticEnum<EUmbraEquipmentAffixStat>()->GetNameStringByValue(int64(Stat)));
+			Line.Unit = Stat == EUmbraEquipmentAffixStat::AttackSpeed || Stat == EUmbraEquipmentAffixStat::CriticalChance ? EUmbraTooltipUnit::Percent
+				: Stat == EUmbraEquipmentAffixStat::MoveSpeed ? EUmbraTooltipUnit::CentimetersPerSecond
+				: Stat >= EUmbraEquipmentAffixStat::SlashingResistance ? EUmbraTooltipUnit::Rating : EUmbraTooltipUnit::Points;
+		}
+		Line.Text = bPreview ? FText::GetEmpty() : UmbraTooltipFormatting::Format(Line);
+	}
+	bool ReadInstance(FUmbraItemTooltipData& Out, const FUmbraItemInstance& Instance)
+	{
+		if (!Instance.IsValid()) return false;
+		Out.Stats.RemoveAll([](const auto& Line) { return Line.bConfigurationPreview; });
+		Out.SpecialEffectStats.RemoveAll([](const auto& Line) { return Line.bConfigurationPreview; });
+		for (const auto& Roll : Instance.RolledAffixes)
+			AddRolledLine(Out, Roll, Roll.CandidateValues, Roll.SelectedTier, Roll.Value, false);
+		return true;
+	}
 	void AddStat(FUmbraItemTooltipData& Out, FName Id, double Value, EUmbraTooltipStatSource Source, EUmbraTooltipUnit Unit)
 	{
 		if (Value == 0.) return;
@@ -127,25 +169,31 @@ namespace
 		TSet<EUmbraWeaponDamageType> Types;
 		for (const auto& Channel : Weapon->Damage.Channels)
 		{
-			if (uint8(Channel.Type) > 8 || Types.Contains(Channel.Type) || !Nonnegative(Channel.BaseDamage)) return false;
+			float Min = 0.f, Max = 0.f;
+			if (uint8(Channel.Type) > 8 || Types.Contains(Channel.Type) || !Channel.ResolveRange(Min, Max)) return false;
+			const double Mean = (double(Min) + Max) * 0.5;
 			Types.Add(Channel.Type);
 			TSet<EUmbraPrimaryAttribute> Primaries;
 			for (const auto& Term : Channel.Scaling)
 			{
-				if (uint8(Term.Attribute) > 3 || Primaries.Contains(Term.Attribute) || !Nonnegative(Term.Coefficient)) return false;
+				if (uint8(Term.Attribute) > 3 || Primaries.Contains(Term.Attribute) || !TooltipNonnegative(Term.Coefficient)) return false;
 				Primaries.Add(Term.Attribute);
 				auto& Scaling = Out.Scaling[uint8(Term.Attribute)];
-				Scaling.ReferenceCoefficient += double(Channel.BaseDamage) * Term.Coefficient;
+				Scaling.ReferenceCoefficient += Mean * Term.Coefficient;
 				Scaling.bHasCurve |= Term.PointCurve != nullptr;
 			}
-			if (Channel.BaseDamage == 0.f) continue;
+			if (Max == 0.f) continue;
 			auto& Damage = Out.DamageChannels.AddDefaulted_GetRef();
 			Damage.Type = Channel.Type;
 			Damage.Name = UmbraTooltipFormatting::DamageName(Channel.Type);
-			Damage.BaseDamage = Channel.BaseDamage;
-			Out.TotalBaseDamage += Channel.BaseDamage;
+			Damage.BaseDamage = Mean;
+			Damage.MinBaseDamage = Min;
+			Damage.MaxBaseDamage = Max;
+			Out.TotalBaseDamage += Mean;
+			Out.TotalMinBaseDamage += Min;
+			Out.TotalMaxBaseDamage += Max;
 		}
-		if (Out.TotalBaseDamage > MAX_flt) return false;
+		if (Out.TotalMaxBaseDamage > MAX_flt) return false;
 		Out.DamageChannels.Sort([](const auto& L, const auto& R) { return uint8(L.Type) < uint8(R.Type); });
 		for (int32 Index = 0; Index < 4; ++Index)
 		{
@@ -180,12 +228,12 @@ FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromDefinition(UUmbraItemDef
 {
 	if (!IsValid(Definition) || Definition->ItemLevel < 1 || Definition->RequiredLevel < 1
 		|| uint8(Definition->Rarity) > uint8(EUmbraItemRarity::Unique)
-		|| !Nonnegative(Definition->Armor) || !Nonnegative(Definition->MagicResistance) || !Nonnegative(Definition->Weight)
+		|| !TooltipNonnegative(Definition->Armor) || !TooltipNonnegative(Definition->MagicResistance) || !TooltipNonnegative(Definition->Weight)
 		|| !UUmbraEquipmentEffect::ValidateBonuses(Definition)) return Failure(EUmbraTooltipResult::InvalidDefinition);
-	for (float Value : Definition->Requirements.ToArray()) if (!Nonnegative(Value)) return Failure(EUmbraTooltipResult::InvalidDefinition);
-	for (float Value : Definition->PrimaryBonuses.ToArray()) if (!Nonnegative(Value)) return Failure(EUmbraTooltipResult::InvalidDefinition);
+	for (float Value : Definition->Requirements.ToArray()) if (!TooltipNonnegative(Value)) return Failure(EUmbraTooltipResult::InvalidDefinition);
+	for (float Value : Definition->PrimaryBonuses.ToArray()) if (!TooltipNonnegative(Value)) return Failure(EUmbraTooltipResult::InvalidDefinition);
 	for (auto Slot : Definition->AllowedSlots)
-		if (!ValidSlot(Slot) || (Definition->Weapon && Slot != EUmbraEquipmentSlot::MainHand)) return Failure(EUmbraTooltipResult::InvalidDefinition);
+		if (!TooltipValidSlot(Slot) || (Definition->Weapon && Slot != EUmbraEquipmentSlot::MainHand)) return Failure(EUmbraTooltipResult::InvalidDefinition);
 	if (!GetDefault<UUmbraTooltipSettings>()->IsValidThresholds()) return Failure(EUmbraTooltipResult::InvalidConfiguration);
 	FUmbraItemTooltipData Out;
 	Out.ItemDefinition = Definition;
@@ -221,13 +269,21 @@ FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromDefinition(UUmbraItemDef
 	}
 	for (const auto& Bonus : Definition->DamageBonuses)
 	{
-		auto& Line = Out.Stats.AddDefaulted_GetRef();
+		auto& Line = (Bonus.Bucket == EUmbraDamageBucket::Multiplicative ? Out.SpecialEffectStats : Out.Stats).AddDefaulted_GetRef();
 		Line.StatId = TEXT("DamageBonus");
 		Line.bDamageBonus = true;
 		Line.DamageBonus = Bonus;
 		Line.RawValue = Bonus.Magnitude.GetValueAtLevel(1.f);
 		Line.Unit = Bonus.Bucket == EUmbraDamageBucket::Additive ? EUmbraTooltipUnit::Percent : EUmbraTooltipUnit::Factor;
 		Line.Text = UmbraTooltipFormatting::Format(Line);
+	}
+	TSet<FName> AffixIds;
+	for (const auto& Config : Definition->AffixRollConfigs)
+	{
+		TArray<float> Candidates;
+		if (AffixIds.Contains(Config.AffixId) || !Config.BuildCandidates(Candidates)) return Failure(EUmbraTooltipResult::InvalidDefinition);
+		AffixIds.Add(Config.AffixId);
+		AddRolledLine(Out, Config, Candidates, INDEX_NONE, 0.f, true);
 	}
 	Out.bValid = true;
 	Out.Result = EUmbraTooltipResult::Success;
@@ -245,7 +301,8 @@ FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromInventory(const FUmbraIn
 	if (!ExpectedId.IsValid() || !Entry || Entry->InstanceId != ExpectedId || Entry->Definition != ExpectedDefinition) return Failure(EUmbraTooltipResult::IdentityMismatch);
 	auto Out = FromDefinition(Entry->Definition);
 	if (!Out.bValid) return Out;
-	if (bHasTargetSlot && (!ValidSlot(TargetSlot) || !Entry->Definition->AllowedSlots.Contains(TargetSlot))) return Failure(EUmbraTooltipResult::InvalidSlot);
+	if (!ReadInstance(Out, Entry->GetInstance())) return Failure(EUmbraTooltipResult::InvalidSnapshot);
+	if (bHasTargetSlot && (!TooltipValidSlot(TargetSlot) || !Entry->Definition->AllowedSlots.Contains(TargetSlot))) return Failure(EUmbraTooltipResult::InvalidSlot);
 	Out.Source = EUmbraTooltipSource::Inventory;
 	Out.InstanceId = Entry->InstanceId;
 	Out.InventorySlot = SlotIndex;
@@ -265,18 +322,18 @@ FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromInventory(const FUmbraIn
 FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromEquipment(const FUmbraEquipmentSnapshot& Snapshot, EUmbraEquipmentSlot Slot,
 	FGuid ExpectedId, UUmbraItemDefinition* ExpectedDefinition, const UUmbraEquipmentComponent* Equipment)
 {
-	if (!Snapshot.bValid || Snapshot.Revision < 0 || !Nonnegative(Snapshot.EquipLoad)
-		|| !Nonnegative(Snapshot.MaxEquipLoad) || uint8(Snapshot.LoadState) > uint8(EUmbraLoadState::Overweight)) return Failure(EUmbraTooltipResult::InvalidSnapshot);
+	if (!Snapshot.bValid || Snapshot.Revision < 0 || !TooltipNonnegative(Snapshot.EquipLoad)
+		|| !TooltipNonnegative(Snapshot.MaxEquipLoad) || uint8(Snapshot.LoadState) > uint8(EUmbraLoadState::Overweight)) return Failure(EUmbraTooltipResult::InvalidSnapshot);
 	TSet<FGuid> Ids;
 	TSet<EUmbraEquipmentSlot> Slots;
 	for (const auto& Entry : Snapshot.Items)
 	{
-		if (!IsValid(Entry.Definition) || !Entry.InstanceId.IsValid() || !ValidSlot(Entry.Slot)
+		if (!IsValid(Entry.Definition) || !Entry.InstanceId.IsValid() || !TooltipValidSlot(Entry.Slot)
 			|| !Entry.Definition->AllowedSlots.Contains(Entry.Slot) || Ids.Contains(Entry.InstanceId) || Slots.Contains(Entry.Slot)) return Failure(EUmbraTooltipResult::InvalidSnapshot);
 		Ids.Add(Entry.InstanceId);
 		Slots.Add(Entry.Slot);
 	}
-	if (!ValidSlot(Slot)) return Failure(EUmbraTooltipResult::InvalidSlot);
+	if (!TooltipValidSlot(Slot)) return Failure(EUmbraTooltipResult::InvalidSlot);
 	const auto* Entry = Snapshot.Items.FindByPredicate([Slot](const auto& Item) { return Item.Slot == Slot; });
 	if (!ExpectedId.IsValid() || !Entry || Entry->InstanceId != ExpectedId || Entry->Definition != ExpectedDefinition) return Failure(EUmbraTooltipResult::IdentityMismatch);
 	if (Equipment)
@@ -288,6 +345,7 @@ FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromEquipment(const FUmbraEq
 	}
 	auto Out = FromDefinition(Entry->Definition);
 	if (!Out.bValid) return Out;
+	if (!ReadInstance(Out, Entry->GetInstance())) return Failure(EUmbraTooltipResult::InvalidSnapshot);
 	Out.Source = EUmbraTooltipSource::Equipment;
 	Out.InstanceId = Entry->InstanceId;
 	Out.bEquipped = true;

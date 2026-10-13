@@ -19,6 +19,9 @@ struct FUmbraDerivedDamageChannel
 	GENERATED_BODY()
 	UPROPERTY(BlueprintReadOnly) EUmbraWeaponDamageType Type = EUmbraWeaponDamageType::Blunt;
 	UPROPERTY(BlueprintReadOnly) float BaseDamage = 0.f;
+	/** Requirement-adjusted endpoints; BaseDamage/Damage and GAS AD/AP use their mean. */
+	UPROPERTY(BlueprintReadOnly) float MinBaseDamage = 0.f;
+	UPROPERTY(BlueprintReadOnly) float MaxBaseDamage = 0.f;
 	UPROPERTY(BlueprintReadOnly) float ScalingDamage = 0.f;
 	UPROPERTY(BlueprintReadOnly) float Damage = 0.f;
 };

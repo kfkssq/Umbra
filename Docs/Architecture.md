@@ -1,5 +1,13 @@
 # Umbra 架构与维护地图
 
+地面标签职责更新：WorldItem 原有 SetItem/复制/Hover 数据路径保持不变；UmbraWorldItemLabel 原生绑定 ItemName 与可选 ItemIcon/ItemBackground，投影 Definition 展示字段，缓存/恢复 Designer 背景。BP_RefreshItem 仅为原生刷新后的可选视觉扩展，无 Tick/委托/物品生成变更。见 [标签契约](LootAndPickup.md#地面标签原生刷新与-designer-高亮)。
+
+2026-10-10：Tooltip 视口适配改为 `UUmbraItemTooltip` 共用尺寸预算 + `SUmbraTooltipViewport` 纯绘制缩放，切断视口适配对自然布局/文字测量的反馈。背包/装备沿用同一基类与事件数据链；不改用户 WBP 布局。参数与回归见 [ItemTooltipUI](ItemTooltipUI.md)。
+
+2026-10-10：[掉落与拾取第一阶段](LootAndPickup.md) 接入 Enemy 权威 Die → LootTable → 既有 ItemInstance.Create → 独立复制 WorldItem；Controller 点击/导航 → Server RPC → PlayerState.AcceptLootInstance → Inventory.AddInstance → OwnerOnly 快照/UI。保持完整 GUID/词缀，不改装备/伤害系统。以下旧阶段“未实现掉落”说明由此条更新，PIE/网络仍待验证。
+
+2026-10-09：武器真实伤害区间、GUID 实例离散随机词缀、GAS 转移与 AffixEntry / SpecialEffects 新契约见 [ItemInstanceAffixes](ItemInstanceAffixes.md)。该文覆盖下文相关旧阶段说明；本轮未修改 Content，验证边界见 Progress。
+
 2026-10-05 Tooltip第三阶段：InventorySlot / EquipmentSlotWidget 原生Hover → 所属Menu重取真实组件Snapshot并校验身份 → FromInventory / FromEquipment → 惰性缓存UUmbraItemTooltip → Slot.SetToolTip。CharacterMenu向两个Menu传递页面活动状态；快照、ASC生命周期及四主属性事件清理/刷新当前Hover，刷新保护内的查询延后到合并GameThread任务，不改变装备/GAS规则。TooltipQualityBackgroundColor经数据层只驱动quality_bg和SlotBackground的Tint，保留Brush。详情与人工验收见[ItemTooltipUI](ItemTooltipUI.md)。以下未接悬停为历史阶段记录。
 
 2026-10-04 Tooltip第二阶段：ItemDefinition新增显示专用ItemCategory/WeaponType，分类本地化/诊断与已计算结果的展示文本由Builder统一生成。UUmbraItemTooltip只投影FUmbraItemTooltipData，动态行由UUmbraTooltipStatEntry或TextBlock承接；整树HitTestInvisible，更新/析构清空旧行，无Tick/游戏状态读取或父窗口操作。未接槽位悬停，未改Content或装备/伤害系统；准确绑定与生命周期见[ItemTooltipUI](ItemTooltipUI.md)。

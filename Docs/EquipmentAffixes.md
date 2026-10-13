@@ -1,5 +1,7 @@
 # 固定词缀与装备效果
 
+2026-10-09：武器真实伤害区间、GUID 实例离散随机词缀、GAS 转移与 AffixEntry / SpecialEffects 新契约见 [ItemInstanceAffixes](ItemInstanceAffixes.md)。该文覆盖下文相关旧阶段说明；本轮未修改 Content，验证边界见 Progress。
+
 本阶段扩展现有 ItemDefinition 和 EquipmentComponent，不生成随机词缀，不增加背包、卸装 RPC 或资产。四维仍使用 `PrimaryBonuses`，AD/AP 仍由 WeaponProfile 与四维派生，伤害仍通过统一入口。
 
 ## 配置来源与单位

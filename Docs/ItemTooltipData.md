@@ -1,5 +1,7 @@
 # 统一物品 Tooltip：第一阶段数据契约
 
+2026-10-09：武器真实伤害区间、GUID 实例离散随机词缀、GAS 转移与 AffixEntry / SpecialEffects 新契约见 [ItemInstanceAffixes](ItemInstanceAffixes.md)。该文覆盖下文相关旧阶段说明；本轮未修改 Content，验证边界见 Progress。
+
 2026-10-05 第三阶段：ItemDefinition.Presentation 新增 TooltipQualityBackgroundColor（FLinearColor，默认 White），FromDefinition 基础构建复制到 TooltipData，FromInventory / FromEquipment 沿用该基础结果。三个入口都不由 Rarity 推导颜色。该字段仅驱动 Tooltip 的 quality_bg / SlotBackground Tint；RarityColor 仍用于名称/品质文字，槽位两张贴图不变。正式 Hover 的新鲜快照、上下文订阅和无效清理见 [ItemTooltipUI](ItemTooltipUI.md)；下面第一阶段的“未接入 Hover”为历史范围。
 
 第二阶段已添加显示专用ItemCategory/WeaponType、集中展示文本和两个纯展示控件，见[分类与WBP接入契约](ItemTooltipUI.md)。下文“尚无类型/尚无Widget”为第一阶段历史范围；原始数据、评级、身份与需求规则保持，当前类型文本优先使用具体武器类型/明确分类，Unknown才使用原后备。

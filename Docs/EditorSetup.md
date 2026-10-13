@@ -1,5 +1,13 @@
 # 编辑器配置入口
 
+地面物品标签现已原生刷新：`WBP_WorldItemLabel` 继承 `UmbraWorldItemLabel`，Designer 只需必需 TextBlock `ItemName`、可选 Image `ItemIcon` / Border `ItemBackground`（Is Variable），以及 BP_WorldItem 的 Widget Class；不需任何 Graph。Hover 参数在 WBP Class Defaults，名称/品质色/图标由 C++ 读取真实实例 Definition。完整契约见 [LootAndPickup](LootAndPickup.md#地面标签原生刷新与-designer-高亮)。
+
+2026-10-10：Tooltip 新增 `ViewportFitReferenceSize`，C++ 默认 `(400, 1440)` Slate 单位 → WBP Class Defaults 可覆盖；这是所有物品共用的视口适配预算，不是 Designer 固定尺寸。保留现有 SizeBox/ScaleBox 设置；当前剑/锤无需改资产。超出预算的未来内容与验证边界见 [ItemTooltipUI](ItemTooltipUI.md)。
+
+2026-10-10：[掉落与拾取配置](LootAndPickup.md) 包含 LootTable 权重/概率/数量上限、敌人 Loot 配置、BP_WorldItem 通用碰撞/可选 Mesh、WBP_WorldItemLabel 数据事件、Controller 距离/失败反馈及 NavMesh。名称/品质色/图标沿用 ItemDefinition。未自动修改 Content，资产接线均待编辑器确认。
+
+2026-10-09：武器真实伤害区间、GUID 实例离散随机词缀、GAS 转移与 AffixEntry / SpecialEffects 新契约见 [ItemInstanceAffixes](ItemInstanceAffixes.md)。该文覆盖下文相关旧阶段说明；本轮未修改 Content，验证边界见 Progress。
+
 2026-10-04 Tooltip第二阶段：手工复制现有素材制作WBP_ItemTooltip（父类UmbraItemTooltip）和WBP_TooltipStatEntry（父类UmbraTooltipStatEntry）。前者必需ItemName/TextBlock、StatRows/VerticalBox，后者必需EntryText/TextBlock；StatEntryClass指定行WBP，其余区域可选。物品的Presentation/Classification配置ItemCategory和WeaponType，默认Unknown兼容旧资产。完整绑定表、推荐树、Class Defaults、素材拖动逻辑清理和未来悬停接口见[ItemTooltipUI](ItemTooltipUI.md)；本轮没有创建或保存WBP资产。
 
 2026-10-04 物品Tooltip第一阶段：ItemDefinition.Presentation新增ItemLevel（默认1）、Rarity（默认Common）和可选FlavorText；原颜色/背景/框继续由资产配置。WeaponProfile.Weapon/Tooltip四项Grade可显式覆盖为S/A/B/C/D/None，默认自动；评级阈值在Game配置的UmbraTooltipSettings集中定义。本轮没有WBP/悬停接线，后续视图通过三个BlueprintPure构建入口消费统一数据，详见[字段、格式、需求和第二阶段API](ItemTooltipData.md)。

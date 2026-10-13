@@ -13,7 +13,10 @@ FName UmbraTypedDamage::APName(int32 Index) { return FName(*FString::Printf(TEXT
 bool UmbraTypedDamage::Prepare(UAbilitySystemComponent* Source, UAbilitySystemComponent* Target,
 	const FUmbraTypedDamageConfig& Config, FGameplayEffectSpec& Spec)
 {
-	if (!Source || !Target || !Source->GetSet<UUmbraAttributeSet>() || !Target->GetSet<UUmbraAttributeSet>()) return false;
+	if (!Source || !Target || !Source->IsOwnerActorAuthoritative() || !Target->IsOwnerActorAuthoritative()
+		|| !Source->GetSet<UUmbraAttributeSet>() || !Target->GetSet<UUmbraAttributeSet>()) return false;
+	// A prepared hit keeps its original sample even if a caller attempts preparation again.
+	if (Spec.GetSetByCallerMagnitude(ReadyName, false, 0.f) == 1.f) return true;
 	const auto Nonnegative = [](float Value) { return FMath::IsFinite(Value) && Value >= 0.f; };
 	const UUmbraDamageRules* Rules = Config.Rules ? Config.Rules.Get() : GetDefault<UUmbraDamageRules>();
 	if (Config.bUseDamageBuckets && (!FMath::IsFinite(Rules->BaseCriticalMultiplier) || Rules->BaseCriticalMultiplier < 1.f
@@ -39,7 +42,11 @@ bool UmbraTypedDamage::Prepare(UAbilitySystemComponent* Source, UAbilitySystemCo
 			|| Source->GetNumericAttribute(UUmbraAttributeSet::GetAbilityPowerAttribute()) != Snapshot.AbilityPower) return false;
 		for (const auto& DerivedChannel : Snapshot.Channels)
 		{
-			const double Damage = double(DerivedChannel.Damage) * Config.WeaponMultiplier;
+			const float Min = DerivedChannel.MinBaseDamage, Max = DerivedChannel.MaxBaseDamage;
+			if (!Nonnegative(Min) || !Nonnegative(Max) || Max < Min) return false;
+			const double Sample = Min == Max ? double(Min) : FMath::Lerp(double(Min), double(Max), double(FMath::FRand()));
+			// Scaling is additive damage points in this project's existing weapon model.
+			const double Damage = (Min == Max ? double(DerivedChannel.Damage) : Sample + DerivedChannel.ScalingDamage) * Config.WeaponMultiplier;
 			if (!FMath::IsFinite(Damage) || Damage < 0. || Damage > MAX_flt) return false;
 			auto& Channel = Channels.AddDefaulted_GetRef();
 			Channel.Type = DerivedChannel.Type;

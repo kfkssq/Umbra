@@ -10,6 +10,8 @@
 #include "UmbraEnemyCharacter.generated.h"
 
 class UAnimMontage;
+class UUmbraLootTable;
+class AUmbraWorldItem;
 class UUmbraEnemyHealthBarComponent;
 class UGameplayAbility;
 class UGameplayEffect;
@@ -45,6 +47,12 @@ public:
 	virtual void SetAttackHighlighted_Implementation(bool bHighlighted) override;
 
 protected:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot") bool bEnableLoot = true;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot") TObjectPtr<UUmbraLootTable> LootTable;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot") TSubclassOf<AUmbraWorldItem> WorldItemClass;
+	/** Centimeters; runtime clamped to 0..1000. Only reachable navigation points are accepted. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "0", ClampMax = "1000")) float LootScatterRadius = 140.f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "0", ClampMax = "100")) float LootGroundOffset = 20.f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Derived Stats")
 	TObjectPtr<UUmbraDerivedStatsComponent> DerivedStatsComponent;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment")
@@ -110,6 +118,7 @@ protected:
 private:
 	void HandleHealthChanged(const FOnAttributeChangeData& ChangeData);
 	void Die();
+	void SpawnDeathLoot();
 	void ApplyDeathState();
 	void FreezeDeathPose();
 

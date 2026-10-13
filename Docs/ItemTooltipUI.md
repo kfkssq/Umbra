@@ -1,6 +1,18 @@
 # 物品 Tooltip：分类、WBP 契约与正式 Hover
 
-## 2026-10-06 视口完整显示修复（当前定位契约）
+2026-10-09：武器真实伤害区间、GUID 实例离散随机词缀、GAS 转移与 AffixEntry / SpecialEffects 新契约见 [ItemInstanceAffixes](ItemInstanceAffixes.md)。该文覆盖下文相关旧阶段说明；本轮未修改 Content，验证边界见 Progress。
+
+## 2026-10-10 缩放比例与多帧稳定性（当前定位契约）
+
+旧 C++ 按每件物品自己的 `NaturalSize` 计算缩放，所以较长的剑与较短的锤在同一视口获得不同缩放；原生 `SScaleBox(ScaleToFit)` 又将上次分配尺寸和缩放带回下一次文字 prepass，形成测量/适配反馈。用户的 Designer SizeBox/ScaleBox 用于控制设计大小，不是本次改动目标。
+
+运行时改用 `SUmbraTooltipViewport`：子树始终按自然尺寸布局，视口适配只施加 RenderTransform，不改变字体测量的 layout scale，也不读取上一帧分配尺寸来计算缩放。Designer 仍直接使用原 WBP 内容，保留用户的尺寸框、缩放框、字体与布局。NativeTick 继续跟踪槽位与视口，不读取玩法数据或重建行。
+
+`ViewportFitReferenceSize` 是所有同类 Tooltip 共用的适配预算，单位为缩放前的 Slate 单位，默认 `(400, 1440)`，来源/覆盖顺序为 C++ 默认 → WBP Class Defaults。它不是面板固定宽高，不插入空白行，也不覆盖 WBP 的设计缩放。C++ 比例为 `min(1, Available.X / max(Natural.X, Reference.X), Available.Y / max(Natural.Y, Reference.Y))`。当前剑/锤均在预算内，因此同视口的整体比例相同、高度随内容变化。未来内容超出预算时仍有更小的应急适配，优先保留全部内容；若希望新增超长物品也共用比例，应扩大同一 WBP 的共用预算，不为不同物品单独配置。
+
+`Umbra.UI.Items.TooltipLayoutStability` 加载真实 WBP、TestSword/TestMace，覆盖 5 个视口 × 4 档 DPI × 剑/锤/剑切换，每组执行 60 次 prepass/paint，检查稳定后的定位尺寸、实际绘制图标比例、四边完整显示。现有 `TooltipViewportFit` 继续覆盖超出预算后的应急适配。验证结果与真实 PIE 边界见 [Progress](Progress.md)。
+
+## 2026-10-06 视口完整显示修复（历史实现，缩放方式由上节替代）
 
 背包和装备菜单统一调用 `PresentBeside(HoveredCell)`。槽位的桌面绝对坐标先经 `GetViewportWidgetGeometry().AbsoluteToLocal` 转为视口 Slate 单位；不得直接与视口局部尺寸混用。Tooltip 通过 AddToViewport 显示，隐藏由菜单调用 HideTooltip；下文第三阶段原生 SToolTip 定位说明为历史记录。
 

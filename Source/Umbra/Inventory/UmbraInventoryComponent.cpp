@@ -54,6 +54,25 @@ EUmbraInventoryResult UUmbraInventoryComponent::AddItem(UUmbraItemDefinition* De
 	if (Check != EUmbraInventoryResult::Success) return Check;
 	if (!IsValid(Definition)) return EUmbraInventoryResult::InvalidItem;
 	if (!InstanceId.IsValid()) return EUmbraInventoryResult::InvalidIdentity;
+	if (const auto* Known = KnownInstances.Find(InstanceId))
+		return Known->Definition == Definition ? AddInstance(*Known) : EUmbraInventoryResult::InvalidIdentity;
+	if (Snapshot.Items.Num() >= Snapshot.Capacity) return EUmbraInventoryResult::Full;
+	FUmbraItemInstance Instance;
+	if (!FUmbraItemInstance::Create(GetOwner(), Definition, InstanceId, Instance)) return EUmbraInventoryResult::InvalidItem;
+	return AddInstance(Instance);
+}
+
+EUmbraInventoryResult UUmbraInventoryComponent::AddInstance(const FUmbraItemInstance& Instance)
+{
+	const auto InstanceId = Instance.InstanceId;
+	auto* Definition = Instance.Definition.Get();
+	const auto Check = CheckMutation();
+	if (Check != EUmbraInventoryResult::Success) return Check;
+	if (!IsValid(Definition)) return EUmbraInventoryResult::InvalidItem;
+	if (!InstanceId.IsValid()) return EUmbraInventoryResult::InvalidIdentity;
+	if (!Instance.IsValid()) return EUmbraInventoryResult::InvalidItem;
+	if (const auto* Known = KnownInstances.Find(InstanceId))
+		if (!FUmbraItemInstance::StaticStruct()->CompareScriptStruct(Known, &Instance, 0)) return EUmbraInventoryResult::InvalidIdentity;
 	if (Snapshot.Items.ContainsByPredicate([InstanceId](const auto& Item) { return Item.InstanceId == InstanceId; })) return EUmbraInventoryResult::DuplicateInstance;
 	if (Snapshot.Items.Num() >= Snapshot.Capacity) return EUmbraInventoryResult::Full;
 	int32 FreeIndex = 0;
@@ -62,6 +81,8 @@ EUmbraInventoryResult UUmbraInventoryComponent::AddItem(UUmbraItemDefinition* De
 	Entry.SlotIndex = FreeIndex;
 	Entry.InstanceId = InstanceId;
 	Entry.Definition = Definition;
+	Entry.RolledAffixes = Instance.RolledAffixes;
+	KnownInstances.Add(InstanceId, Instance);
 	Publish();
 	return EUmbraInventoryResult::Success;
 }

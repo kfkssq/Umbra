@@ -40,7 +40,7 @@ public:
 	virtual bool CanGameplayEffectApply(const FActiveGameplayEffectsContainer& Container, const FGameplayEffectSpec& Spec) const override;
 	virtual bool Validate(const FGameplayEffectSpec& Spec) const;
 	/** Immutable definition data, overridable by a native equipment GE using its replicated source asset. */
-	virtual const TArray<FUmbraDamageBonus>& GetBonuses(const FGameplayEffectSpec& Spec) const { return Bonuses; }
+	virtual TArray<FUmbraDamageBonus> GetBonuses(const FGameplayEffectSpec& Spec) const { return Bonuses; }
 };
 
 struct FUmbraDamageBuckets

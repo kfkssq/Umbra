@@ -3,6 +3,13 @@
 
 #define LOCTEXT_NAMESPACE "UmbraItemTooltipDisplay"
 
+FText UmbraTooltipFormatting::DamageRange(double Min, double Max)
+{
+	const FText Low = UmbraCombatStats::FormatNumber(Min, false, 0, 2);
+	return Min == Max ? Low : FText::Format(LOCTEXT("DamageRange", "{0}–{1}"), Low,
+		UmbraCombatStats::FormatNumber(Max, false, 0, 2));
+}
+
 FText UmbraTooltipFormatting::RarityName(EUmbraItemRarity Rarity)
 {
 	switch (Rarity)
@@ -23,15 +30,15 @@ void UmbraTooltipFormatting::BuildDisplayText(FUmbraItemTooltipData& Data)
 	Data.RarityText = RarityName(Data.Rarity);
 	Data.RarityAndTypeText = FText::Format(LOCTEXT("RarityAndType", "{0} · {1}"), Data.RarityText, Data.ItemType);
 	Data.ItemLevelText = FText::Format(LOCTEXT("ItemLevel", "物品等级 {0}"), FText::AsNumber(Data.ItemLevel));
-	Data.TotalDamageText = Data.DamageChannels.IsEmpty() ? FText::GetEmpty() : Number(Data.TotalBaseDamage);
+	Data.TotalDamageText = Data.DamageChannels.IsEmpty() ? FText::GetEmpty() : DamageRange(Data.TotalMinBaseDamage, Data.TotalMaxBaseDamage);
 	Data.DamageEntries.Reset();
 	for (auto& Channel : Data.DamageChannels)
 	{
-		Channel.Text = FText::Format(LOCTEXT("Channel", "{0} {1}"), Channel.Name, Number(Channel.BaseDamage));
+		Channel.Text = FText::Format(LOCTEXT("Channel", "{0} {1}"), Channel.Name, DamageRange(Channel.MinBaseDamage, Channel.MaxBaseDamage));
 		FUmbraTooltipEntry Entry;
 		Entry.DisplayMode = EUmbraTooltipEntryDisplayMode::KeyValue;
 		Entry.LabelText = Channel.Name;
-		Entry.ValueText = Number(Channel.BaseDamage);
+		Entry.ValueText = DamageRange(Channel.MinBaseDamage, Channel.MaxBaseDamage);
 		Entry.Style = EUmbraTooltipEntryStyle::Damage;
 		Data.DamageEntries.Add(Entry);
 	}
@@ -57,26 +64,45 @@ void UmbraTooltipFormatting::BuildDisplayText(FUmbraItemTooltipData& Data)
 	Data.ScalingNote = !bHasGrade ? FText::GetEmpty() : bCurve
 		? LOCTEXT("CurveNote", "评级仅表示配置参考强度；曲线使实际收益随主属性变化，不代表精确收益。")
 		: LOCTEXT("GradeNote", "评级仅表示配置参考强度，不代表精确收益。");
+	// The compatibility array remains empty: ordinary affixes have one dedicated rendering path.
 	Data.StatEntries.Reset();
-	for (const auto& Stat : Data.Stats)
+	Data.AffixEntries.Reset();
+	for (int32 Index = 0; Index < Data.Stats.Num(); ++Index)
 	{
-		FUmbraTooltipEntry Entry;
-		if (Stat.bDamageBonus)
+		const auto& Stat = Data.Stats[Index];
+		auto& Entry = Data.AffixEntries.AddDefaulted_GetRef();
+		Entry.AffixId = Stat.AffixId.IsNone() ? FName(*FString::Printf(TEXT("Fixed.%d.%s"), Index, *Stat.StatId.ToString())) : Stat.AffixId;
+		Entry.AttributeId = Stat.StatId;
+		Entry.bDamageBonus = Stat.bDamageBonus;
+		Entry.DamageBonus = Stat.DamageBonus;
+		Entry.Source = Stat.Source;
+		Entry.Unit = Stat.Unit;
+		Entry.DisplayName = Stat.bDamageBonus ? DamageAffixName(Stat.DamageBonus) : StatName(Stat.StatId);
+		Entry.bHasActualValue = !Stat.bConfigurationPreview;
+		Entry.ValueText = Entry.bHasActualValue ? StatValue(Stat) : FText::GetEmpty();
+		Entry.bRolled = Stat.bRolled;
+		Entry.RolledValue = Stat.RawValue;
+		Entry.TierCount = Stat.CandidateValues.Num();
+		Entry.SelectedTier = Stat.SelectedTier;
+		if (!Stat.CandidateValues.IsEmpty())
 		{
-			Entry.DisplayMode = EUmbraTooltipEntryDisplayMode::FullText;
-			Entry.FullText = Stat.Text;
-			Entry.Style = EUmbraTooltipEntryStyle::Damage;
+			Entry.MinPossibleValue = Stat.CandidateValues[0];
+			Entry.MaxPossibleValue = Stat.CandidateValues.Last();
+			if (Stat.bConfigurationPreview || Entry.MinPossibleValue != Entry.MaxPossibleValue) Entry.RangeText = FText::Format(LOCTEXT("AffixRange", "[{0}–{1}]"),
+				UmbraCombatStats::FormatNumber(Entry.MinPossibleValue, Stat.Unit == EUmbraTooltipUnit::Percent, 0, 4),
+				UmbraCombatStats::FormatNumber(Entry.MaxPossibleValue, Stat.Unit == EUmbraTooltipUnit::Percent, 0, 4));
 		}
-		else
-		{
-			Entry.DisplayMode = EUmbraTooltipEntryDisplayMode::KeyValue;
-			Entry.LabelText = StatName(Stat.StatId);
-			Entry.ValueText = StatValue(Stat);
-			Entry.Style = Stat.RawValue >= 0. ? EUmbraTooltipEntryStyle::Positive : EUmbraTooltipEntryStyle::Warning;
-		}
-		Data.StatEntries.Add(Entry);
 	}
-
+	Data.SpecialEffects.Reset();
+	for (const auto& Stat : Data.SpecialEffectStats)
+	{
+		FText Text = Stat.bConfigurationPreview ? DamageAffixName(Stat.DamageBonus) : Format(Stat);
+		if (!Stat.CandidateValues.IsEmpty())
+			Text = FText::Format(LOCTEXT("SpecialRange", "{0} [{1}–{2}]"), Text,
+				UmbraCombatStats::FormatNumber(double(Stat.CandidateValues[0]) - 1., true, 0, 4),
+				UmbraCombatStats::FormatNumber(double(Stat.CandidateValues.Last()) - 1., true, 0, 4));
+		Data.SpecialEffects.Add(Text);
+	}
 	Data.RequirementRows.Reset();
 	const bool bKnown = Data.Requirements.bKnown && Data.RequirementState != EUmbraTooltipRequirementState::Unknown;
 	const auto Style = [](bool bAvailable, bool bMet)

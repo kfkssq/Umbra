@@ -7,6 +7,7 @@
 
 class UUmbraItemDefinition;
 enum class EUmbraEquipmentAffixStat : uint8;
+struct FUmbraRolledAffix;
 
 /** Static GE component; each spec refers to its own immutable ItemDefinition, never mutates the CDO. */
 UCLASS()
@@ -14,7 +15,7 @@ class UMBRA_API UUmbraEquipmentDamageBonusComponent : public UUmbraDamageBonusCo
 {
 	GENERATED_BODY()
 public:
-	virtual const TArray<FUmbraDamageBonus>& GetBonuses(const FGameplayEffectSpec& Spec) const override;
+	virtual TArray<FUmbraDamageBonus> GetBonuses(const FGameplayEffectSpec& Spec) const override;
 	virtual bool Validate(const FGameplayEffectSpec& Spec) const override;
 };
 
@@ -29,4 +30,5 @@ public:
 	static TArray<FGameplayTag> MagnitudeTags();
 	static int32 AffixIndex(EUmbraEquipmentAffixStat Stat);
 	static bool ValidateBonuses(const UUmbraItemDefinition* Item);
+	static bool ApplyRolledAffixes(FGameplayEffectSpec& Spec, const TArray<FUmbraRolledAffix>& Rolls);
 };

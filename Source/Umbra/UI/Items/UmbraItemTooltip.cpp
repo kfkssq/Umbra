@@ -2,6 +2,7 @@
 #include "UI/Items/UmbraTooltipStatEntry.h"
 #include "UI/Items/UmbraTooltipKeyValueEntry.h"
 #include "UI/Items/UmbraTooltipScalingEntry.h"
+#include "UI/Items/UmbraTooltipAffixEntry.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -10,7 +11,7 @@
 #include "Engine/Texture2D.h"
 #include "Widgets/SWidget.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
-#include "Widgets/Layout/SScaleBox.h"
+#include "UI/Items/SUmbraTooltipViewport.h"
 #include "Umbra.h"
 
 #define LOCTEXT_NAMESPACE "UmbraItemTooltip"
@@ -49,14 +50,13 @@ TSharedRef<SWidget> UUmbraItemTooltip::RebuildWidget()
 {
 	TooltipContent = Super::RebuildWidget();
 	if (IsDesignTime()) return TooltipContent.ToSharedRef();
-	// Scale the complete authored layout, including its frame, without discarding any rows.
-	return SNew(SScaleBox).Stretch(EStretch::ScaleToFit).StretchDirection(EStretchDirection::DownOnly)
-		.HAlign(HAlign_Left).VAlign(VAlign_Top)[TooltipContent.ToSharedRef()];
+	return SAssignNew(TooltipViewport, SUmbraTooltipViewport)[TooltipContent.ToSharedRef()];
 }
 
 void UUmbraItemTooltip::ReleaseSlateResources(bool bReleaseChildren)
 {
 	Super::ReleaseSlateResources(bReleaseChildren);
+	TooltipViewport.Reset();
 	TooltipContent.Reset();
 }
 
@@ -92,14 +92,18 @@ void UUmbraItemTooltip::NativeTick(const FGeometry& MyGeometry, float InDeltaTim
 
 void UUmbraItemTooltip::ApplyViewportPosition(const FVector2D& Anchor, const FVector2D& ViewportSize)
 {
-	if (!TooltipContent.IsValid() || ViewportSize.X <= 0.0 || ViewportSize.Y <= 0.0) return;
+	if (!TooltipContent.IsValid() || !TooltipViewport.IsValid() || ViewportSize.X <= 0.0 || ViewportSize.Y <= 0.0) return;
 	ForceLayoutPrepass();
 	const FVector2D NaturalSize = FVector2D(TooltipContent->GetDesiredSize()).ComponentMax(FVector2D(1.0, 1.0));
 	// Distances are viewport Slate units; SetPositionInViewport must not apply DPI conversion again.
 	const double Margin = FMath::Min(12.0, FMath::Min(ViewportSize.X, ViewportSize.Y) * 0.25);
 	const FVector2D Available = ViewportSize - FVector2D(2.0 * Margin);
-	const double Scale = FMath::Min(1.0, FMath::Min(Available.X / NaturalSize.X, Available.Y / NaturalSize.Y));
+	// A shared budget keeps short and tall items at the same scale. Only content beyond
+	// the configured budget needs an emergency smaller fit to retain every row.
+	const FVector2D FitSize = NaturalSize.ComponentMax(ViewportFitReferenceSize);
+	const double Scale = FMath::Min(1.0, FMath::Min(Available.X / FitSize.X, Available.Y / FitSize.Y));
 	const FVector2D Size = NaturalSize * Scale;
+	TooltipViewport->SetFitScale(static_cast<float>(Scale));
 	const double Left = FMath::Clamp(Anchor.X - HorizontalOffsetFromSlot - Size.X, Margin, FMath::Max(Margin, ViewportSize.X - Margin - Size.X));
 	const double Top = FMath::Clamp(Anchor.Y, Margin, FMath::Max(Margin, ViewportSize.Y - Margin - Size.Y));
 	SetDesiredSizeInViewport(Size);
@@ -148,6 +152,7 @@ EUmbraTooltipRowStyle UUmbraItemTooltip::ToRowStyle(EUmbraTooltipEntryStyle Styl
 
 void UUmbraItemTooltip::ClearEntryWidget(UWidget* Child)
 {
+	if (auto* Affix = Cast<UUmbraTooltipAffixEntry>(Child)) Affix->SetAffixData(FUmbraTooltipAffixDisplayData());
 	if (auto* Entry = Cast<UUmbraTooltipStatEntry>(Child)) Entry->SetEntryText(FText::GetEmpty());
 	else if (auto* Key = Cast<UUmbraTooltipKeyValueEntry>(Child)) Key->SetEntry(FText::GetEmpty(), FText::GetEmpty());
 	else if (auto* Scaling = Cast<UUmbraTooltipScalingEntry>(Child)) Scaling->SetEntry(FText::GetEmpty(), FText::GetEmpty());
@@ -184,6 +189,26 @@ void UUmbraItemTooltip::AddKeyValueEntry(UVerticalBox* Container, const FText& L
 	Block->SetAutoWrapText(true);
 	Block->SetVisibility(ESlateVisibility::HitTestInvisible);
 	Container->AddChildToVerticalBox(Block);
+}
+
+void UUmbraItemTooltip::AddAffixEntry(const FUmbraTooltipAffixDisplayData& Data)
+{
+	if (!StatRows) return;
+	if (AffixEntryClass && !AffixEntryClass->HasAnyClassFlags(CLASS_Abstract))
+	{
+		if (auto* Entry = CreateWidget<UUmbraTooltipAffixEntry>(this, AffixEntryClass))
+		{
+			Entry->SetAffixData(Data);
+			StatRows->AddChildToVerticalBox(Entry);
+			return;
+		}
+	}
+	// Readable compatibility fallback until the user assigns the new WBP; never duplicate the row.
+	auto* Block = NewObject<UTextBlock>(this);
+	Block->SetText(FText::Format(LOCTEXT("AffixFallback", "{0} {1} {2}"), Data.DisplayName, Data.ValueText, Data.RangeText));
+	Block->SetAutoWrapText(true);
+	Block->SetVisibility(ESlateVisibility::HitTestInvisible);
+	StatRows->AddChildToVerticalBox(Block);
 }
 
 void UUmbraItemTooltip::AddFullTextEntry(UVerticalBox* Container, const FText& Text, EUmbraTooltipRowStyle Style)
@@ -280,16 +305,10 @@ void UUmbraItemTooltip::RefreshDisplay(bool bNotify)
 
 	if (bValid)
 	{
-		for (const auto& Entry : Data.StatEntries)
-		{
-			if (Entry.DisplayMode == EUmbraTooltipEntryDisplayMode::KeyValue)
-				AddKeyValueEntry(StatRows, Entry.LabelText, Entry.ValueText);
-			else
-				AddFullTextEntry(StatRows, Entry.FullText, ToRowStyle(Entry.Style));
-		}
+		for (const auto& Entry : Data.AffixEntries) AddAffixEntry(Entry);
 	}
-	Show(StatRows, bValid && !Data.StatEntries.IsEmpty());
-	Show(StatsSection, bValid && !Data.StatEntries.IsEmpty());
+	Show(StatRows, bValid && !Data.AffixEntries.IsEmpty());
+	Show(StatsSection, bValid && !Data.AffixEntries.IsEmpty());
 
 	if (bValid)
 	{

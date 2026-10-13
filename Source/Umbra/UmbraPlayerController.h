@@ -6,6 +6,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GameplayEffectTypes.h"
 #include "UI/UmbraAttributeDebugTypes.h"
+#include "Loot/UmbraWorldItem.h"
 #include "UmbraPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -29,6 +30,7 @@ enum class EUmbraQueuedPlayerCommand : uint8
 	Move,
 	DirectMove,
 	Attack,
+	Pickup,
 	Stop
 };
 
@@ -42,6 +44,12 @@ class AUmbraPlayerController : public APlayerController
 	GENERATED_BODY()
 
 public:
+	/** Centimeters, checked again on the server; Blueprint defaults override native defaults. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "100", ClampMax = "500")) float PickupRange = 150.f;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "1", ClampMax = "60")) float PickupApproachTimeout = 15.f;
+	bool CanPickupItems() const;
+	bool IsWithinPickupRange(const AUmbraWorldItem* Item) const;
+	UFUNCTION(BlueprintImplementableEvent, Category = "Loot") void BP_PickupResult(EUmbraPickupResult Result);
 	/** Prototype shortcut only: 8 applies once, 9 removes the exact retained handle. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug|Quick Gameplay Effect")
 	bool bEnableQuickGameplayEffectKeys = true;
@@ -226,6 +234,20 @@ protected:
 	bool ShouldUseTouchControls() const;
 
 private:
+	AUmbraWorldItem* GetWorldItemUnderCursor() const;
+	void UpdateWorldItemHover();
+	void BeginPickup(AUmbraWorldItem* Item);
+	void CheckPickupApproach();
+	void CompletePickupApproach();
+	void CancelPickupApproach();
+	void ReportPickupResult(EUmbraPickupResult Result);
+	UFUNCTION(Server, Reliable) void ServerPickupWorldItem(AUmbraWorldItem* Item);
+	UFUNCTION(Client, Reliable) void ClientPickupResult(EUmbraPickupResult Result);
+	TWeakObjectPtr<AUmbraWorldItem> PendingPickup;
+	TWeakObjectPtr<AUmbraWorldItem> QueuedPickup;
+	TWeakObjectPtr<AUmbraWorldItem> HoveredWorldItem;
+	FTimerHandle PickupApproachTimer;
+	double PickupDeadline = 0.0;
 	friend class FUmbraQuickEffectTest;
 	void SetupQuickGameplayEffectInput();
 	void QuickGameplayEffectPressed();

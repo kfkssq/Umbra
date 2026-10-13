@@ -1,5 +1,46 @@
 # Umbra 进度与验证状态
 
+## 地面物品标签原生化
+
+- 本轮仅修改 `UmbraWorldItemLabel.h/.cpp` 与相关文档。ItemName 为必需 BindWidget，ItemIcon/ItemBackground 为可选；C++ 读取实例 Definition 的名称、品质色和图标，空定义清旧内容，无图标折叠 Image；不改实例、不重新随机。
+- 原生缓存首次构造的 Designer 背景 Brush/BrushColor，刷新从缓存恢复后应用可配置 Hover，离开/无效数据/析构恢复；重复 Construct 不重采高亮色。构造前 SetItem 暂存，构造后刷新；无 Tick、无新增委托。BP_RefreshItem 仅在原生刷新后作可选视觉扩展。
+- 审查确认 WorldItem 原有初始化、BeginPlay、OnRep、Hover → InitWidget/SetItem 路径可复用，未修改组件、碰撞或拾取代码。WBP 只需 Designer 命名控件、Is Variable、鼠标穿透与 Widget Class 配置，不需要 Graph。详见 [Designer 契约](LootAndPickup.md#地面标签原生刷新与-designer-高亮)。
+- **编译通过**：LauncherInstalled.dat 确认关联 UE 5.8.2，原项目 UmbraEditor / Win64 / Development UHT、C++、DLL/lib 链接成功，退出码 0；日志 `Saved/Logs/WorldItemLabelNativeBuild.log`。保留非首选 MSVC 和引擎 Character.h 弃用警告。未修改模块/Target。
+- **验证边界**：未新增或运行自动化测试，未运行 PIE，未打开/修改/保存 Content；真实 WBP、重复 Construct、客户端复制及视觉效果仍待编辑器确认。保留已有源码、Tests、资产和文档修改，未提交/推送。
+
+## 2026-10-10 Tooltip 抖动与剑/锤比例修复
+
+- 原因：C++ 每件物品按自己的自然高度计算整体缩放，内容长短直接改变字体/图标比例；外层 `SScaleBox(ScaleToFit)` 又让上一帧分配区域和缩放参与文字测量，存在多帧布局反馈。
+- 修复：`SUmbraTooltipViewport` 将自然布局与视口 RenderTransform 分开；`ViewportFitReferenceSize` 默认 `(400, 1440)` Slate 单位，共用预算内物品使用相同比例，超出预算仍应急缩小保留全部内容。参数来源与维护步骤见 [ItemTooltipUI](ItemTooltipUI.md)。不改玩法或数据构建器。
+- 资产说明：诊断过程中曾通过 UE 5.8.2 调整 `WBP_ItemTooltip.ScaleBox_0` 的 Stretch/UserSpecifiedScale；收到用户要求后已通过同版本编辑器恢复为 `ScaleToFit / 1.0` 并重新编译保存。保留用户原有外层宽 400、内层宽 500、ScaleBox Both 和其他布局，最终修复不依赖资产属性调整。恢复记录 `Saved/Logs/TooltipAssetRestore.log`；资产经历了编辑器重存，不能宣称二进制从未变更。
+- 编译：UE 5.8.2 `UmbraEditor Win64 Development` 构建成功，日志 `Saved/Logs/TooltipStabilityBuild.log`。无模块/Target 修改，无需刷新 Rider 工程。
+- 定向验证：`TooltipViewportFit`、`TooltipLayoutStability`、`TooltipDesignerPreview`、`TooltipReadOnly`、`Classification`、`IdentityAndRequirements` 全部通过（5 Success + 1 SuccessWithWarnings，唯一警告为引擎 HTTP 连通性请求超时；退出码 0）。真实 WBP 的剑/锤/剑切换覆盖 5 组视口、4 档 DPI、每组 60 次 prepass/paint，检查稳定后的边界、位置尺寸和实际绘制图标大小；共 3600 次布局/绘制。报告 `Saved/Automation/TooltipLayoutVerified/index.json`，日志 `Saved/Logs/TooltipLayoutVerified.log`。
+- 扩展数据回归未全通过：`DefinitionAndScaling` 因现有非法伤害范围诊断未被测试预期捕获而失败；`Formatting` 的旧统计断言期望 24 行，当前为 23 行。这两项不涉及本轮布局路径，未改动以掩盖失败。初轮报告 `Saved/Automation/TooltipStabilityFinal/index.json`（其中布局失败已在最终版本修复）。
+- 未验证：已尝试打开编辑器检查，窗口随后关闭，未完成真实 PIE 悬停/鼠标、窗口拖动和网络验证。NullRHI 布局/paint 回归不能代替 GPU 视觉检查。未提交/推送，保留工作区已有修改。
+
+## 2026-10-10 物品掉落与拾取第一阶段
+
+- 新增 LootTable、持有完整实例的复制 WorldItem、WorldItemLabel 原生基类；敌人权威 Die 一次触发，加权选择/概率/数量上限 16，可达地面散布，无美术路径和 Content 修改。
+- 点击物品复用现有导航与攻击取消/单条指令队列，有限接近计时器；Controller 最小 Server RPC 只传目标引用。WorldItem 校验状态/距离，PlayerState 事务入口复用 Inventory.AddInstance，保留 GUID/RolledAffixes，成功后才销毁。Inventory OwnerOnly/UI 事件链不变；DefaultEngine 开启客户端导航查询。
+- 配置规则、失败边界、蓝图手工接线和待执行 PIE 步骤见 [LootAndPickup](LootAndPickup.md)。所有原有未提交修改保留，未提交/推送；未修改模块/Target，无需刷新 Rider 工程。
+- **编译验证**：LauncherInstalled.dat 与 Build.version 确认 UE 5.8.2；原项目 UmbraEditor / Win64 / Development 完成 UHT、C++、DLL/lib 链接，Result: Succeeded。日志 `Saved/Logs/LootAndPickupBuild.log`。新增局部命名遮蔽及 GetPawn TObjectPtr 推导错误已修复；仍有非首选 MSVC 14.51 和引擎 Character.h 的既有弃用警告。
+- **未验证**：按要求未新增或运行自动化测试；未运行 PIE、未打开/保存 Content、未验证真实标签/鼠标/地图导航/多人竞争与远程客户端。用户按指南配置蓝图后验收，不能把编译成功视作玩法或网络通过。
+
+## 2026-10-09 武器伤害区间、实例离散词缀与 Tooltip AffixEntry
+
+- 完成 WeaponProfile 兼容区间、DerivedStats 均值参考与服务端 WeaponChannels 单次采样；旧 BaseDamage、Legacy/ExplicitChannels、A/X 和单次扣血链保留。
+- 新增 FUmbraItemInstance 与离散候选/实际档位，接入背包创建、完整实例转移/回滚、装备 GE 和注销恢复；Inventory/Equipment 实例快照 OwnerOnly。新增 UmbraTooltipAffixEntry，普通属性/A 增伤同区同样式，X 投影独立 SpecialEffects。配置、单位、准确绑定与待 PIE 步骤见 [ItemInstanceAffixes](ItemInstanceAffixes.md)。
+- 验证：使用 LauncherInstalled.dat 确认的 UE 5.8.2，原项目 UmbraEditor / Win64 / Development 最终编译、UHT、DLL/lib 链接成功（Result: Succeeded，退出码0）；日志 Saved/Logs/ItemInstanceAffixesBuild.log。首次沙箱 UBA 缓存写入权限失败，获授权后重跑；新控件 Visibility 参数遮蔽错误已修复。仍有既有 MSVC 非首选版本和引擎 Character.h 弃用警告。
+- 源码/文档 git diff --check 及受影响 Markdown 文件链接目标检查通过；Content 与 Tests 无本轮修改，原有四个文件未提交修改保留。未修改模块/Target，无需重新生成 Rider 工程。
+- 按要求未新增、未运行自动化测试；未打开编辑器、未执行 PIE、未确认 WBP 资产绑定或多人网络。真实伤害范围、同 GUID 词缀稳定、装卸与失败回滚、GE 移除、OwnerOnly 网络、Tooltip 外观仍待人工验收。没有提交/推送。
+
+## 2026-10-08 Unity 合并编译名称冲突修复
+
+- 修复物理/类型伤害执行器的匿名命名空间 `Captures` 重名，以及 Tooltip 与 EquipmentComponent 的 `Nonnegative` / `ValidSlot` 重名。将伤害捕获函数分别命名为 `PhysicalDamageCaptures` / `TypedDamageCaptures`，Tooltip 校验函数增加 `Tooltip` 前缀，并更新调用；规则与数值计算不变。匿名命名空间不能隔离同一个 Unity 翻译单元内的同名函数。
+- **构建验证**：UE 5.8.2 UmbraEditor Win64 Development 增量构建成功；随后使用 `-ForceUnity -DisableAdaptiveUnity` 构建成功，并检查生成的 Module.Umbra.1.cpp / Module.Umbra.2.cpp，确认原冲突文件确实被分别合并编译。日志为 Saved/Logs/UnityCollisionBuild.log 与 Saved/Logs/UnityCollisionBuildFullUnity.log。最初沙箱构建因 UBA 缓存目录权限失败，授权后重跑成功；仍有既有 MSVC 非首选版本和引擎 Character.h 的 GetMovementBase 弃用警告。
+- **自动化验证**：NullRHI 编辑器运行 `Umbra.Damage.` 与 `Umbra.Items.Tooltip.`，8/8 Success、0 测试警告、0 失败，退出码 0。报告 Saved/Automation/UnityCollision/index.json，日志 Saved/Logs/UnityCollisionTests.log。源码/文档 `git diff --check` 通过。
+- **未验证**：真实 PIE、UI 视觉/鼠标输入及多人网络；本次仅修复编译符号冲突，未修改 Content 资产或构建配置，未提交/推送。
+
 ## 2026-10-06 Tooltip 视口适配修复
 
 - 修复仅钳制位置却未处理 tooltip 自身超高/超宽，以及桌面绝对坐标与视口局部坐标混用的问题。运行时整体等比缩小到视口内，使用缩放后尺寸定位；显示期间仅跟踪布局、槽位与视口变化，保留所有数据行和鼠标穿透。

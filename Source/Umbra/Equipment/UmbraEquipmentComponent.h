@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "GameplayEffectTypes.h"
 #include "Items/UmbraItemDefinition.h"
+#include "Items/UmbraItemInstance.h"
 #include "UmbraEquipmentComponent.generated.h"
 
 class UUmbraAbilitySystemComponent;
@@ -24,6 +25,8 @@ struct FUmbraEquippedItem
 	UPROPERTY(BlueprintReadOnly) EUmbraEquipmentSlot Slot = EUmbraEquipmentSlot::Head;
 	UPROPERTY(BlueprintReadOnly) FGuid InstanceId;
 	UPROPERTY(BlueprintReadOnly) TObjectPtr<UUmbraItemDefinition> Definition;
+	UPROPERTY(BlueprintReadOnly) TArray<FUmbraRolledAffix> RolledAffixes;
+	FUmbraItemInstance GetInstance() const { FUmbraItemInstance Item; Item.Definition = Definition; Item.InstanceId = InstanceId; Item.RolledAffixes = RolledAffixes; return Item; }
 	UPROPERTY(BlueprintReadOnly) bool bRequirementsMet = false;
 };
 USTRUCT(BlueprintType)
@@ -77,6 +80,8 @@ public:
 	/** Trusted authority API. Caller supplies stable item-instance identity; no client RPC. */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
 	EUmbraEquipResult Equip(EUmbraEquipmentSlot Slot, UUmbraItemDefinition* Item, FGuid InstanceId);
+	/** Complete trusted authority payload. Replacement requires an output for the displaced instance. */
+	EUmbraEquipResult EquipInstance(EUmbraEquipmentSlot Slot, const FUmbraItemInstance& Instance, FUmbraEquippedItem* ReplacedItem = nullptr);
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment") bool Unequip(EUmbraEquipmentSlot Slot);
 	/** Compare the displayed identity before mutation. Does not transfer ownership into an inventory. */
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
@@ -92,6 +97,7 @@ public:
 	void Refresh();
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 protected:
+	virtual void OnRegister() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 	virtual void OnUnregister() override;
 private:
@@ -103,6 +109,7 @@ private:
 	void OnEffectRemoved(const FActiveGameplayEffect& Effect);
 	UFUNCTION() void OnRep_Snapshot();
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot) FUmbraEquipmentSnapshot Snapshot;
+	UPROPERTY(Transient) TArray<FUmbraEquippedItem> SuspendedItems;
 	TWeakObjectPtr<UUmbraAbilitySystemComponent> BoundASC;
 	TWeakObjectPtr<UUmbraDerivedStatsComponent> Derived;
 	TMap<EUmbraEquipmentSlot, FActiveGameplayEffectHandle> Handles;

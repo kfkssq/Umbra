@@ -55,6 +55,8 @@ public:
 	void InitializeAttributes();
 	/** Once per authoritative PlayerState, independent of ASC and menu lifetime. */
 	void InitializeInventory();
+	/** Trusted world-loot transfer; shares the existing equipment/inventory transaction guard. */
+	EUmbraInventoryResult AcceptLootInstance(const FUmbraItemInstance& Instance);
 	/** Config defaults -> PlayerState Blueprint override. Each entry creates one distinct instance. */
 	UPROPERTY(EditDefaultsOnly, Config, BlueprintReadOnly, Category = "Inventory")
 	TArray<TSoftObjectPtr<UUmbraItemDefinition>> InitialInventoryItems;

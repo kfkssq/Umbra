@@ -198,6 +198,7 @@ void AUmbraPlayerController::Tick(float DeltaSeconds)
 	}
 
 	UpdateAttackHover();
+	UpdateWorldItemHover();
 	UpdateAttackHighlightDebug();
 
 	if (bPrimaryActionHeld && ActivePrimaryActionContext == EUmbraPrimaryActionContext::Ground)
@@ -216,6 +217,7 @@ void AUmbraPlayerController::Tick(float DeltaSeconds)
 
 void AUmbraPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (auto* Item = HoveredWorldItem.Get()) Item->SetHighlighted(false);
 	if (IsValid(CharacterMenu))
 	{
 		CharacterMenu->RemoveFromParent();
@@ -346,10 +348,16 @@ void AUmbraPlayerController::PrimaryActionStarted()
 	bPrimaryActionHeld = false;
 	bPrimaryActionIsHold = false;
 	PrimaryActionHeldTime = 0.0f;
+	CancelPickupApproach();
 	AActor* AttackableActor = nullptr;
 	if (GetAttackableUnderCursor(AttackableActor))
 	{
 		ActivePrimaryActionContext = EUmbraPrimaryActionContext::Ability;
+		return;
+	}
+	if (auto* Item = GetWorldItemUnderCursor())
+	{
+		BeginPickup(Item);
 		return;
 	}
 
@@ -502,6 +510,7 @@ bool AUmbraPlayerController::StartAutoMoveToLocation(const FVector& Destination)
 
 void AUmbraPlayerController::BeginAttackTarget(AActor* TargetActor)
 {
+	CancelPickupApproach();
 	if (!IsValid(TargetActor)
 		|| !TargetActor->Implements<UUmbraAttackable>()
 		|| !IUmbraAttackable::Execute_CanBeAttacked(TargetActor))
@@ -786,6 +795,7 @@ bool AUmbraPlayerController::IsPrimaryAttackActive() const
 
 void AUmbraPlayerController::QueueMoveCommand(const FVector& Destination)
 {
+	CancelPickupApproach();
 	if (Destination.ContainsNaN())
 	{
 		return;
@@ -807,6 +817,7 @@ void AUmbraPlayerController::QueueMoveCommand(const FVector& Destination)
 
 void AUmbraPlayerController::QueueDirectMoveCommand(const FVector& WorldDirection)
 {
+	CancelPickupApproach();
 	if (WorldDirection.ContainsNaN() || WorldDirection.IsNearlyZero())
 	{
 		return;
@@ -828,6 +839,7 @@ void AUmbraPlayerController::QueueDirectMoveCommand(const FVector& WorldDirectio
 
 void AUmbraPlayerController::QueueAttackCommand(AActor* TargetActor)
 {
+	CancelPickupApproach();
 	if (!IsAttackableTarget(TargetActor))
 	{
 		return;
@@ -844,6 +856,7 @@ void AUmbraPlayerController::QueueAttackCommand(AActor* TargetActor)
 
 void AUmbraPlayerController::QueueStopCommand()
 {
+	CancelPickupApproach();
 	QueuedCommand = EUmbraQueuedPlayerCommand::Stop;
 	QueuedAttackTarget.Reset();
 	QueuedMoveDestination = FVector::ZeroVector;
@@ -856,6 +869,7 @@ void AUmbraPlayerController::QueueStopCommand()
 
 void AUmbraPlayerController::ClearQueuedCommand()
 {
+	QueuedPickup.Reset();
 	QueuedCommand = EUmbraQueuedPlayerCommand::None;
 	QueuedAttackTarget.Reset();
 	QueuedMoveDestination = FVector::ZeroVector;
@@ -884,10 +898,14 @@ void AUmbraPlayerController::ExecuteQueuedCommand()
 	const EUmbraQueuedPlayerCommand Command = QueuedCommand;
 	const FVector MoveDestination = QueuedMoveDestination;
 	AActor* AttackTarget = QueuedAttackTarget.Get();
+	AUmbraWorldItem* PickupTarget = QueuedPickup.Get();
 	ClearQueuedCommand();
 
 	switch (Command)
 	{
+	case EUmbraQueuedPlayerCommand::Pickup:
+		BeginPickup(PickupTarget);
+		break;
 	case EUmbraQueuedPlayerCommand::Move:
 		CancelPendingAttack();
 		CancelAutoMove();
@@ -935,6 +953,8 @@ void AUmbraPlayerController::NotifyPrimaryAttackAbilityEnded(bool bWasCancelled,
 
 void AUmbraPlayerController::CancelCombatCommandState()
 {
+	if (auto* Item = HoveredWorldItem.Get()) Item->SetHighlighted(false);
+	HoveredWorldItem.Reset();
 	ClearQueuedCommand();
 	CancelPendingAttack();
 	CancelAutoMove();
@@ -995,6 +1015,7 @@ void AUmbraPlayerController::UpdateAutoMove()
 	const FVector PawnLocation = ControlledPawn->GetActorLocation();
 	if (FVector::DistSquared2D(PawnLocation, AutoMoveTargetLocation) <= FMath::Square(AutoMoveAcceptanceRadius))
 	{
+		if (PendingPickup.IsValid()) { CompletePickupApproach(); return; }
 		CancelAutoMove();
 		return;
 	}
@@ -1049,6 +1070,7 @@ void AUmbraPlayerController::MovePawnToward(const FVector& WorldLocation)
 
 void AUmbraPlayerController::CancelAutoMove()
 {
+	CancelPickupApproach();
 	bAutoMoving = false;
 	AutoMoveTargetLocation = FVector::ZeroVector;
 	CurrentPathPointIndex = INDEX_NONE;
@@ -1057,6 +1079,7 @@ void AUmbraPlayerController::CancelAutoMove()
 
 bool AUmbraPlayerController::TryBeginManualMovement(const FVector& WorldDirection)
 {
+	CancelPickupApproach();
 	if (bCharacterMenuOpen)
 	{
 		return false;

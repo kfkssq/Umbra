@@ -15,6 +15,11 @@
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "Equipment/UmbraEquipmentEffect.h"
 #include "Stats/UmbraDerivedStatsComponent.h"
+#include "UI/Items/SUmbraTooltipViewport.h"
+#include "Input/HittestGrid.h"
+#include "Rendering/DrawElements.h"
+#include "Types/PaintArgs.h"
+#include "Widgets/SWindow.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUmbraItemClassificationTest, "Umbra.Items.Tooltip.Classification",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -357,6 +362,82 @@ bool FUmbraTooltipViewportFitTest::RunTest(const FString& Parameters)
 	Tip->HideTooltip();
 	TestFalse(TEXT("Hiding stops viewport tracking"), Tip->bPresented);
 	Slate.Reset();
+	World->DestroyWorld(false);
+	GEngine->DestroyWorldContext(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUmbraTooltipLayoutStabilityTest, "Umbra.UI.Items.TooltipLayoutStability",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FUmbraTooltipLayoutStabilityTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	World->InitializeActorsForPlay(FURL());
+	auto* PC = World->SpawnActor<APlayerController>();
+	PC->SetPlayer(NewObject<ULocalPlayer>(GEngine));
+	UClass* Class = LoadClass<UUmbraItemTooltip>(nullptr, TEXT("/Game/UI/Tooltip/WBP_ItemTooltip.WBP_ItemTooltip_C"));
+	if (TestNotNull(TEXT("Real tooltip blueprint loads"), Class))
+	{
+		auto* Tip = CreateWidget<UUmbraItemTooltip>(PC, Class);
+		TSharedRef<SWidget> Slate = Tip->TakeWidget();
+		TSharedRef<SWindow> Window = SNew(SWindow).ClientSize(FVector2D(1920, 1080));
+		const FVector2D Viewports[] = {{1348, 950}, {2014, 970}, {640, 360}, {1920, 1080}, {803, 601}};
+		const TCHAR* Paths[] = {TEXT("/Game/Items/Weapons/DA_Item_TestSword.DA_Item_TestSword"),
+			TEXT("/Game/Items/Weapons/DA_Item_TestMace.DA_Item_TestMace"),
+			TEXT("/Game/Items/Weapons/DA_Item_TestSword.DA_Item_TestSword")};
+		for (const float DPI : {0.75f, 1.f, 1.25f, 1.5f})
+		{
+			for (const FVector2D& Viewport : Viewports)
+			{
+				FVector2D FirstItemIconSize = FVector2D::ZeroVector;
+				for (const TCHAR* Path : Paths)
+				{
+					auto* Item = LoadObject<UUmbraItemDefinition>(nullptr, Path);
+					if (!TestNotNull(TEXT("Real test item loads"), Item)) continue;
+					Tip->SetTooltipData(UUmbraItemTooltipDataBuilder::FromDefinition(Item));
+					FMargin Previous;
+					FVector2D PreviousIconSize = FVector2D::ZeroVector;
+					for (int32 Frame = 0; Frame < 60; ++Frame)
+					{
+						Slate->SlatePrepass(DPI);
+						Tip->ApplyViewportPosition(Viewport * 0.7, Viewport);
+						const FMargin Rect = UGameViewportSubsystem::Get()->GetWidgetSlot(Tip).Offsets;
+						Slate->SlatePrepass(DPI);
+						FHittestGrid Grid;
+						Grid.SetHittestArea(FVector2D::ZeroVector, Viewport * DPI);
+						FSlateWindowElementList Elements(Window);
+						const FPaintArgs Args(nullptr, Grid, FVector2D::ZeroVector, Frame / 60.0, 1.f / 60.f);
+						Slate->Paint(Args,
+							FGeometry::MakeRoot(FVector2D(Rect.Right, Rect.Bottom), FSlateLayoutTransform(DPI)),
+							FSlateRect(0, 0, Viewport.X * DPI, Viewport.Y * DPI), Elements, 0, FWidgetStyle(), true);
+						const auto* Icon = Tip->WidgetTree->FindWidget(TEXT("ItemIcon"));
+						const FGeometry& IconGeometry = Icon->GetCachedGeometry();
+						const FVector2D IconSize = IconGeometry.LocalToAbsolute(IconGeometry.GetLocalSize())
+							- IconGeometry.LocalToAbsolute(FVector2D::ZeroVector);
+						if (Frame >= 10)
+						{
+							TestTrue(TEXT("Painted icon is measured, not an empty geometry"), IconSize.X > 1.0 && IconSize.Y > 1.0);
+							TestTrue(TEXT("Stationary tooltip viewport rectangle settles across paint/prepass frames"), Rect == Previous);
+							TestTrue(TEXT("Stationary tooltip painted icon scale settles"), IconSize.Equals(PreviousIconSize, 0.01));
+							TestTrue(TEXT("Tooltip remains inside the viewport after text wraps"),
+								Rect.Left >= 11.99 && Rect.Top >= 11.99 && Rect.Left + Rect.Right <= Viewport.X - 11.99
+								&& Rect.Top + Rect.Bottom <= Viewport.Y - 11.99);
+						}
+						Previous = Rect;
+						PreviousIconSize = IconSize;
+					}
+					AddInfo(FString::Printf(TEXT("%s DPI=%.2f viewport=%s desired=%s rect=%s icon=%s"), *Item->GetName(), DPI,
+						*Viewport.ToString(), *FVector2D(Tip->TooltipContent->GetDesiredSize()).ToString(),
+						*FVector2D(Previous.Right, Previous.Bottom).ToString(), *PreviousIconSize.ToString()));
+					if (FirstItemIconSize.IsZero()) FirstItemIconSize = PreviousIconSize;
+					else TestTrue(TEXT("Sword and mace have the same painted icon scale in the same viewport"),
+						PreviousIconSize.Equals(FirstItemIconSize, 0.01));
+				}
+			}
+		}
+		Tip->HideTooltip();
+	}
 	World->DestroyWorld(false);
 	GEngine->DestroyWorldContext(World);
 	return true;

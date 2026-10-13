@@ -37,6 +37,24 @@ void UUmbraEquipmentComponent::Initialize(UUmbraAbilitySystemComponent* ASC)
 	Power->EquipmentOwner = this;
 	RemovedHandle = ASC->OnAnyGameplayEffectRemovedDelegate().AddUObject(this, &ThisClass::OnEffectRemoved);
 	Refresh();
+	// Re-registration restores complete instances, never the definition-only creation path.
+	for (int32 Index = SuspendedItems.Num() - 1; Index >= 0; --Index)
+	{
+		const auto Saved = SuspendedItems[Index];
+		const auto Result = EquipInstance(Saved.Slot, Saved.GetInstance());
+		if (Result == EUmbraEquipResult::Success || Result == EUmbraEquipResult::AppliedInvalid) SuspendedItems.RemoveAt(Index);
+		else UE_LOG(LogUmbra, Error, TEXT("Equipment restore failed for %s; complete instance retained."), *Saved.InstanceId.ToString());
+	}
+}
+
+void UUmbraEquipmentComponent::OnRegister()
+{
+	Super::OnRegister();
+	if (!GetOwner() || !GetOwner()->HasAuthority() || SuspendedItems.IsEmpty()) return;
+	auto* ASC = GetOwner()->FindComponentByClass<UUmbraAbilitySystemComponent>();
+	auto* Power = GetOwner()->FindComponentByClass<UUmbraDerivedStatsComponent>();
+	if (Power) Power->Initialize(ASC);
+	Initialize(ASC);
 }
 
 bool UUmbraEquipmentComponent::CanMutate() const
@@ -69,12 +87,34 @@ bool UUmbraEquipmentComponent::ValidateItem(const UUmbraItemDefinition* Item) co
 
 EUmbraEquipResult UUmbraEquipmentComponent::Equip(EUmbraEquipmentSlot Slot, UUmbraItemDefinition* Item, FGuid InstanceId)
 {
+	// Legacy definition-only grants remain valid for fixed gear; random gear must be created first.
+	if (IsValid(Item) && !Item->AffixRollConfigs.IsEmpty()) return EUmbraEquipResult::InvalidItem;
+	FUmbraItemInstance Instance;
+	Instance.Definition = Item;
+	Instance.InstanceId = InstanceId;
+	// Preserve the legacy fixed-item replacement API. Random instances require the complete API.
+	const auto* Existing = Snapshot.Items.FindByPredicate([Slot](const auto& Entry) { return Entry.Slot == Slot; });
+	if (Existing && !Existing->RolledAffixes.IsEmpty()) return EUmbraEquipResult::InvalidItem;
+	FUmbraEquippedItem Replaced;
+	return EquipInstance(Slot, Instance, &Replaced);
+}
+
+EUmbraEquipResult UUmbraEquipmentComponent::EquipInstance(EUmbraEquipmentSlot Slot, const FUmbraItemInstance& Instance, FUmbraEquippedItem* ReplacedItem)
+{
+	if (ReplacedItem) *ReplacedItem = FUmbraEquippedItem();
+	auto* Item = Instance.Definition.Get();
+	const auto InstanceId = Instance.InstanceId;
 	if (!CanMutate()) return EUmbraEquipResult::NotReady;
+	if (!Instance.IsValid()) return EUmbraEquipResult::InvalidItem;
 	if (!InstanceId.IsValid() || !ValidateItem(Item)) return EUmbraEquipResult::InvalidItem;
 	if (!ValidSlot(Slot) || !Item->AllowedSlots.Contains(Slot)) return EUmbraEquipResult::WrongSlot;
 	if (CharacterLevel < Item->RequiredLevel) return EUmbraEquipResult::LevelTooLow;
 	for (const auto& Existing : Snapshot.Items)
 		if (Existing.InstanceId == InstanceId) return EUmbraEquipResult::DuplicateInstance;
+	const auto* Previous = Snapshot.Items.FindByPredicate([Slot](const auto& Entry) { return Entry.Slot == Slot; });
+	// Do not silently discard a complete instance through a replacement with no return destination.
+	if (Previous && !ReplacedItem) return EUmbraEquipResult::InvalidItem;
+	const FUmbraEquippedItem PreviousItem = Previous ? *Previous : FUmbraEquippedItem();
 
 	// Keep the old handle until the incoming GE is accepted. No partial replacement on rejection.
 	bUpdating = true;
@@ -89,6 +129,12 @@ EUmbraEquipResult UUmbraEquipmentComponent::Equip(EUmbraEquipmentSlot Slot, UUmb
 	// Intrinsic defense is filled only after excluding the new handle for requirements.
 	for (const auto& Affix : Item->AttributeBonuses)
 		Spec.Data->SetSetByCallerMagnitude(Tags[UUmbraEquipmentEffect::AffixIndex(Affix.Stat)], Affix.Magnitude);
+	if (!UUmbraEquipmentEffect::ApplyRolledAffixes(*Spec.Data.Get(), Instance.RolledAffixes))
+	{
+		Derived->bEquipmentUpdating = false;
+		bUpdating = false;
+		return EUmbraEquipResult::InvalidItem;
+	}
 	const auto NewHandle = BoundASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 	if (!BoundASC->GetActiveGameplayEffect(NewHandle))
 	{
@@ -104,7 +150,9 @@ EUmbraEquipResult UUmbraEquipmentComponent::Equip(EUmbraEquipmentSlot Slot, UUmb
 	Entry.Slot = Slot;
 	Entry.InstanceId = InstanceId;
 	Entry.Definition = Item;
+	Entry.RolledAffixes = Instance.RolledAffixes;
 	if (OldHandle.IsValid()) BoundASC->RemoveActiveGameplayEffect(OldHandle);
+	if (ReplacedItem) *ReplacedItem = PreviousItem;
 	Derived->bEquipmentUpdating = false;
 	bUpdating = false;
 	Refresh();
@@ -175,6 +223,12 @@ void UUmbraEquipmentComponent::Refresh()
 				if (Affix.Stat == EUmbraEquipmentAffixStat::MagicResistance) Defense[Tags[5]] += Affix.Magnitude;
 			}
 			// Avoid dirtying GAS for an unchanged requirement result.
+			for (const auto& Roll : Entry.RolledAffixes)
+			{
+				if (Roll.Kind != EUmbraAffixKind::Attribute) continue;
+				if (Roll.Attribute == EUmbraEquipmentAffixStat::Armor) Defense[Tags[4]] += Roll.Value;
+				if (Roll.Attribute == EUmbraEquipmentAffixStat::MagicResistance) Defense[Tags[5]] += Roll.Value;
+			}
 			if (Effect->Spec.GetSetByCallerMagnitude(Tags[4], false) != Defense[Tags[4]]
 				|| Effect->Spec.GetSetByCallerMagnitude(Tags[5], false) != Defense[Tags[5]])
 				BoundASC->UpdateActiveGameplayEffectSetByCallerMagnitudes(Handle, Defense);
@@ -280,10 +334,15 @@ void UUmbraEquipmentComponent::Shutdown()
 	OnEquipmentChanged.Broadcast(Snapshot);
 }
 void UUmbraEquipmentComponent::EndPlay(const EEndPlayReason::Type Reason) { Shutdown(); Super::EndPlay(Reason); }
-void UUmbraEquipmentComponent::OnUnregister() { Shutdown(); Super::OnUnregister(); }
+void UUmbraEquipmentComponent::OnUnregister()
+{
+	if (GetOwner() && GetOwner()->HasAuthority()) SuspendedItems.Append(Snapshot.Items);
+	Shutdown();
+	Super::OnUnregister();
+}
 void UUmbraEquipmentComponent::OnRep_Snapshot() { OnEquipmentChanged.Broadcast(Snapshot); }
 void UUmbraEquipmentComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(UUmbraEquipmentComponent, Snapshot);
+	DOREPLIFETIME_CONDITION(UUmbraEquipmentComponent, Snapshot, COND_OwnerOnly);
 }

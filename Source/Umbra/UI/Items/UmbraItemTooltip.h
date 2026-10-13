@@ -14,6 +14,8 @@ class UUniformGridPanel;
 class UUmbraTooltipStatEntry;
 class UUmbraTooltipKeyValueEntry;
 class UUmbraTooltipScalingEntry;
+class UUmbraTooltipAffixEntry;
+class SUmbraTooltipViewport;
 
 /** Pure projection of builder output. No gameplay lookups, mouse routing or parent-window changes. */
 UCLASS(Abstract, Blueprintable)
@@ -28,6 +30,10 @@ public:
 	virtual void SetVisibility(ESlateVisibility InVisibility) override;
 	/** Horizontal distance from the hovered slot's left edge to the tooltip's right edge; 0 is flush, negative overlaps. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Tooltip") float HorizontalOffsetFromSlot = 0.f;
+	/** Shared fit budget in unscaled Slate units, not a forced panel size. WBP defaults may override.
+	 * Items within this budget use the same viewport scale; exceptionally larger content still fits. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Tooltip", meta = (ClampMin = "1.0"))
+	FVector2D ViewportFitReferenceSize = FVector2D(400.0, 1440.0);
 	/** Present to the left of an anchor (viewport space) and clamp the final position inside the viewport. */
 	UFUNCTION(BlueprintCallable, Category = "Item Tooltip") void PresentAt(const FVector2D& Anchor, const FVector2D& ViewportSize);
 	/** Collapse without removing from the viewport; the menu owns the cached instance. */
@@ -41,6 +47,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Tooltip") TSubclassOf<UUmbraTooltipScalingEntry> ScalingEntryClass;
 	/** Optional WBP_TooltipStatEntry; unset uses plain native TextBlocks. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Tooltip") TSubclassOf<UUmbraTooltipStatEntry> StatEntryClass;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Tooltip") TSubclassOf<UUmbraTooltipAffixEntry> AffixEntryClass;
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
@@ -78,11 +85,13 @@ protected:
 
 private:
 	friend class FUmbraTooltipViewportFitTest;
+	friend class FUmbraTooltipLayoutStabilityTest;
 	void RefreshDisplay(bool bNotify);
 	void ClearRows();
 	void CaptureBackgrounds();
 	void ApplyBackground(UImage* Image, UTexture2D* Texture, const FSlateBrush& Default, bool bCaptured);
 	void AddKeyValueEntry(UVerticalBox* Container, const FText& Label, const FText& Value);
+	void AddAffixEntry(const FUmbraTooltipAffixDisplayData& Data);
 	void AddFullTextEntry(UVerticalBox* Container, const FText& Text, EUmbraTooltipRowStyle Style);
 	void AddScalingEntry(UUniformGridPanel* Panel, const FText& Attribute, const FText& Grade, int32 Index);
 	void ApplyViewportPosition(const FVector2D& Anchor, const FVector2D& ViewportSize);
@@ -91,6 +100,7 @@ private:
 
 	UPROPERTY(Transient) FUmbraItemTooltipData TooltipData;
 	TSharedPtr<SWidget> TooltipContent;
+	TSharedPtr<SUmbraTooltipViewport> TooltipViewport;
 	TWeakObjectPtr<UWidget> TrackedAnchor;
 	FVector2D LastAnchor = FVector2D::ZeroVector;
 	bool bPresented = false;

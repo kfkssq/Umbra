@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Items/UmbraItemInstance.h"
 #include "UmbraInventoryComponent.generated.h"
 
 class UUmbraItemDefinition;
@@ -16,6 +17,8 @@ struct FUmbraInventoryItem
 	UPROPERTY(BlueprintReadOnly) int32 SlotIndex = INDEX_NONE;
 	UPROPERTY(BlueprintReadOnly) FGuid InstanceId;
 	UPROPERTY(BlueprintReadOnly) TObjectPtr<UUmbraItemDefinition> Definition;
+	UPROPERTY(BlueprintReadOnly) TArray<FUmbraRolledAffix> RolledAffixes;
+	FUmbraItemInstance GetInstance() const { FUmbraItemInstance Item; Item.Definition = Definition; Item.InstanceId = InstanceId; Item.RolledAffixes = RolledAffixes; return Item; }
 };
 
 USTRUCT(BlueprintType)
@@ -40,6 +43,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "0", ClampMax = "512")) int32 InitialCapacity = 96;
 	/** Trusted grant/import API. Caller must supply an existing identity or create it once at item creation. */
 	UFUNCTION(BlueprintCallable, Category = "Inventory") EUmbraInventoryResult AddItem(UUmbraItemDefinition* Definition, FGuid InstanceId);
+	/** Trusted server import/transfer. Never rolls; clients cannot use this as an RPC. */
+	EUmbraInventoryResult AddInstance(const FUmbraItemInstance& Instance);
 	/** Removes by identity, preserving other cells' indices. This does not equip or destroy a world actor. */
 	UFUNCTION(BlueprintCallable, Category = "Inventory") EUmbraInventoryResult RemoveItem(FGuid InstanceId, FUmbraInventoryItem& RemovedItem);
 	UFUNCTION(BlueprintPure, Category = "Inventory") FUmbraInventorySnapshot GetSnapshot() const;
@@ -56,6 +61,8 @@ private:
 	void Publish();
 	UFUNCTION() void OnRep_Snapshot();
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot) FUmbraInventorySnapshot Snapshot;
+	/** Retained for this component's lifetime so regranting a known GUID cannot reroll it. */
+	UPROPERTY(Transient) TMap<FGuid, FUmbraItemInstance> KnownInstances;
 	bool bInitialized = false;
 	bool bPublishing = false;
 };

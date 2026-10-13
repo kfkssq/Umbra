@@ -140,6 +140,7 @@ void AUmbraEnemyCharacter::Die()
 	}
 
 	bIsDead = true;
+	SpawnDeathLoot();
 	ApplyDeathState();
 	ForceNetUpdate();
 }

@@ -26,7 +26,7 @@ namespace
 			DEFINE_ATTRIBUTE_CAPTUREDEF(UUmbraAttributeSet, Armor, Target, false);
 		}
 	};
-	const FPhysicalCaptures& Captures()
+	const FPhysicalCaptures& PhysicalDamageCaptures()
 	{
 		static FPhysicalCaptures Value;
 		return Value;
@@ -36,12 +36,12 @@ namespace
 
 UUmbraPhysicalDamageExecution::UUmbraPhysicalDamageExecution()
 {
-	RelevantAttributesToCapture.Add(Captures().AttackPowerDef);
-    RelevantAttributesToCapture.Add(Captures().AbilityPowerDef);
-    RelevantAttributesToCapture.Add(Captures().MagicResistanceDef);
-	RelevantAttributesToCapture.Add(Captures().CriticalChanceDef);
-	RelevantAttributesToCapture.Add(Captures().CriticalDamageMultiplierDef);
-	RelevantAttributesToCapture.Add(Captures().ArmorDef);
+	RelevantAttributesToCapture.Add(PhysicalDamageCaptures().AttackPowerDef);
+    RelevantAttributesToCapture.Add(PhysicalDamageCaptures().AbilityPowerDef);
+    RelevantAttributesToCapture.Add(PhysicalDamageCaptures().MagicResistanceDef);
+	RelevantAttributesToCapture.Add(PhysicalDamageCaptures().CriticalChanceDef);
+	RelevantAttributesToCapture.Add(PhysicalDamageCaptures().CriticalDamageMultiplierDef);
+	RelevantAttributesToCapture.Add(PhysicalDamageCaptures().ArmorDef);
 }
 
 void UUmbraPhysicalDamageExecution::Execute_Implementation(
@@ -66,11 +66,11 @@ void UUmbraPhysicalDamageExecution::Execute_Implementation(
 	Evaluation.TargetTags = Spec.CapturedTargetTags.GetAggregatedTags();
 	float AttackPower = 0.f, AbilityPower = 0.f, Chance = 0.f, CriticalMultiplier = 1.f, Resistance = 0.f;
 	const bool bCaptured =
-		Parameters.AttemptCalculateCapturedAttributeMagnitude(Captures().AttackPowerDef, Evaluation, AttackPower)
-		&& Parameters.AttemptCalculateCapturedAttributeMagnitude(Captures().CriticalChanceDef, Evaluation, Chance)
-		&& Parameters.AttemptCalculateCapturedAttributeMagnitude(Captures().CriticalDamageMultiplierDef, Evaluation, CriticalMultiplier)
-		&& Parameters.AttemptCalculateCapturedAttributeMagnitude(Captures().AbilityPowerDef, Evaluation, AbilityPower)
-        && Parameters.AttemptCalculateCapturedAttributeMagnitude(bMagical ? Captures().MagicResistanceDef : Captures().ArmorDef, Evaluation, Resistance);
+		Parameters.AttemptCalculateCapturedAttributeMagnitude(PhysicalDamageCaptures().AttackPowerDef, Evaluation, AttackPower)
+		&& Parameters.AttemptCalculateCapturedAttributeMagnitude(PhysicalDamageCaptures().CriticalChanceDef, Evaluation, Chance)
+		&& Parameters.AttemptCalculateCapturedAttributeMagnitude(PhysicalDamageCaptures().CriticalDamageMultiplierDef, Evaluation, CriticalMultiplier)
+		&& Parameters.AttemptCalculateCapturedAttributeMagnitude(PhysicalDamageCaptures().AbilityPowerDef, Evaluation, AbilityPower)
+        && Parameters.AttemptCalculateCapturedAttributeMagnitude(bMagical ? PhysicalDamageCaptures().MagicResistanceDef : PhysicalDamageCaptures().ArmorDef, Evaluation, Resistance);
 	if (!bCaptured)
 	{
 		UE_LOG(LogUmbra, Error, TEXT("Physical damage: missing source/target Umbra attributes."));

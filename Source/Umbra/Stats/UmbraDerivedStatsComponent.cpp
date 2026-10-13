@@ -75,8 +75,9 @@ bool UUmbraDerivedStatsComponent::Calculate(const FUmbraWeaponDamageProfile& Pro
 	double AD = 0.0, AP = 0.0;
 	for (const FUmbraWeaponDamageChannel& Input : Profile.Channels)
 	{
+		float Min = 0.f, Max = 0.f;
 		if (uint8(Input.Type) > uint8(EUmbraWeaponDamageType::Shadow) || Types.Contains(Input.Type)
-			|| !FMath::IsFinite(Input.BaseDamage) || Input.BaseDamage < 0.f || Input.Scaling.Num() > 4) return false;
+			|| !Input.ResolveRange(Min, Max) || Input.Scaling.Num() > 4) return false;
 		Types.Add(Input.Type);
 		TSet<EUmbraPrimaryAttribute> Used;
 		double Scaling = 0.0;
@@ -91,12 +92,14 @@ bool UUmbraDerivedStatsComponent::Calculate(const FUmbraWeaponDamageProfile& Pro
 			Scaling += double(Units) * Term.Coefficient;
 		}
 		Scaling *= ScalingFactor;
-		const double Base = double(Input.BaseDamage) * BaseFactor;
+		const double Base = (double(Min) + Max) * 0.5 * BaseFactor;
 		const double Total = Base + Scaling;
-		if (!FMath::IsFinite(Total) || Total > MAX_flt) return false;
+		if (!FMath::IsFinite(Total) || Total > MAX_flt || double(Max) * BaseFactor + Scaling > MAX_flt) return false;
 		FUmbraDerivedDamageChannel& Channel = Out.Channels.AddDefaulted_GetRef();
 		Channel.Type = Input.Type;
 		Channel.BaseDamage = float(Base);
+		Channel.MinBaseDamage = Min * BaseFactor;
+		Channel.MaxBaseDamage = Max * BaseFactor;
 		Channel.ScalingDamage = float(Scaling);
 		Channel.Damage = float(Total);
 		if (uint8(Input.Type) <= uint8(EUmbraWeaponDamageType::Piercing)) AD += Channel.Damage;

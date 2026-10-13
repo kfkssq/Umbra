@@ -43,7 +43,48 @@ struct FUmbraPrimaryValues
 	TArray<float> ToArray() const { return {Strength, Dexterity, Intelligence, Faith}; }
 };
 
-/** Authored immutable prototype definition; no random rolls, inventory or save identity. */
+UENUM(BlueprintType)
+enum class EUmbraAffixKind : uint8 { Primary, Attribute, Damage };
+
+/** Identity and gameplay target are copied into the instance when created. */
+USTRUCT(BlueprintType)
+struct FUmbraAffixIdentity
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) FName AffixId;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) EUmbraAffixKind Kind = EUmbraAffixKind::Attribute;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) EUmbraPrimaryAttribute Primary = EUmbraPrimaryAttribute::Strength;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) EUmbraEquipmentAffixStat Attribute = EUmbraEquipmentAffixStat::MaxHealth;
+	/** Magnitude is supplied by the roll, never by this template's Magnitude field. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) FUmbraDamageBonus DamageBonus;
+};
+
+USTRUCT(BlueprintType)
+struct FUmbraAffixRollConfig : public FUmbraAffixIdentity
+{
+	GENERATED_BODY()
+	/** Native units: attack speed/crit/A use fractions; X uses a factor (1.2 = +20%). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) float MinValue = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) float MaxValue = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "5", ClampMax = "6")) int32 TierCount = 6;
+	/** Overrides uniform tiers; values must be finite, ascending, unique and within Min/Max. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<float> ExplicitValues;
+	/** Round uniform candidates to integral native units. Explicit candidates must already be integral. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bIntegerValues = false;
+	bool BuildCandidates(TArray<float>& Out) const;
+};
+
+USTRUCT(BlueprintType)
+struct FUmbraRolledAffix : public FUmbraAffixIdentity
+{
+	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly) float Value = 0.f;
+	/** Effective candidates at creation, independent of later definition tuning. */
+	UPROPERTY(BlueprintReadOnly) TArray<float> CandidateValues;
+	UPROPERTY(BlueprintReadOnly) int32 SelectedTier = INDEX_NONE;
+};
+
+/** Authored immutable definition. Generated values belong to FUmbraItemInstance. */
 UCLASS(BlueprintType)
 class UMBRA_API UUmbraItemDefinition : public UDataAsset
 {
@@ -76,6 +117,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment|Affixes") TArray<FUmbraEquipmentAffix> AttributeBonuses;
 	/** Explicit A entries or independent X effects; same hit filters as Buff GEs, evaluated at level 1. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment|Affixes") TArray<FUmbraDamageBonus> DamageBonuses;
+	/** Additional, distinct affixes. Do not also author the same grant in the fixed arrays. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment|Affixes") TArray<FUmbraAffixRollConfig> AffixRollConfigs;
 	/** This stage supports weapons in MainHand only; null means armor/accessory. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment") TObjectPtr<UUmbraWeaponProfile> Weapon;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (ClampMin = "0")) float Armor = 0.f;

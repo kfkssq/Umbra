@@ -28,7 +28,7 @@ namespace
 			for (const auto& Attribute : Attributes) Resistances.Emplace(Attribute, EGameplayEffectAttributeCaptureSource::Target, false);
 		}
 	};
-	const FTypedCaptures& Captures() { static const FTypedCaptures Value; return Value; }
+	const FTypedCaptures& TypedDamageCaptures() { static const FTypedCaptures Value; return Value; }
 }
 
 UUmbraTypedDamageEffect::UUmbraTypedDamageEffect()
@@ -39,7 +39,7 @@ UUmbraTypedDamageEffect::UUmbraTypedDamageEffect()
 
 UUmbraTypedDamageExecution::UUmbraTypedDamageExecution()
 {
-	const auto& C = Captures();
+	const auto& C = TypedDamageCaptures();
 	RelevantAttributesToCapture = {C.AD, C.AP, C.Chance, C.Crit, C.Armor, C.MR};
 	RelevantAttributesToCapture.Append(C.Resistances);
 }
@@ -77,7 +77,7 @@ void UUmbraTypedDamageExecution::Execute_Implementation(const FGameplayEffectCus
 		Value = FMath::Max(0.f, Value);
 		return true;
 	};
-	const auto& C = Captures();
+	const auto& C = TypedDamageCaptures();
 	float AD, AP, Chance, Crit = 1.f, Armor, MR;
 	if (!Read(C.AD, AD) || !Read(C.AP, AP) || !Read(C.Chance, Chance) || (!bBuckets && !Read(C.Crit, Crit)) || !Read(C.Armor, Armor) || !Read(C.MR, MR))
 	{

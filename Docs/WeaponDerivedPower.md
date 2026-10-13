@@ -1,5 +1,7 @@
 # 徒手、武器配置与 AD/AP 派生（第二阶段）
 
+2026-10-09：武器真实伤害区间、GUID 实例离散随机词缀、GAS 转移与 AffixEntry / SpecialEffects 新契约见 [ItemInstanceAffixes](ItemInstanceAffixes.md)。该文覆盖下文相关旧阶段说明；本轮未修改 Content，验证边界见 Progress。
+
 第四阶段现已提供[TypedDamage](TypedDamage.md)可选类型结算，武器继承模式直接使用本组件的类型明细。下文“类型结算尚未实现”属于第二阶段历史边界；默认Legacy继续原公式。
 
 后续第三阶段已加入[最小装备组件](EquipmentFoundation.md)：开启装备模式后，槽位/需求结果接管武器输入，并在类型明细中应用基础/补正惩罚；本页描述的是装备功能关闭时的独立武器配置流程。类型伤害Execution仍沿用旧规则。

@@ -52,6 +52,11 @@ struct FUmbraWeaponDamageChannel
 	EUmbraWeaponDamageType Type = EUmbraWeaponDamageType::Blunt;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0"))
 	float BaseDamage = 0.f;
+	/** Opt-in keeps serialized legacy BaseDamage authoritative until explicitly migrated. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bUseDamageRange = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (EditCondition = "bUseDamageRange", ClampMin = "0")) float MinBaseDamage = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (EditCondition = "bUseDamageRange", ClampMin = "0")) float MaxBaseDamage = 0.f;
+	bool ResolveRange(float& OutMin, float& OutMax) const;
 	/** At most one entry per primary attribute in this channel. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TArray<FUmbraWeaponScaling> Scaling;

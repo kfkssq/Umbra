@@ -33,6 +33,17 @@ void AUmbraPlayerState::BeginPlay()
 	InitializeInventory();
 }
 
+EUmbraInventoryResult AUmbraPlayerState::AcceptLootInstance(const FUmbraItemInstance& Instance)
+{
+	if (!HasAuthority()) return EUmbraInventoryResult::AuthorityRequired;
+	if (bTransferInProgress || !IsValid(InventoryComponent) || !IsValid(EquipmentComponent)
+		|| !EquipmentComponent->IsReadyForCombat()) return EUmbraInventoryResult::NotReady;
+	TGuardValue<bool> Guard(bTransferInProgress, true);
+	for (const auto& Entry : EquipmentComponent->GetSnapshot().Items)
+		if (Entry.InstanceId == Instance.InstanceId) return EUmbraInventoryResult::DuplicateInstance;
+	return InventoryComponent->AddInstance(Instance);
+}
+
 void AUmbraPlayerState::InitializeInventory()
 {
 	if (!HasAuthority() || bInitialInventoryGranted || !InventoryComponent
@@ -149,7 +160,7 @@ EUmbraTransferResult AUmbraPlayerState::EquipFromInventory(EUmbraEquipmentSlot S
 		return EUmbraTransferResult::SlotOccupied;
 	}
 
-	const EUmbraEquipResult EquipResult = EquipmentComponent->Equip(Slot, Item->Definition, Item->InstanceId);
+	const EUmbraEquipResult EquipResult = EquipmentComponent->EquipInstance(Slot, Item->GetInstance());
 	const EUmbraTransferResult Mapped = MapEquipResult(EquipResult);
 	if (Mapped != EUmbraTransferResult::Success && Mapped != EUmbraTransferResult::AppliedInvalid) return Mapped;
 
@@ -193,9 +204,9 @@ EUmbraTransferResult AUmbraPlayerState::UnequipToInventory(EUmbraEquipmentSlot S
 	const EUmbraTransferResult Mapped = MapUnequipResult(UnequipResult);
 	if (Mapped != EUmbraTransferResult::Success && Mapped != EUmbraTransferResult::AppliedInvalid) return Mapped;
 
-	if (InventoryComponent->AddItem(RemovedEquip.Definition, RemovedEquip.InstanceId) != EUmbraInventoryResult::Success)
+	if (InventoryComponent->AddInstance(RemovedEquip.GetInstance()) != EUmbraInventoryResult::Success)
 	{
-		if (EquipmentComponent->Equip(Slot, RemovedEquip.Definition, RemovedEquip.InstanceId) != EUmbraEquipResult::Success)
+		if (EquipmentComponent->EquipInstance(Slot, RemovedEquip.GetInstance()) != EUmbraEquipResult::Success)
 		{
 			UE_LOG(LogUmbra, Error, TEXT("UnequipToInventory rollback failed; instance %s may be lost."), *RemovedEquip.InstanceId.ToString());
 		}
@@ -207,6 +218,6 @@ EUmbraTransferResult AUmbraPlayerState::UnequipToInventory(EUmbraEquipmentSlot S
 	const FUmbraInventoryItem* Stored = ReturnedSnapshot.Items.FindByPredicate(
 		[&RemovedEquip](const FUmbraInventoryItem& Existing) { return Existing.InstanceId == RemovedEquip.InstanceId; });
 	if (Stored) OutReturnedItem = *Stored;
-	else { OutReturnedItem.Definition = RemovedEquip.Definition; OutReturnedItem.InstanceId = RemovedEquip.InstanceId; }
+	else { OutReturnedItem.Definition = RemovedEquip.Definition; OutReturnedItem.InstanceId = RemovedEquip.InstanceId; OutReturnedItem.RolledAffixes = RemovedEquip.RolledAffixes; }
 	return Mapped;
 }

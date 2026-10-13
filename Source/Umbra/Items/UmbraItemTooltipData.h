@@ -51,6 +51,11 @@ USTRUCT(BlueprintType)
 struct FUmbraTooltipStatLine
 {
 	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly) FName AffixId;
+	UPROPERTY(BlueprintReadOnly) bool bRolled = false;
+	UPROPERTY(BlueprintReadOnly) bool bConfigurationPreview = false;
+	UPROPERTY(BlueprintReadOnly) TArray<float> CandidateValues;
+	UPROPERTY(BlueprintReadOnly) int32 SelectedTier = INDEX_NONE;
 	UPROPERTY(BlueprintReadOnly) FName StatId;
 	UPROPERTY(BlueprintReadOnly) double RawValue = 0.;
 	UPROPERTY(BlueprintReadOnly) EUmbraTooltipUnit Unit = EUmbraTooltipUnit::Points;
@@ -62,12 +67,38 @@ struct FUmbraTooltipStatLine
 };
 
 USTRUCT(BlueprintType)
+struct FUmbraTooltipAffixDisplayData
+{
+	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly) FName AffixId;
+	UPROPERTY(BlueprintReadOnly) FName AttributeId;
+	UPROPERTY(BlueprintReadOnly) bool bDamageBonus = false;
+	UPROPERTY(BlueprintReadOnly) FUmbraDamageBonus DamageBonus;
+	UPROPERTY(BlueprintReadOnly) EUmbraTooltipStatSource Source = EUmbraTooltipStatSource::FixedAffix;
+	UPROPERTY(BlueprintReadOnly) EUmbraTooltipUnit Unit = EUmbraTooltipUnit::Points;
+	UPROPERTY(BlueprintReadOnly) FText DisplayName;
+	UPROPERTY(BlueprintReadOnly) FText ValueText;
+	UPROPERTY(BlueprintReadOnly) bool bRolled = false;
+	UPROPERTY(BlueprintReadOnly) bool bHasActualValue = true;
+	UPROPERTY(BlueprintReadOnly) double RolledValue = 0.;
+	UPROPERTY(BlueprintReadOnly) double MinPossibleValue = 0.;
+	UPROPERTY(BlueprintReadOnly) double MaxPossibleValue = 0.;
+	UPROPERTY(BlueprintReadOnly) int32 TierCount = 0;
+	UPROPERTY(BlueprintReadOnly) int32 SelectedTier = INDEX_NONE;
+	UPROPERTY(BlueprintReadOnly) FText RangeText;
+	/** Ordinary attributes and additive damage always share the same visual style. */
+	UPROPERTY(BlueprintReadOnly) EUmbraTooltipEntryStyle Style = EUmbraTooltipEntryStyle::Neutral;
+};
+
+USTRUCT(BlueprintType)
 struct FUmbraTooltipDamageChannel
 {
 	GENERATED_BODY()
 	UPROPERTY(BlueprintReadOnly) EUmbraWeaponDamageType Type = EUmbraWeaponDamageType::Blunt;
 	UPROPERTY(BlueprintReadOnly) FText Name;
 	UPROPERTY(BlueprintReadOnly) double BaseDamage = 0.;
+	UPROPERTY(BlueprintReadOnly) double MinBaseDamage = 0.;
+	UPROPERTY(BlueprintReadOnly) double MaxBaseDamage = 0.;
 	UPROPERTY(BlueprintReadOnly) FText Text;
 };
 
@@ -131,6 +162,8 @@ struct FUmbraItemTooltipData
 	UPROPERTY(BlueprintReadOnly) TObjectPtr<UTexture2D> TooltipTitleBackgroundTexture;
 	UPROPERTY(BlueprintReadOnly) TObjectPtr<UTexture2D> TooltipIconBackgroundTexture;
 	UPROPERTY(BlueprintReadOnly) double TotalBaseDamage = 0.;
+	UPROPERTY(BlueprintReadOnly) double TotalMinBaseDamage = 0.;
+	UPROPERTY(BlueprintReadOnly) double TotalMaxBaseDamage = 0.;
 	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipDamageChannel> DamageChannels;
 	/** Structured presentation rows projected from the raw channels/scaling/stats above. */
 	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipEntry> DamageEntries;
@@ -139,6 +172,9 @@ struct FUmbraItemTooltipData
 	/** Four entries in primary enum order. Hide None; coefficients are reference strength only. */
 	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipScaling> Scaling;
 	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipStatLine> Stats;
+	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipAffixDisplayData> AffixEntries;
+	/** X effects retain source/filter/value metadata, separately from ordinary stats. */
+	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipStatLine> SpecialEffectStats;
 	UPROPERTY(BlueprintReadOnly) int32 RequiredLevel = 1;
 	UPROPERTY(BlueprintReadOnly) FUmbraPrimaryValues RequiredPrimaries;
 	UPROPERTY(BlueprintReadOnly) FUmbraEquipmentRequirementsPreview Requirements;
@@ -181,4 +217,6 @@ namespace UmbraTooltipFormatting
 	UMBRA_API FText Format(const FUmbraTooltipStatLine& Line);
 	/** Signed value with unit, without the stat name (used for KeyValue entries). */
 	UMBRA_API FText StatValue(const FUmbraTooltipStatLine& Line);
+	UMBRA_API FText DamageAffixName(const FUmbraDamageBonus& Bonus);
+	UMBRA_API FText DamageRange(double Min, double Max);
 }
