@@ -1,6 +1,6 @@
 # 编辑器配置入口
 
-地面物品标签现已原生刷新：`WBP_WorldItemLabel` 继承 `UmbraWorldItemLabel`，Designer 只需必需 TextBlock `ItemName`、可选 Image `ItemIcon` / Border `ItemBackground`（Is Variable），以及 BP_WorldItem 的 Widget Class；不需任何 Graph。Hover 参数在 WBP Class Defaults，名称/品质色/图标由 C++ 读取真实实例 Definition。完整契约见 [LootAndPickup](LootAndPickup.md#地面标签原生刷新与-designer-高亮)。
+地面外观由 ItemDefinition.Presentation 的 WorldDropMesh/Scale/Rotation/Offset 配置；WBP 必需 ItemName、可选 ItemIcon，旧背景需删除或清空 Brush。Hover 使用文字亮度，Label 相对位置复用为模型顶部偏移；无需 Graph。详见 [配置契约](LootAndPickup.md#地面标签原生刷新与-designer-高亮)。
 
 2026-10-10：Tooltip 新增 `ViewportFitReferenceSize`，C++ 默认 `(400, 1440)` Slate 单位 → WBP Class Defaults 可覆盖；这是所有物品共用的视口适配预算，不是 Designer 固定尺寸。保留现有 SizeBox/ScaleBox 设置；当前剑/锤无需改资产。超出预算的未来内容与验证边界见 [ItemTooltipUI](ItemTooltipUI.md)。
 
@@ -255,3 +255,21 @@ C++ 后备 `AttackSpeed=1.0`；实际初值以 PlayerState 的初始 GE / 调试
 ## 武器与AD/AP派生（默认关闭）
 
 新组件与DataAsset配置、参数覆盖顺序、单位及手动验收见 [WeaponDerivedPower](WeaponDerivedPower.md)。原有资产无需开启；开启后AD/AP由武器与四主属性派生，调试AddEffect不再直接增加AD/AP。类型明细暂不代表混合伤害已经接入。
+
+## WorldItem 动画与描边（2026-10-17）
+
+BP_WorldItem 的继承 VisualComponent 配置动画时长（秒）、高度（cm）、倍率、空中附加角度（度）与可选 0..1 曲线，以及 Enable Hover Outline / CustomStencilValue（默认 2）。最终姿态仍由 ItemDefinition.Presentation 配置；敌人仍使用 1。M_PP_EnemyOutline 必须手工增加 Stencil==2 的物品边缘/独立颜色分支，RarityColor 接口不会自动改变后处理颜色。完整配置优先级及接线步骤见 [LootAndPickup](LootAndPickup.md)。Content 未修改，实际 Blueprint/Material 内容待编辑器确认。
+
+## PIE 渲染默认值（2026-10-18）
+
+- DefaultEngine.ini 的 [/Script/Engine.RendererSettings] 显式设置 r.AntiAliasingMethod=4（TSR）与 r.SecondaryScreenPercentage.GameViewport=100。UE 5.8.2 LaunchEngineLoop.cpp 使用 ApplyCVarSettingsFromIni 遍历该段全部 CVar，以 SetByProjectSetting 加载；第二项无需 RendererSettings UPROPERTY 也会加载。SceneView.cpp 注册 AA 方法 0..5（4 默认 TSR）；GameViewportClient.cpp 注册二级比例默认 0（自动 DPI），正值除以100且上限为1，因此100表示二级输出比例1。
+- 不设置主 r.ScreenPercentage、sg.*、窗口/桌面分辨率或动态分辨率；保留现有用户设置。优先级：Scalability < GameSetting < ProjectSetting < SystemSettingsIni < DeviceProfile < GameOverride（省略中间无关级别）。未来玩家若直接选择这两个 CVar，应由设置系统用 SetByGameOverride 应用；普通 SetByGameSetting 不能覆盖项目默认。不要把两项再次写入更高优先级段落。
+- 项目无 DefaultScalability.ini / DefaultGameUserSettings.ini；检查 Config、Saved/Config 和项目 Source，未发现目标 CVar 冲突。ConsoleHistory 的 AA 0/2/4 和比例记录仅为命令历史，不是启动设置。Saved 的 bUseDynamicResolution=False 为现有用户值，本轮未改。原文件 AutoExposure.ExtendDefaultLuminanceRange 与 DefaultGraphicsRHI 存在同值重复，非此次问题，保持原样。
+- 重启编辑器并进入 PIE，分别只输入 r.AntiAliasingMethod 和 r.SecondaryScreenPercentage.GameViewport（不带数值），应报告4、100和 LastSetBy: ProjectSetting；检查 Output Log 有无优先级拒绝。若不同，按 LastSetBy 查设备配置、启动参数或控制台覆盖。然后观察角色移动、敌人/物品 Hover 描边，并用 stat gpu 对比 GPU 时间；二级100并不代表主渲染比例也为100。TSR和更高二级输出分辨率可能增加GPU耗时，需实机衡量。
+- 已完成源码注册/消费/加载优先级及INI静态核对；未启动或重启编辑器，未执行PIE、编译或自动化测试。实际CVar值、画质、描边闪烁及性能改善由用户手动验收；未改Content、Stencil或Gameplay。
+
+## 模型鼠标查询补充（2026-10-20）
+
+WorldItem.Mesh 的运行时碰撞现在是 QueryOnly / Visibility Block，其余通道 Ignore，替代此前 NoCollision。用于覆盖根部拾取球以外的锤头/剑尖；不启用物理或导航。鼠标复杂查询沿用模型复杂碰撞数据，导入模型若设置 Use Simple Collision As Complex 则不能保证逐三角形命中，需用户在编辑器确认。详见 [LootAndPickup](LootAndPickup.md)。
+
+渲染排查：2026-10-20 Saved/Logs/Umbra.log 已记录启动加载 AA=4、SecondaryScreenPercentage.GameViewport=100，并于07:56 UTC查询确认 LastSetBy=ProjectSetting。因此两项持久化有效，不能据画面问题认定配置未加载。主渲染比例/PIE编辑器覆盖及实际画质仍待现场核验，本轮没有再次改渲染配置。

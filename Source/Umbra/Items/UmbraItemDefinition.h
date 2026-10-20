@@ -9,6 +9,7 @@
 #include "UmbraItemDefinition.generated.h"
 
 class UTexture2D;
+class UStaticMesh;
 
 /** New display-only identity. Explicit values are serialization-stable; append future values. */
 UENUM(BlueprintType)
@@ -104,6 +105,13 @@ public:
 	/** Null preserves the cell's legacy frame and RarityColor styling. Configured art is shown untinted. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") TObjectPtr<UTexture2D> RarityFrameTexture;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") FLinearColor RarityColor = FLinearColor::White;
+	/** Visual only. Null leaves the world label and independent pickup sphere available. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") TSoftObjectPtr<UStaticMesh> WorldDropMesh;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") FVector WorldDropScale = FVector::OneVector;
+	/** Model-specific orientation in degrees; no weapon-type assumptions. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") FRotator WorldDropRotation = FRotator::ZeroRotator;
+	/** Actor-local offset in cm; adjust for the imported model's pivot and ground clearance. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") FVector WorldDropOffset = FVector::ZeroVector;
 	/** Tooltip title background; null preserves the WBP designer brush. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") TObjectPtr<UTexture2D> TooltipTitleBackgroundTexture;
 	/** Tooltip icon cell background; null preserves the WBP designer brush. */

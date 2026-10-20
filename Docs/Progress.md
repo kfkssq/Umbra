@@ -1,5 +1,20 @@
 # Umbra 进度与验证状态
 
+## 地面掉落动画与模型 Hover（2026-10-17）
+
+- 新增 UmbraWorldItemVisualComponent.h/.cpp，WorldItem 持有并复用原 Mesh；仅动画 Relative Transform，三段默认 0.8 秒，结束恢复定义姿态并关闭 Tick。服务器生成时间和窗口关闭状态复制，客户端本地按已过时间插值，实例 ID 防重复；旧物品迟加入静止。
+- Hover 同步原标签与 Mesh CustomDepth（默认 Stencil 2），清理/拾取/销毁关闭；敌人 1 不变。RarityColor 仅预留数据接口，实际统一物品颜色需要手工在 M_PP_EnemyOutline 增加 ==2 分支。完整契约和待 PIE 步骤见 [LootAndPickup](LootAndPickup.md)。
+- 当前验证：Launcher 确认 UE 5.8.2；UmbraEditor Win64 DebugGame C++ 和 DLL/lib 链接成功（退出码 0），新增反射代码已生成；日志 Saved/Logs/WorldItemVisualDebugBuild.log。保留非首选 MSVC 和引擎 Character.h 弃用警告。Development 构建被当前编辑器 Live Coding 拦截，尚未完成，需要关闭编辑器后重编。
+- 源码/文档差异空白检查通过；未新增或运行自动化测试，未执行 PIE、未修改或保存 Content。未改模块/Target。已有用户修改保留；真实 Blueprint/Material 配置及动画、Hover、无 Mesh、网络迟加入/重进相关范围和拾取回归均待编辑器确认。
+
+## 地面模型与纯文字标签（2026-10-16）
+
+- ItemDefinition 新增 WorldDropMesh/Scale/Rotation/Offset；WorldItem 复用 Mesh，异步加载、取消请求与弱回调/版本校验，复用 Label 相对位置为包围盒顶部偏移。Mesh 强制无碰撞/物理/导航影响，拾取球与转移逻辑不变。
+- 标签移除背景绑定及背景高亮，品质色用于文字，失效颜色回退 Designer 默认；Hover 按基础色乘亮度并恢复，默认 1.25，无 Tick。NameWrapWidth 默认 240。详见 [Designer 契约](LootAndPickup.md#地面标签原生刷新与-designer-高亮)。
+- 本轮验证：关联 Launcher UE 5.8.2，UmbraEditor Win64 Development 的 UHT、C++ 编译及 DLL/lib 链接成功，退出码 0。日志 Saved/Logs/WorldItemPresentationBuild.log。保留非首选 MSVC 与引擎 Character.h 弃用警告。源码/文档核对及 git diff 检查；未修改模块/Target。
+- 未新增或运行自动化测试，未启动编辑器/执行 PIE，未编辑或保存 Content。模型真实引用、WBP 布局/Graph 均待编辑器确认。待 PIE 验证姿态/长名称/反复悬停/空模型及失败/加载中销毁/客户端复制/近远拾取/GUID 与词缀保持。
+- 以下条目为历史记录，旧 ItemBackground/HoverBackgroundColor 契约已由本节及配置文档替代。
+
 ## 地面物品标签原生化
 
 - 本轮仅修改 `UmbraWorldItemLabel.h/.cpp` 与相关文档。ItemName 为必需 BindWidget，ItemIcon/ItemBackground 为可选；C++ 读取实例 Definition 的名称、品质色和图标，空定义清旧内容，无图标折叠 Image；不改实例、不重新随机。
@@ -510,3 +525,14 @@ Session Frontend → Automation 可运行下列现有测试：
 1. 先执行编辑器引用核对与最小战斗/UI 基线验收，将实际结果补回本文件。
 2. 把前三项维护问题各自做成独立小修改；保留行为、补针对性验证，和新功能分开审查。
 3. 原型功能候选仍是玩家死亡/重新挑战与近战可读性；当前 C++ 未实现玩家死亡/重生闭环。闪避、完整技能/装备/掉落/存档不属于本次交付。
+
+## PIE 渲染默认配置（2026-10-18）
+
+- 仅改 DefaultEngine.ini 的 RendererSettings 段：r.AntiAliasingMethod=4、r.SecondaryScreenPercentage.GameViewport=100；配置契约和优先级见 [EditorSetup](EditorSetup.md)。保留主屏幕比例、画质档位、动态分辨率、窗口/桌面设置与所有描边逻辑。
+- 已核对本机 UE 5.8.2 CVar 注册、百分比使用、项目INI加载与优先级；未发现相关项目配置冲突。INI段落/唯一键及差异检查通过。未运行PIE、构建或自动化测试，未改Content；重启后的实际值、角色清晰度、描边稳定性及GPU开销待用户手动确认。
+
+## mace 鼠标命中修复与渲染核验（2026-10-20）
+
+- WorldItem.Mesh 允许仅 Visibility 射线查询；Controller 物品选择优先复杂查询，覆盖根球外模型部位，保留简单查询兜底。未改变拾取距离/RPC/Inventory、VisualComponent 或材质资产。详见 [LootAndPickup](LootAndPickup.md)。
+- UE 5.8.2 UmbraEditor Win64 DebugGame 编译、DLL/lib 链接成功，日志 Saved/Logs/WorldItemCursorDebugBuild.log；保留非首选MSVC与引擎弃用警告。Development 因当前编辑器 Live Coding 被阻止，日志 WorldItemCursorBuild.log；当前打开的 Development 编辑器尚未加载本次修复，需要关闭后完整构建。差异空白检查通过，未运行自动化或PIE；mace实际复杂碰撞、锤头/柄与遮挡/点击一致性待手工验收。
+- 现有运行日志确认 AA=4、SecondaryScreenPercentage.GameViewport=100，LastSetBy=ProjectSetting；两项已生效。主渲染比例、PIE编辑器覆盖及当前画质问题尚未定位，不盲目增加配置覆盖。用户停止了此前电脑操作，本轮未继续操作编辑器或保存Content。

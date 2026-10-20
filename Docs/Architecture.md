@@ -1,6 +1,6 @@
 # Umbra 架构与维护地图
 
-地面标签职责更新：WorldItem 原有 SetItem/复制/Hover 数据路径保持不变；UmbraWorldItemLabel 原生绑定 ItemName 与可选 ItemIcon/ItemBackground，投影 Definition 展示字段，缓存/恢复 Designer 背景。BP_RefreshItem 仅为原生刷新后的可选视觉扩展，无 Tick/委托/物品生成变更。见 [标签契约](LootAndPickup.md#地面标签原生刷新与-designer-高亮)。
+地面展示职责：ItemDefinition 配置软引用 StaticMesh 与局部变换；WorldItem 异步加载并按包围盒定位标签，独立 Sphere 保持拾取权威。WorldItemLabel 使用品质文字色及可逆 Hover 亮度，不绑定背景；不改变实例、背包、装备或伤害链。见 [标签契约](LootAndPickup.md#地面标签原生刷新与-designer-高亮)。
 
 2026-10-10：Tooltip 视口适配改为 `UUmbraItemTooltip` 共用尺寸预算 + `SUmbraTooltipViewport` 纯绘制缩放，切断视口适配对自然布局/文字测量的反馈。背包/装备沿用同一基类与事件数据链；不改用户 WBP 布局。参数与回归见 [ItemTooltipUI](ItemTooltipUI.md)。
 
@@ -173,3 +173,7 @@ Enemy 的 Health 监听使用 AddUObject 且 ASC 与 Enemy 共生命周期，没
 表中前三项是本次整理时识别的维护问题，现已分别由 `FUmbraDamageNotification`、ASC 的 MoveSpeed 监听、攻击能力 `EndAbility` 覆写处理；验证边界见 [Progress](Progress.md)。
 
 未发现 UI 重算伤害公式；重复的基础数值校验属于入口与结算防护，不建议为消除重复而移除。Controller 虽同时承担输入、导航和 UI 管理，已用 Debug/Damage 实现分文件隔开；当前不建议仅因文件长就新建继承层。
+
+## WorldItem 视觉组件（2026-10-17）
+
+AUmbraWorldItem 持有 UUmbraWorldItemVisualComponent，复用 Mesh。Actor 负责异步加载、服务器生成时间/动画窗口复制与 Hover 转发；组件只插值模型局部变换并切换 CustomDepth，不参与拾取和背包。窗口结束后停止 Tick，清理不清除已消费实例 ID；迟加入旧物品静止。参数、后处理 Stencil 2 接线与人工验收见 [LootAndPickup](LootAndPickup.md)。
