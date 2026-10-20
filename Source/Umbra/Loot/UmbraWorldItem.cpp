@@ -2,6 +2,8 @@
 #include "Loot/UmbraWorldItemVisualComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Components/WidgetComponent.h"
 #include "Engine/AssetManager.h"
 #include "Engine/StaticMesh.h"
@@ -34,6 +36,14 @@ AUmbraWorldItem::AUmbraWorldItem()
 	Mesh->SetSimulatePhysics(false);
 	Mesh->SetVisibility(false);
 	Mesh->SetCanEverAffectNavigation(false);
+	SkeletalMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkeletalMesh"));
+	SkeletalMesh->SetupAttachment(Collision);
+	SkeletalMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SkeletalMesh->SetGenerateOverlapEvents(false);
+	SkeletalMesh->SetSimulatePhysics(false);
+	SkeletalMesh->SetCanEverAffectNavigation(false);
+	SkeletalMesh->SetVisibility(false);
+	SkeletalMesh->SetComponentTickEnabled(false);
 	VisualComponent = CreateDefaultSubobject<UUmbraWorldItemVisualComponent>(TEXT("VisualComponent"));
 	Label = CreateDefaultSubobject<UWidgetComponent>(TEXT("Label"));
 	Label->SetupAttachment(Collision);
@@ -74,6 +84,8 @@ void AUmbraWorldItem::ClearMeshLoad()
 	MeshLoadHandle.Reset();
 	Mesh->SetVisibility(false);
 	Mesh->SetStaticMesh(nullptr);
+	SkeletalMesh->SetVisibility(false);
+	SkeletalMesh->SetSkeletalMesh(nullptr);
 }
 
 void AUmbraWorldItem::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -113,13 +125,14 @@ void AUmbraWorldItem::RefreshPresentation()
 	RefreshLabel();
 	const UUmbraItemDefinition* Definition = ItemInstance.Definition;
 	if (bPickedUp || !ItemInstance.IsValid()) return;
-	if (Definition->WorldDropMesh.IsNull())
+	if (Definition->WorldDropMesh.IsNull() && Definition->WorldDropSkeletalMesh.IsNull())
 	{
 		ClearMeshLoad();
 		UpdateLabelLocation();
 		return;
 	}
-	const FSoftObjectPath MeshPath = Definition->WorldDropMesh.ToSoftObjectPath();
+	const FSoftObjectPath MeshPath = !Definition->WorldDropSkeletalMesh.IsNull()
+		? Definition->WorldDropSkeletalMesh.ToSoftObjectPath() : Definition->WorldDropMesh.ToSoftObjectPath();
 	if (RequestedMeshPath == MeshPath)
 	{
 		RefreshVisual();
@@ -134,6 +147,13 @@ void AUmbraWorldItem::RefreshPresentation()
 		FStreamableDelegate::CreateWeakLambda(this, [this, MeshPath, Revision]()
 		{
 			if (Revision != MeshLoadRevision || bPickedUp || IsActorBeingDestroyed()) return;
+			USkeletalMesh* LoadedSkeletalMesh = Cast<USkeletalMesh>(MeshPath.ResolveObject());
+			SkeletalMesh->SetSkeletalMesh(LoadedSkeletalMesh);
+			SkeletalMesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+			SkeletalMesh->SetSimulatePhysics(false);
+			SkeletalMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			SkeletalMesh->SetComponentTickEnabled(false);
+			SkeletalMesh->SetVisibility(LoadedSkeletalMesh != nullptr);
 			UStaticMesh* LoadedMesh = Cast<UStaticMesh>(MeshPath.ResolveObject());
 			Mesh->SetStaticMesh(LoadedMesh);
 			Mesh->SetVisibility(LoadedMesh != nullptr);
@@ -159,25 +179,41 @@ void AUmbraWorldItem::RefreshVisual()
 		return;
 	}
 	const UUmbraItemDefinition* Definition = ItemInstance.Definition;
-	VisualComponent->InitializeVisual(Mesh, ItemInstance.InstanceId,
-		FTransform(Definition->WorldDropRotation, Definition->WorldDropOffset, Definition->WorldDropScale),
+	VisualComponent->InitializeVisual(GetDisplayMesh(), ItemInstance.InstanceId,
+		GetRestTransform(),
 		Definition->RarityColor, DropSpawnServerTime, bDropAnimationWindowClosed);
 	VisualComponent->SetHighlighted(bHighlighted);
+}
+
+UMeshComponent* AUmbraWorldItem::GetDisplayMesh() const
+{
+	return SkeletalMesh->GetSkeletalMeshAsset() ? static_cast<UMeshComponent*>(SkeletalMesh.Get()) : Mesh.Get();
+}
+
+FTransform AUmbraWorldItem::GetRestTransform() const
+{
+	const auto* Definition = ItemInstance.Definition.Get();
+	if (!IsValid(Definition)) return FTransform::Identity;
+	FTransform Rest(Definition->WorldDropRotation, Definition->WorldDropOffset, Definition->WorldDropScale);
+	if (const auto* Asset = SkeletalMesh->GetSkeletalMeshAsset())
+	{
+		// Armor pivots often remain at the character's feet. Offset.Z supplies extra clearance in cm.
+		const FTransform Shape(Definition->WorldDropRotation, FVector::ZeroVector, Definition->WorldDropScale);
+		const FBox Bounds = Asset->GetBounds().GetBox().TransformBy(Shape);
+		Rest.AddToTranslation(FVector(0, 0, -Bounds.Min.Z));
+	}
+	return Rest;
 }
 
 void AUmbraWorldItem::UpdateLabelLocation()
 {
 	FVector Location = LabelOffset;
-	if (Mesh->GetStaticMesh())
-	{
-		// Actor-local bounds include the authored mesh offset, rotation and scale.
-		const UUmbraItemDefinition* Definition = ItemInstance.Definition;
-		const FTransform RestTransform = IsValid(Definition)
-			? FTransform(Definition->WorldDropRotation, Definition->WorldDropOffset, Definition->WorldDropScale)
-			: Mesh->GetRelativeTransform();
-		const FBox Bounds = Mesh->GetStaticMesh()->GetBoundingBox().TransformBy(RestTransform);
-		Location += FVector(Bounds.GetCenter().X, Bounds.GetCenter().Y, Bounds.Max.Z);
-	}
+	FBox Bounds(ForceInit);
+	if (const auto* Asset = SkeletalMesh->GetSkeletalMeshAsset())
+		Bounds = Asset->GetBounds().GetBox().TransformBy(GetRestTransform());
+	else if (Mesh->GetStaticMesh())
+		Bounds = Mesh->GetStaticMesh()->GetBoundingBox().TransformBy(GetRestTransform());
+	if (Bounds.IsValid) Location += FVector(Bounds.GetCenter().X, Bounds.GetCenter().Y, Bounds.Max.Z);
 	Label->SetRelativeLocation(Location);
 }
 

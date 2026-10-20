@@ -1,5 +1,8 @@
 # 编辑器配置入口
 
+2026-10-20：[四件1730防具配置与验收](Armor1730.md)：已创建四件 ItemDefinition 和 BP_LootTest_Armor1730。世界骨骼模型共用 Scale/Rotation/Offset，包围盒底部补偿导入枢轴；静态武器字段保持兼容。
+
+
 地面外观由 ItemDefinition.Presentation 的 WorldDropMesh/Scale/Rotation/Offset 配置；WBP 必需 ItemName、可选 ItemIcon，旧背景需删除或清空 Brush。Hover 使用文字亮度，Label 相对位置复用为模型顶部偏移；无需 Graph。详见 [配置契约](LootAndPickup.md#地面标签原生刷新与-designer-高亮)。
 
 2026-10-10：Tooltip 新增 `ViewportFitReferenceSize`，C++ 默认 `(400, 1440)` Slate 单位 → WBP Class Defaults 可覆盖；这是所有物品共用的视口适配预算，不是 Designer 固定尺寸。保留现有 SizeBox/ScaleBox 设置；当前剑/锤无需改资产。超出预算的未来内容与验证边界见 [ItemTooltipUI](ItemTooltipUI.md)。

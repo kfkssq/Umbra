@@ -1,9 +1,21 @@
 #include "Loot/UmbraWorldItemVisualComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Curves/CurveFloat.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
+
+namespace
+{
+	UObject* VisualAsset(UMeshComponent* Mesh)
+	{
+		if (auto* Static = Cast<UStaticMeshComponent>(Mesh)) return Static->GetStaticMesh();
+		if (auto* Skeletal = Cast<USkeletalMeshComponent>(Mesh)) return Skeletal->GetSkeletalMeshAsset();
+		return nullptr;
+	}
+}
 
 UUmbraWorldItemVisualComponent::UUmbraWorldItemVisualComponent()
 {
@@ -16,23 +28,23 @@ float UUmbraWorldItemVisualComponent::GetAnimationDuration() const
 	return bEnableDropAnimation ? FMath::Max(0.f, RiseDuration) + FMath::Max(0.f, FallDuration) + FMath::Max(0.f, BounceDuration) : 0.f;
 }
 
-void UUmbraWorldItemVisualComponent::InitializeVisual(UStaticMeshComponent* InMesh, const FGuid& InstanceId,
+void UUmbraWorldItemVisualComponent::InitializeVisual(UMeshComponent* InMesh, const FGuid& InstanceId,
 	const FTransform& InBaseTransform, FLinearColor InRarityColor, double SpawnTime, bool bWindowClosed)
 {
-	const bool bSameVisual = DropMesh == InMesh && InMesh && AnimatedMesh == InMesh->GetStaticMesh()
+	const bool bSameVisual = DropMesh == InMesh && InMesh && AnimatedMesh == VisualAsset(InMesh)
 		&& ConsumedInstanceId == InstanceId && BaseTransform.Equals(InBaseTransform);
 	if (!bSameVisual)
 	{
 		ClearVisual();
 		DropMesh = InMesh;
-		AnimatedMesh = InMesh ? InMesh->GetStaticMesh() : nullptr;
+		AnimatedMesh = InMesh ? VisualAsset(InMesh) : nullptr;
 		BaseTransform = InBaseTransform;
 		if (InMesh) InMesh->SetRelativeTransform(BaseTransform);
 	}
 	RarityHighlightColor = InRarityColor;
 	SetHighlighted(bHighlighted);
 	if (bWindowClosed) FinishAnimation();
-	if (!InstanceId.IsValid() || !InMesh || !InMesh->GetStaticMesh() || SpawnTime < 0) return;
+	if (!InstanceId.IsValid() || !InMesh || !VisualAsset(InMesh) || SpawnTime < 0) return;
 	if (ConsumedInstanceId == InstanceId) return;
 	ConsumedInstanceId = InstanceId;
 	const AGameStateBase* State = GetWorld()->GetGameState();
@@ -49,23 +61,23 @@ void UUmbraWorldItemVisualComponent::InitializeVisual(UStaticMeshComponent* InMe
 void UUmbraWorldItemVisualComponent::SetHighlighted(bool bValue)
 {
 	bHighlighted = bValue;
-	if (UStaticMeshComponent* Mesh = DropMesh.Get())
+	if (UMeshComponent* Mesh = DropMesh.Get())
 	{
 		Mesh->SetCustomDepthStencilValue(FMath::Clamp(CustomStencilValue, 2, 255));
-		Mesh->SetRenderCustomDepth(bHighlighted && bEnableHoverOutline && Mesh->GetStaticMesh());
+		Mesh->SetRenderCustomDepth(bHighlighted && bEnableHoverOutline && VisualAsset(Mesh));
 	}
 }
 
 void UUmbraWorldItemVisualComponent::FinishAnimation()
 {
 	SetComponentTickEnabled(false);
-	if (UStaticMeshComponent* Mesh = DropMesh.Get()) Mesh->SetRelativeTransform(BaseTransform);
+	if (UMeshComponent* Mesh = DropMesh.Get()) Mesh->SetRelativeTransform(BaseTransform);
 }
 
 void UUmbraWorldItemVisualComponent::ClearVisual()
 {
 	FinishAnimation();
-	if (UStaticMeshComponent* Mesh = DropMesh.Get()) Mesh->SetRenderCustomDepth(false);
+	if (UMeshComponent* Mesh = DropMesh.Get()) Mesh->SetRenderCustomDepth(false);
 	DropMesh.Reset();
 	AnimatedMesh.Reset();
 	bHighlighted = false;
@@ -110,13 +122,13 @@ void UUmbraWorldItemVisualComponent::ApplyAnimation(float Age)
 	Pose.AddToTranslation(FVector(0, 0, Height));
 	Pose.SetRotation(BaseTransform.GetRotation() * (AdditionalAirRotation * RotationWeight).Quaternion());
 	Pose.SetScale3D(BaseTransform.GetScale3D() * FMath::Max(0.f, Scale));
-	if (UStaticMeshComponent* Mesh = DropMesh.Get()) Mesh->SetRelativeTransform(Pose);
+	if (UMeshComponent* Mesh = DropMesh.Get()) Mesh->SetRelativeTransform(Pose);
 }
 
 void UUmbraWorldItemVisualComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (!DropMesh.IsValid() || DropMesh->GetStaticMesh() != AnimatedMesh.Get())
+	if (!DropMesh.IsValid() || VisualAsset(DropMesh.Get()) != AnimatedMesh.Get())
 	{
 		ClearVisual();
 		return;

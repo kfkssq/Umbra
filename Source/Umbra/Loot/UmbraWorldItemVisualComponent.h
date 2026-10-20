@@ -5,8 +5,8 @@
 #include "UmbraWorldItemVisualComponent.generated.h"
 
 class UCurveFloat;
-class UStaticMeshComponent;
-class UStaticMesh;
+class UMeshComponent;
+
 
 /** Local presentation only. Never moves the actor or its pickup collision. */
 UCLASS(ClassGroup = (Umbra), meta = (BlueprintSpawnableComponent))
@@ -15,7 +15,7 @@ class UMBRA_API UUmbraWorldItemVisualComponent : public UActorComponent
 	GENERATED_BODY()
 public:
 	UUmbraWorldItemVisualComponent();
-	void InitializeVisual(UStaticMeshComponent* InMesh, const FGuid& InstanceId,
+	void InitializeVisual(UMeshComponent* InMesh, const FGuid& InstanceId,
 		const FTransform& InBaseTransform, FLinearColor InRarityColor, double SpawnTime, bool bWindowClosed);
 	void ClearVisual();
 	void SetHighlighted(bool bValue);
@@ -46,8 +46,8 @@ private:
 	void ApplyAnimation(float Age);
 	void FinishAnimation();
 	float Ease(float Alpha) const;
-	TWeakObjectPtr<UStaticMeshComponent> DropMesh;
-	TWeakObjectPtr<UStaticMesh> AnimatedMesh;
+	TWeakObjectPtr<UMeshComponent> DropMesh;
+	TWeakObjectPtr<UObject> AnimatedMesh;
 	FGuid ConsumedInstanceId;
 	FTransform BaseTransform;
 	FLinearColor RarityHighlightColor = FLinearColor::White;

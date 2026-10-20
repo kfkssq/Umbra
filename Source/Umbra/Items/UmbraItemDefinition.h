@@ -10,6 +10,7 @@
 
 class UTexture2D;
 class UStaticMesh;
+class USkeletalMesh;
 
 /** New display-only identity. Explicit values are serialization-stable; append future values. */
 UENUM(BlueprintType)
@@ -107,6 +108,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") FLinearColor RarityColor = FLinearColor::White;
 	/** Visual only. Null leaves the world label and independent pickup sphere available. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") TSoftObjectPtr<UStaticMesh> WorldDropMesh;
+	/** Reference-pose model; takes precedence over WorldDropMesh and uses the asset's materials. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") TSoftObjectPtr<USkeletalMesh> WorldDropSkeletalMesh;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") FVector WorldDropScale = FVector::OneVector;
 	/** Model-specific orientation in degrees; no weapon-type assumptions. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") FRotator WorldDropRotation = FRotator::ZeroRotator;

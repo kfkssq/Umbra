@@ -7,6 +7,8 @@
 
 class USphereComponent;
 class UStaticMeshComponent;
+class USkeletalMeshComponent;
+class UMeshComponent;
 class UWidgetComponent;
 class UUmbraWorldItemVisualComponent;
 class AUmbraPlayerController;
@@ -36,6 +38,7 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<USphereComponent> Collision;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<UStaticMeshComponent> Mesh;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<USkeletalMeshComponent> SkeletalMesh;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<UUmbraWorldItemVisualComponent> VisualComponent;
 	/** Relative location is the label offset above mesh bounds, or fixed fallback without a mesh (cm). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<UWidgetComponent> Label;
@@ -45,6 +48,8 @@ private:
 	void CloseDropAnimationWindow();
 	void RefreshLabel();
 	void UpdateLabelLocation();
+	UMeshComponent* GetDisplayMesh() const;
+	FTransform GetRestTransform() const;
 	void ClearMeshLoad();
 	TSharedPtr<FStreamableHandle> MeshLoadHandle;
 	uint64 MeshLoadRevision = 0;

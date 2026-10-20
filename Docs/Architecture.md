@@ -1,5 +1,8 @@
 # Umbra 架构与维护地图
 
+2026-10-20：[1730 防具掉落](Armor1730.md) 复用既有实例/库存/GAS。ItemDefinition 新增可选 WorldDropSkeletalMesh；WorldItem 异步选择静态/骨骼组件，VisualComponent 统一驱动变换和描边。新增仅测试地图使用的 LootTestSpawner，不改敌人掉落概率。
+
+
 地面展示职责：ItemDefinition 配置软引用 StaticMesh 与局部变换；WorldItem 异步加载并按包围盒定位标签，独立 Sphere 保持拾取权威。WorldItemLabel 使用品质文字色及可逆 Hover 亮度，不绑定背景；不改变实例、背包、装备或伤害链。见 [标签契约](LootAndPickup.md#地面标签原生刷新与-designer-高亮)。
 
 2026-10-10：Tooltip 视口适配改为 `UUmbraItemTooltip` 共用尺寸预算 + `SUmbraTooltipViewport` 纯绘制缩放，切断视口适配对自然布局/文字测量的反馈。背包/装备沿用同一基类与事件数据链；不改用户 WBP 布局。参数与回归见 [ItemTooltipUI](ItemTooltipUI.md)。

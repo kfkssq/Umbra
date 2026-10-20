@@ -1,5 +1,16 @@
 # Umbra 进度与验证状态
 
+## 1730 四件防具世界掉落（2026-10-20）
+
+- 已由匹配项目的 UE 5.8.2 编辑器创建 `/Game/Items/Armor/DA_Armor_1730_{Head,Chest,Hands,Legs}`，数值/槽位/零需求/无词缀按任务配置；四个真实 SkeletalMesh 及原材质引用加载确认。已创建 `/Game/Items/Loot/BP_LootTest_Armor1730`，预填四件定义和既有 BP_WorldItem；后者继承 UmbraWorldItem、Label 引用 WBP_WorldItemLabel 已确认。创建脚本和手工验收见 [Armor1730](Armor1730.md)。
+- 最小 C++ 扩展：ItemDefinition 可选骨骼模型软引用；WorldItem 保留静态模型兼容，增加参考姿势组件和包围盒底部补偿；VisualComponent 共用动画/描边。测试生成器只在非 Shipping/Test 权威 BeginPlay 生成一次。不改变装备/GAS、正式敌人概率、角色默认 Mesh 或原有 Content。
+- **编译已验证**：UmbraEditor Win64 Development，UHT、编译、链接全部成功；保留非首选 MSVC 14.51 和引擎 Character.h 弃用警告。首次被 Live Coding 拦截，编辑器退出后完整构建通过。未改变模块/Target，无需重新生成项目文件。
+- **自动化已验证**：`Umbra.Loot.Armor1730Definitions`、`Umbra.Loot.VisualMeshCompatibility`、`Umbra.Inventory.Transfer`、`Umbra.Equipment.RequirementsAndLifecycle` 全部通过，失败0（3项无警告、1项带临时测试 World 无 context 的销毁警告）。覆盖真实定义与模型、唯一GUID、二次初始化拒绝、实际 TryPickup→PlayerState→Inventory、成功销毁、重复拾取拒绝、静态/骨骼描边切换。报告 `Saved/Automation/Armor1730/index.json`，日志 `Saved/Logs/Armor1730Tests.log`。中间测试夹具误实例化抽象 Controller 的失败已通过具体测试子类修正并复测。
+- **无渲染 PIE 已验证**：L_Prototype 内临时添加测试地面和测试 Blueprint，未保存地图。PIE 检查恰好四件防具 Actor，各自正确骨骼模型已加载、组件 Visible=true；结果 `Saved/Automation/Armor1730PIE.json` passed=true，日志 `Saved/Logs/Armor1730PIE.log`。启动/结束日志还有已有 Greystone 输入映射、动画除零、GameplayCue 路径及 RecastNavMesh 提示，未在本任务修改。
+- **未验证**：实际屏幕渲染、材质和描边视觉、模型比例/朝向/斜坡/动画地面穿插、真实鼠标点击/远距离导航、背包UI显示及多人竞争/复制。无渲染 PIE 不替代这些人工步骤。骨骼模型无表面碰撞，依赖原根球命中；静态武器表面查询保留。
+- Git 差异空白检查通过；四件 DA 和测试 BP 均匹配 LFS。保留用户原有模型目录迁移、WBP_WorldItemLabel 和 M_PP_EnemyOutline 未提交修改。未提交、未推送；生成日志/报告仅在 Saved。
+
+
 ## 地面掉落动画与模型 Hover（2026-10-17）
 
 - 新增 UmbraWorldItemVisualComponent.h/.cpp，WorldItem 持有并复用原 Mesh；仅动画 Relative Transform，三段默认 0.8 秒，结束恢复定义姿态并关闭 Tick。服务器生成时间和窗口关闭状态复制，客户端本地按已过时间插值，实例 ID 防重复；旧物品迟加入静止。
