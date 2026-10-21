@@ -1,6 +1,7 @@
 #include "Loot/UmbraWorldItem.h"
 #include "Loot/UmbraWorldItemVisualComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -17,9 +18,17 @@
 AUmbraWorldItem::AUmbraWorldItem()
 {
 	bReplicates = true;
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
+	PrimaryActorTick.TickGroup = TG_PostPhysics;
+	PhysicsBody = CreateDefaultSubobject<UBoxComponent>(TEXT("PhysicsBody"));
+	SetRootComponent(PhysicsBody);
+	PhysicsBody->InitBoxExtent(FVector(20, 12, 8));
+	PhysicsBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PhysicsBody->SetGenerateOverlapEvents(false);
+	PhysicsBody->SetCanEverAffectNavigation(false);
 	Collision = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
-	SetRootComponent(Collision);
+	Collision->SetupAttachment(PhysicsBody);
 	Collision->InitSphereRadius(24.f);
 	Collision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Collision->SetCollisionObjectType(ECC_WorldDynamic);
@@ -47,6 +56,7 @@ AUmbraWorldItem::AUmbraWorldItem()
 	VisualComponent = CreateDefaultSubobject<UUmbraWorldItemVisualComponent>(TEXT("VisualComponent"));
 	Label = CreateDefaultSubobject<UWidgetComponent>(TEXT("Label"));
 	Label->SetupAttachment(Collision);
+	Label->SetAbsolute(false, true, true);
 	Label->SetRelativeLocation(FVector(0, 0, 35));
 	Label->SetWidgetSpace(EWidgetSpace::Screen);
 	Label->SetDrawAtDesiredSize(true);
@@ -59,10 +69,11 @@ bool AUmbraWorldItem::InitializeInstance(const FUmbraItemInstance& InInstance)
 	if (!HasAuthority() || ItemInstance.InstanceId.IsValid() || !InInstance.IsValid()) return false;
 	ItemInstance = InInstance;
 	DropSpawnServerTime = GetWorld()->GetTimeSeconds();
-	const float Duration = VisualComponent->GetAnimationDuration();
+	const float Duration = DropPhysics.bEnabled ? 0.f : VisualComponent->GetAnimationDuration();
 	bDropAnimationWindowClosed = Duration <= 0.f;
 	if (!bDropAnimationWindowClosed)
 		GetWorldTimerManager().SetTimer(DropAnimationWindowTimer, this, &ThisClass::CloseDropAnimationWindow, Duration, false);
+	if (HasActorBegunPlay()) StartDropPhysics();
 	RefreshPresentation();
 	ForceNetUpdate();
 	return true;
@@ -71,7 +82,10 @@ bool AUmbraWorldItem::InitializeInstance(const FUmbraItemInstance& InInstance)
 void AUmbraWorldItem::BeginPlay()
 {
 	Super::BeginPlay();
+	// The atomic DropMotion snapshot owns movement; ignore any legacy BP replication override.
+	SetReplicateMovement(false);
 	LabelOffset = Label->GetRelativeLocation();
+	StartDropPhysics();
 	RefreshPresentation();
 }
 
@@ -91,6 +105,7 @@ void AUmbraWorldItem::ClearMeshLoad()
 void AUmbraWorldItem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorldTimerManager().ClearTimer(DropAnimationWindowTimer);
+	GetWorldTimerManager().ClearTimer(DropPhysicsTimer);
 	ClearMeshLoad();
 	Label->SetVisibility(false);
 	if (auto* Widget = Cast<UUmbraWorldItemLabel>(Label->GetUserWidgetObject()))
@@ -151,7 +166,12 @@ void AUmbraWorldItem::RefreshPresentation()
 			SkeletalMesh->SetSkeletalMesh(LoadedSkeletalMesh);
 			SkeletalMesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 			SkeletalMesh->SetSimulatePhysics(false);
-			SkeletalMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			// Reference-pose triangle queries cover armor outside the pickup sphere, without ragdoll physics.
+			SkeletalMesh->SetEnablePerPolyCollision(true);
+			SkeletalMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+			SkeletalMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+			SkeletalMesh->SetCollisionEnabled(LoadedSkeletalMesh ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+			SkeletalMesh->RefreshBoneTransforms();
 			SkeletalMesh->SetComponentTickEnabled(false);
 			SkeletalMesh->SetVisibility(LoadedSkeletalMesh != nullptr);
 			UStaticMesh* LoadedMesh = Cast<UStaticMesh>(MeshPath.ResolveObject());
@@ -181,8 +201,21 @@ void AUmbraWorldItem::RefreshVisual()
 	const UUmbraItemDefinition* Definition = ItemInstance.Definition;
 	VisualComponent->InitializeVisual(GetDisplayMesh(), ItemInstance.InstanceId,
 		GetRestTransform(),
-		Definition->RarityColor, DropSpawnServerTime, bDropAnimationWindowClosed);
+		Definition->RarityColor, DropSpawnServerTime, bDropAnimationWindowClosed || DropPhysics.bEnabled);
 	VisualComponent->SetHighlighted(bHighlighted);
+	SyncSkeletalQueryTransform();
+	UpdateLabelLocation();
+}
+
+void AUmbraWorldItem::SyncSkeletalQueryTransform()
+{
+	// These meshes remain in reference pose. UE's per-poly transform update depends on MeshObject;
+	// explicitly keep the query body aligned even before render-state creation or without an RHI.
+	if (SkeletalMesh->GetSkeletalMeshAsset() && SkeletalMesh->bEnablePerPolyCollision && SkeletalMesh->IsPhysicsStateCreated())
+	{
+		SkeletalMesh->BodyInstance.UpdateBodyScale(SkeletalMesh->GetComponentScale());
+		SkeletalMesh->BodyInstance.SetBodyTransform(SkeletalMesh->GetComponentTransform(), ETeleportType::TeleportPhysics);
+	}
 }
 
 UMeshComponent* AUmbraWorldItem::GetDisplayMesh() const
@@ -202,6 +235,13 @@ FTransform AUmbraWorldItem::GetRestTransform() const
 		const FBox Bounds = Asset->GetBounds().GetBox().TransformBy(Shape);
 		Rest.AddToTranslation(FVector(0, 0, -Bounds.Min.Z));
 	}
+	if (DropMotion.bStarted)
+	{
+		const FVector Center = Definition->WorldDropPhysicsCenter;
+		const FRotator Rotation = Definition->WorldDropPhysicsRotation.ContainsNaN() ? FRotator::ZeroRotator : Definition->WorldDropPhysicsRotation;
+		Rest = Rest.GetRelativeTransform(FTransform(Rotation,
+			Center.ContainsNaN() ? FVector(0, 0, 8) : Center.BoundToCube(500.f)));
+	}
 	return Rest;
 }
 
@@ -213,8 +253,12 @@ void AUmbraWorldItem::UpdateLabelLocation()
 		Bounds = Asset->GetBounds().GetBox().TransformBy(GetRestTransform());
 	else if (Mesh->GetStaticMesh())
 		Bounds = Mesh->GetStaticMesh()->GetBoundingBox().TransformBy(GetRestTransform());
-	if (Bounds.IsValid) Location += FVector(Bounds.GetCenter().X, Bounds.GetCenter().Y, Bounds.Max.Z);
-	Label->SetRelativeLocation(Location);
+	if (Bounds.IsValid)
+	{
+		const FBox WorldBounds = Bounds.TransformBy(GetActorTransform());
+		Label->SetWorldLocation(FVector(WorldBounds.GetCenter().X, WorldBounds.GetCenter().Y, WorldBounds.Max.Z) + Location);
+	}
+	else Label->SetWorldLocation(GetActorLocation() + Location);
 }
 
 void AUmbraWorldItem::RefreshLabel()
@@ -271,4 +315,5 @@ void AUmbraWorldItem::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(AUmbraWorldItem, bPickedUp);
 	DOREPLIFETIME(AUmbraWorldItem, DropSpawnServerTime);
 	DOREPLIFETIME(AUmbraWorldItem, bDropAnimationWindowClosed);
+	DOREPLIFETIME(AUmbraWorldItem, DropMotion);
 }

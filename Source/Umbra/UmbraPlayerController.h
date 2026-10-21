@@ -7,6 +7,7 @@
 #include "GameplayEffectTypes.h"
 #include "UI/UmbraAttributeDebugTypes.h"
 #include "Loot/UmbraWorldItem.h"
+#include "UI/Items/UmbraWorldLabelLayout.h"
 #include "UmbraPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -235,6 +236,19 @@ protected:
 
 private:
 	AUmbraWorldItem* GetWorldItemUnderCursor() const;
+	AUmbraWorldItem* GetWorldItemLabelUnderCursor() const;
+	AUmbraWorldItem* FindWorldItemLabelAt(const FVector2D& Position) const;
+	friend class FUmbraWorldItemInteractionTest;
+	void LayoutWorldItemLabels(float DeltaTime);
+	UFUNCTION() void OnWorldItemLabelDestroyed(AActor* Actor);
+	TMap<TWeakObjectPtr<AUmbraWorldItem>, UmbraWorldLabelLayout::FState> WorldItemLabelStates;
+	TMap<TWeakObjectPtr<AUmbraWorldItem>, FBox2D> WorldItemLabelRects;
+	/** Screen-space label separation, in DPI-independent Slate units. */
+	UPROPERTY(EditDefaultsOnly, Category = "Loot|Labels", meta = (ClampMin="0", ClampMax="32")) float WorldItemLabelGap = 4.f;
+	/** Slate units: preference margin when repairing an invalid previous layout. */
+	UPROPERTY(EditDefaultsOnly, Category = "Loot|Labels", meta = (ClampMin="0", ClampMax="64")) float WorldItemLabelSwitchThreshold = 12.f;
+	/** Exponential response rate, per second. */
+	UPROPERTY(EditDefaultsOnly, Category = "Loot|Labels", meta = (ClampMin="1", ClampMax="60")) float WorldItemLabelMoveSpeed = 16.f;
 	void UpdateWorldItemHover();
 	void BeginPickup(AUmbraWorldItem* Item);
 	void CheckPickupApproach();

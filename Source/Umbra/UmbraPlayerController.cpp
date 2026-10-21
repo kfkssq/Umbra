@@ -192,6 +192,7 @@ void AUmbraPlayerController::Tick(float DeltaSeconds)
 	{
 		return;
 	}
+	LayoutWorldItemLabels(DeltaSeconds);
 	if (bCharacterMenuOpen)
 	{
 		return;
@@ -217,6 +218,10 @@ void AUmbraPlayerController::Tick(float DeltaSeconds)
 
 void AUmbraPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	for (const auto& Entry : WorldItemLabelStates)
+		if (Entry.Key.IsValid()) Entry.Key->OnDestroyed.RemoveDynamic(this, &ThisClass::OnWorldItemLabelDestroyed);
+	WorldItemLabelStates.Reset();
+	WorldItemLabelRects.Reset();
 	if (auto* Item = HoveredWorldItem.Get()) Item->SetHighlighted(false);
 	if (IsValid(CharacterMenu))
 	{
@@ -963,7 +968,7 @@ void AUmbraPlayerController::CancelCombatCommandState()
 bool AUmbraPlayerController::GetAttackableUnderCursor(AActor*& OutTargetActor, FHitResult* OutCursorHit) const
 {
 	OutTargetActor = nullptr;
-	if (IsPointerOverAttributeDebugPanel())
+	if (IsPointerOverAttributeDebugPanel() || GetWorldItemLabelUnderCursor())
 	{
 		return false;
 	}

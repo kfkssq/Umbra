@@ -3,9 +3,12 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Items/UmbraItemInstance.h"
+#include "Loot/UmbraDropPhysicsSettings.h"
 #include "UmbraWorldItem.generated.h"
 
 class USphereComponent;
+class UBoxComponent;
+class UPhysicalMaterial;
 class UStaticMeshComponent;
 class USkeletalMeshComponent;
 class UMeshComponent;
@@ -32,10 +35,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "World Item") FUmbraItemInstance GetItemInstance() const { return ItemInstance; }
 	EUmbraPickupResult TryPickup(AUmbraPlayerController* Controller);
 	void SetHighlighted(bool bValue);
+	UWidgetComponent* GetLabelComponent() const { return Label; }
+	UFUNCTION(BlueprintPure, Category = "World Item") bool IsDropSettled() const { return DropMotion.bSettled; }
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "World Item|Drop Physics") FUmbraDropPhysicsSettings DropPhysics;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 protected:
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<UBoxComponent> PhysicsBody;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<USphereComponent> Collision;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<UStaticMeshComponent> Mesh;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<USkeletalMeshComponent> SkeletalMesh;
@@ -43,11 +51,32 @@ protected:
 	/** Relative location is the label offset above mesh bounds, or fixed fallback without a mesh (cm). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<UWidgetComponent> Label;
 private:
+	friend class FUmbraDropPhysicsTest;
+	friend class FUmbraWorldItemInteractionTest;
+	void StartDropPhysics();
+	void UpdateDropPhysics();
+	void FreezeDrop(const FTransform& Pose);
+	void PublishDropMotion(bool bSettled);
+	bool FindDropGround(const FVector& Origin, const FQuat& Rotation, float Above, float Below, FTransform& OutPose) const;
+	UFUNCTION() void OnRep_DropMotion();
+	UPROPERTY(ReplicatedUsing=OnRep_DropMotion) FUmbraDropMotion DropMotion;
+	UPROPERTY(Transient) TObjectPtr<UPhysicalMaterial> DropPhysicalMaterial;
+	FTimerHandle DropPhysicsTimer;
+	FTransform SafeDropPose;
+	FVector PhysicsCenter = FVector::ZeroVector;
+	double PhysicsStartTime = 0;
+	double LastPhysicsSampleTime = 0;
+	float StableSeconds = 0;
+	float GroundedSettlingSeconds = 0;
+	double UnsupportedSince = -1;
+	bool bPhysicsInitialized = false;
+	bool bReceivedMotion = false;
 	UFUNCTION() void RefreshPresentation();
 	UFUNCTION() void RefreshVisual();
 	void CloseDropAnimationWindow();
 	void RefreshLabel();
 	void UpdateLabelLocation();
+	void SyncSkeletalQueryTransform();
 	UMeshComponent* GetDisplayMesh() const;
 	FTransform GetRestTransform() const;
 	void ClearMeshLoad();

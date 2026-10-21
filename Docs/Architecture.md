@@ -1,5 +1,11 @@
 # Umbra 架构与维护地图
 
+2026-10-21：[地面标签与悬停](WorldItemLabels.md)：骨骼展示组件增加三角形 Visibility 查询；本地 Controller 排布标签、缓存屏幕矩形并优先解析到原 WorldItem，复用高亮/拾取链。Tooltip 顶部名称固定白色，稀有度文字保留原色。
+
+2026-10-21 修订：[掉落自然收敛](DropPhysics.md) 将3秒硬截止改为接地后的阻尼渐变，正常固定不再调整落点或旋转。定义增加 PhysicsRotation，FitWorldDropPhysics 编辑器按钮按缩放后的模型本地边界生成有向盒；根与模型使用逆变换保持外观不变。6件定义已通过 UE 保存几何字段。
+
+2026-10-21：[短时掉落物理](DropPhysics.md)：WorldItem 的 PhysicsBody 盒体成为根，服务器模拟并复制统一运动快照；落稳/超时回收后永久关闭模拟。模型仍由 VisualComponent 管局部姿态/描边，物理模式禁止旧动画；拾取球与标签跟随实际位置。几何由 ItemDefinition 配置，运动参数由 BP_WorldItem 配置，PhysicsCore 为私有依赖。
+
 2026-10-20：[1730 防具掉落](Armor1730.md) 复用既有实例/库存/GAS。ItemDefinition 新增可选 WorldDropSkeletalMesh；WorldItem 异步选择静态/骨骼组件，VisualComponent 统一驱动变换和描边。新增仅测试地图使用的 LootTestSpawner，不改敌人掉落概率。
 
 
@@ -180,3 +186,7 @@ Enemy 的 Health 监听使用 AddUObject 且 ASC 与 Enemy 共生命周期，没
 ## WorldItem 视觉组件（2026-10-17）
 
 AUmbraWorldItem 持有 UUmbraWorldItemVisualComponent，复用 Mesh。Actor 负责异步加载、服务器生成时间/动画窗口复制与 Hover 转发；组件只插值模型局部变换并切换 CustomDepth，不参与拾取和背包。窗口结束后停止 Tick，清理不清除已消费实例 ID；迟加入旧物品静止。参数、后处理 Stencil 2 接线与人工验收见 [LootAndPickup](LootAndPickup.md)。
+
+### WorldItem 标签稳定布局（2026-10-21）
+
+本地 PlayerController 在原有 Labels 实现文件维护每物品弱引用布局缓存和实际显示命中矩形。UmbraWorldLabelLayout 复用候选放置并批量预留历史目标、优先悬停、验证平滑扫掠路径；目标与显示位置独立。物理运动与相机变化通过每帧投影进入布局，未引入物理事件依赖。OnDestroyed/Controller EndPlay 管理缓存和委托寿命。参数、根因与验收边界见 [WorldItemLabels](WorldItemLabels.md)。

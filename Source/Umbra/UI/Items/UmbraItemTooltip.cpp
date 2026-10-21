@@ -269,7 +269,7 @@ void UUmbraItemTooltip::RefreshDisplay(bool bNotify)
 	const auto& Data = TooltipData;
 
 	Text(ItemName, Data.DisplayName, bValid);
-	if (ItemName) ItemName->SetColorAndOpacity(bValid ? FSlateColor(Data.RarityColor) : FSlateColor(FLinearColor::White));
+	if (ItemName) ItemName->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 	if (ItemIcon) { ItemIcon->SetBrushFromTexture(bValid ? Data.Icon.Get() : nullptr); Show(ItemIcon, bValid && Data.Icon != nullptr); }
 	Text(ItemTypeText, Data.ItemType, bValid);
 	Text(RarityText, Data.RarityText, bValid);

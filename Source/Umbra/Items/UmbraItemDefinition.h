@@ -92,6 +92,8 @@ class UMBRA_API UUmbraItemDefinition : public UDataAsset
 {
 	GENERATED_BODY()
 public:
+	/** Editor-only authoring action. Fits the proxy to the transformed reference-pose bounds; does not save assets. */
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Presentation|Drop Physics") void FitWorldDropPhysics();
 	/** Presentation classification only; Unknown preserves legacy profile/slot fallback. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation|Classification") EUmbraItemCategory ItemCategory = EUmbraItemCategory::Unknown;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation|Classification") EUmbraWeaponType WeaponType = EUmbraWeaponType::Unknown;
@@ -115,6 +117,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") FRotator WorldDropRotation = FRotator::ZeroRotator;
 	/** Actor-local offset in cm; adjust for the imported model's pivot and ground clearance. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") FVector WorldDropOffset = FVector::ZeroVector;
+	/** Half-size in cm along the proxy's own axes, after visual scale. Independent of asset collision. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation|Drop Physics", meta=(ClampMin="1", ClampMax="200", Units="cm")) FVector WorldDropPhysicsExtent = FVector(20, 12, 8);
+	/** Proxy center relative to the old drop origin, after the visual transform and armor pivot correction (cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation|Drop Physics", meta=(Units="cm")) FVector WorldDropPhysicsCenter = FVector(0, 0, 8);
+	/** Proxy axes relative to the original drop origin; avoids a large axis-aligned box around diagonal weapons. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation|Drop Physics") FRotator WorldDropPhysicsRotation = FRotator::ZeroRotator;
 	/** Tooltip title background; null preserves the WBP designer brush. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") TObjectPtr<UTexture2D> TooltipTitleBackgroundTexture;
 	/** Tooltip icon cell background; null preserves the WBP designer brush. */

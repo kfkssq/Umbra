@@ -1,5 +1,11 @@
 # 编辑器配置入口
 
+2026-10-21：[WorldItemLabel 避让与悬停](WorldItemLabels.md)：四件防具源模型已保存 Per Poly Collision；标签默认自动避让且可悬停/点击对应物品，无需新增 WBP Graph。控制器 World Item Label Gap 默认4 Slate单位。
+
+2026-10-21 修订：现有剑、锤和四件1730防具的有向盒已分别拟合。修改模型展示变换后，点击物品定义的 **Fit World Drop Physics** 并保存。BP 的旧 Maximum Simulation Time 显示为 **Settling Start Time**，现在只控制接地后开始减速，不再超时瞬移。新增渐变/异常回收参数和具体资产值见 [DropPhysics](DropPhysics.md)。
+
+2026-10-21：[掉落物理配置](DropPhysics.md)：BP_WorldItem 默认开启短时物理；每件 ItemDefinition 需校准 PhysicsExtent/Center；地面 WorldStatic 与动态 PhysicsBody 均需阻挡 WorldDynamic。无需给模型开启物理或新增 Graph，完整参数、覆盖顺序和 PIE 清单见链接。
+
 2026-10-20：[四件1730防具配置与验收](Armor1730.md)：已创建四件 ItemDefinition 和 BP_LootTest_Armor1730。世界骨骼模型共用 Scale/Rotation/Offset，包围盒底部补偿导入枢轴；静态武器字段保持兼容。
 
 

@@ -25,7 +25,7 @@ public class Umbra : ModuleRules
 			"Slate"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "SlateCore" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "SlateCore", "PhysicsCore" });
 
 		PublicIncludePaths.Add("Umbra");
 

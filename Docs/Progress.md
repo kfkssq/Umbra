@@ -1,4 +1,37 @@
 # Umbra 进度与验证状态
+## 世界标签稳定布局（2026-10-21，本次修复）
+
+- 修复无历史的逐帧最近点布局导致的位置竞争：保留目标/显示位置、预留历史位置、修复候选滞回、稳定距离分桶、DeltaTime指数平滑。悬停标签优先保持实际显示位置；扫掠路径可能交叉时整批安全瞬移，命中矩形始终取显示位置。Destroy即时清理缓存和Hover。
+- 本次只修改 Controller 标签布局、现有布局助手、相关测试与文档；未修改物理、资产、碰撞、拾取RPC、背包或GAS。详细根因、参数来源及PIE步骤见 [WorldItemLabels](WorldItemLabels.md)。
+- UE 5.8.2 UmbraEditor Win64 Development 构建成功：`Saved/Logs/StableLabelsBuild.log`。`Umbra.Loot.HoverAndLabelLayout`、`Umbra.UI.Items.TooltipTitleColor`、`Umbra.Loot.DropPhysics`、`Umbra.Inventory.Transfer` 全部通过（4项，0失败；标签测试有既有测试控制器输入配置警告）。报告 `Saved/Automation/StableLabels/index.json`，日志 `Saved/Logs/StableLabels.log`。
+- 标签测试扩展到300帧密集静态、轻微相机扰动、双标签接近、悬停保持、DPI/视口坐标变化、销毁缓存清理、平滑无重叠及帧率独立性。真实鼠标、WidgetComponent显示时序、真实DPI切换、PIE画面与网络未验证；无界面测试不能替代这些验收。
+
+## Tooltip 白色标题、防具表面悬停与标签避让（2026-10-21）
+
+- Tooltip ItemName 固定白色，稀有度文字及其他字段不变。WorldItem 骨骼模型启用三角形 Visibility 查询；补充明确的查询体变换同步，防止引用姿势模型的查询体在无渲染/延迟创建渲染状态时停留在旧位置。物理仍由独立盒体负责。
+- 本地 Controller 按实例ID稳定顺序排列标签，使用实际 DesiredSize、DPI单位和默认4单位间距，上下/左右避让并限制视口边缘；空间不足暂时隐藏，不强行叠字。可见标签矩形优先选择对应 WorldItem，模型/标签共用高亮和原拾取逻辑，不会点击标签却攻击背后的敌人。
+- 已通过 UE 5.8.2 为 `Content/Asset/Equipments/{Head/head_01,Body/body,Arm/arm,Legs/legs}.uasset` 保存 Enable Per Poly Collision 数据；修改前备份在 `Saved/ArmorCursorCollision/`，脚本 `Scripts/enable_armor_cursor_collision.py`。本轮未保存物品定义、WBP或地图，保留前序与用户工作区改动；未提交/推送。配置/手工步骤见 [WorldItemLabels](WorldItemLabels.md)。
+- **最终构建已验证**：UmbraEditor Win64 Development 成功，日志 `Saved/Logs/LootLabelBuild.log`。未改变模块/Target，无需重新生成项目文件；既有 MSVC/引擎弃用警告不变。
+- **最终4项针对性自动化通过、0失败**：`Umbra.Loot.HoverAndLabelLayout`、`Umbra.UI.Items.TooltipTitleColor`、`Umbra.Loot.DropPhysics`、`Umbra.Inventory.Transfer`。3项无警告，HoverAndLabelLayout 带测试控制器未配置 PrimaryAction/PrimaryAttackAction/ToggleCharacterMenuAction 的3条警告，不是实际蓝图输入验收。报告 `Saved/Automation/LootLabelsVerified/index.json`，日志 `Saved/Logs/LootLabelsVerified.log`。覆盖20名称不相交、视口边界/空间不足、标签矩形到目标/销毁清理、四件真实防具Visibility表面及拾取球外命中/描边开关、标题白色/稀有度色/复用清空、物理和库存回归。
+- **初轮问题与限制**：测试最初没有执行已加载资源的延迟完成回调；测试调整回调延迟并推进物理帧。源码追查到组件开关还依赖源模型三角形数据，且引擎 per-poly 更新依赖 MeshObject，已配置资产并补显式同步。原有 `TooltipHover` 综合测试未建立有效菜单 tooltip，`TooltipLifecycle` 存在网格/行元素的旧类型强转并中止测试（`LootLabelTests.log`、`LootLabelFinalTests.log`）；只修正了行容器应使用通用 Panel 的断言，不宣称这些综合测试通过。本轮新增独立颜色测试覆盖请求行为。
+- **未验证**：真实 PIE 画面/鼠标输入、相机移动中标签观感、多种DPI、极端掉落量性能、真实多人和分屏。无界面射线、布局与目标解析测试不等同于这些验收。分屏的独立标签视图未实现。
+
+## 掉落自然收敛与逐物品有向盒（2026-10-21 修订）
+
+- 修复3秒硬超时突然放置/复位：旧 MaximumSimulationTime 序列化名保留，编辑器显示 Settling Start Time；现在仅对有静态支撑的物品在0.8秒内渐增阻尼，离地恢复基础阻尼。自然固定保留当时位置/旋转。异常回收仅用于低于安全地面2000cm或连续30秒无静态支撑，并重新确认安全地面。
+- ItemDefinition 新增 WorldDropPhysicsRotation 和编辑器 Fit World Drop Physics 按钮；按模型本地轴拟合有向盒，避免斜放武器的轴对齐盒过大，根/模型逆变换保持初始外观。单盒不能完全表达锤柄、成对手甲的空隙，仍须视觉确认。
+- 已通过匹配 UE 5.8.2 Python API 保存6件定义的 Extent/Center/Rotation：TestSword、TestMace、1730 Head/Chest/Hand/Legs。保留用户已有 Chest/Legs 修改，不更改外观变换、装备数值、需求或词缀。脚本 `Scripts/fit_drop_physics.py`；初始备份 `Saved/DropPhysicsFit/20261021_123055/`，最终报告 `Saved/DropPhysicsFit/20261021_123337/report.json`。所有6件资产仍由 Git LFS 管理。未修改地图；工作期间出现的 L_Prototype.umap 工作区改动保留，未回退。
+- **本轮验证**：UE 5.8.2 UmbraEditor / Win64 / Development 构建成功（`Saved/Logs/DropSettlingBuild.log`）。最终 `Umbra.Loot.DropPhysics`、`Umbra.Loot.VisualMeshCompatibility`、`Umbra.Inventory.Transfer`、`Umbra.Equipment.RequirementsAndLifecycle` 全通过，0失败。报告 `Saved/Automation/DropSettlingFinal/index.json`，日志 `Saved/Logs/DropSettlingFinalTests.log`。新增断言验证软截止不移动/冻结物品、接地渐变与离地复原、异常掉出回收、斜放薄模型的紧凑盒尺寸和外观变换保持。
+- **未验证**：实际 PIE 画面、各资源接触姿态、用户鼠标拾取、真实多人/专服延迟。沿用上一轮旧防具数据契约测试的已知差异，本轮未重新运行该项。配置与用户操作见 [DropPhysics](DropPhysics.md)。未提交或推送。
+
+## 掉落物短时物理与固定（2026-10-21）
+
+- 已实现服务器 Chaos 盒体代理、随机弹出/翻转、静态场景/PhysicsBody 碰撞、连续静态支撑与速度检测、超时地面回收、关闭模拟后保持最终姿态。拾取球随根运动，标签保持在世界包围盒上方；复用静态/骨骼模型、描边和原拾取库存链。客户端只接收运动快照并插值，固定状态可供迟加入接收。参数/覆盖顺序/资源配置见 [DropPhysics](DropPhysics.md)。
+- **编译已验证**：LauncherInstalled.dat 和 Build.version 确认 UE 5.8.2，UmbraEditor / Win64 / Development 最终构建成功；新增 PhysicsCore 私有依赖，Rider 项目文件已刷新。日志 `Saved/Logs/DropPhysicsBuild.log`、`DropPhysicsProjectFiles.log`。首次构建受沙箱 UBA 缓存权限限制；后续补齐 PhysicsCore 链接依赖，并在编辑器 DLL 占用解除后成功构建。仍有非首选 MSVC 与引擎 Character.h 弃用警告。
+- **最终自动化4项通过、0失败**：`Umbra.Loot.DropPhysics`、`Umbra.Loot.VisualMeshCompatibility`、`Umbra.Inventory.Transfer`、`Umbra.Equipment.RequirementsAndLifecycle`。使用匹配版本 UnrealEditor-Cmd / NullRHI，报告 `Saved/Automation/DropPhysicsFinal/index.json`，日志 `Saved/Logs/DropPhysicsFinalTests.log`。
+- 新测试在实际物理 World 中验证向上运动、拾取球跟随、自然落稳早于超时、固定后不再运动/无 Tick/无 Timer、空中低速不误判、悬崖超时返回安全姿态；直接调用客户端接收路径验证迟到最终姿态、插值结束，无地面保留拾取、禁用兼容、旧 BP 根组件/启动/销毁清理。客户端接收路径测试不等于真实网络测试。
+- **另有已有资产契约差异**：初轮 `Umbra.Loot.Armor1730Definitions` 失败，当前部分真实资产有词缀或10点主属性需求，与旧测试“全部无词缀、零需求”断言不符。未修改这些资产或放宽断言。详见 `Saved/Automation/DropPhysics/index.json` 与 `Saved/Logs/DropPhysicsTests.log`；不能将该轮写成全绿。
+- **未验证**：实际 PIE 渲染、每个模型盒体贴合、鼠标 Hover/标签视觉、真实 Listen Server/专服/网络延迟与迟加入。用户通过 Escape 停止了电脑界面操作，此后未再进行 UI 控制；本轮无 PIE 通过结论。未编辑/保存 Content、未提交/推送。蓝图 Graph 与真实视觉配置仍待编辑器确认。人工步骤见 DropPhysics 文档。
 
 ## 1730 四件防具世界掉落（2026-10-20）
 

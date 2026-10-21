@@ -168,12 +168,13 @@ bool FUmbraItemTooltipWidgetTest::RunTest(const FString& Parameters)
 	Tooltip->SetTooltipData(Data);
 	const TSharedRef<SWidget> TooltipSlate = Tooltip->TakeWidget();
 	const auto Block = [&](const TCHAR* Name) { return CastChecked<UTextBlock>(Tooltip->WidgetTree->FindWidget(Name)); };
-	const auto Rows = [&](const TCHAR* Name) { return CastChecked<UVerticalBox>(Tooltip->WidgetTree->FindWidget(Name)); };
+	const auto Rows = [&](const TCHAR* Name) { return CastChecked<UPanelWidget>(Tooltip->WidgetTree->FindWidget(Name)); };
 	const auto Visible = [&](const TCHAR* Name) { return Tooltip->WidgetTree->FindWidget(Name)->GetVisibility() != ESlateVisibility::Collapsed; };
 	TestEqual(TEXT("Name copied"), Block(TEXT("ItemName"))->GetText().ToString(), Data.DisplayName.ToString());
 	TestEqual(TEXT("Specific localized type"), Block(TEXT("ItemTypeText"))->GetText().ToString(), FString(TEXT("单手剑")));
 	TestEqual(TEXT("Epic localized"), Block(TEXT("RarityText"))->GetText().ToString(), FString(TEXT("史诗")));
-	TestEqual(TEXT("Name uses authored color"), Block(TEXT("ItemName"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Red);
+	TestEqual(TEXT("Name remains white"), Block(TEXT("ItemName"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::White);
+	TestEqual(TEXT("Rarity keeps authored color"), Block(TEXT("RarityText"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Red);
 	TestEqual(TEXT("Item level copied independent of requirement"), Block(TEXT("ItemLevelText"))->GetText().ToString(), Data.ItemLevelText.ToString());
 	TestEqual(TEXT("Damage total copied"), Block(TEXT("TotalDamageText"))->GetText().ToString(), Data.TotalDamageText.ToString());
 	TestEqual(TEXT("Only nonzero damage rows"), Rows(TEXT("DamageRows"))->GetChildrenCount(), 1);

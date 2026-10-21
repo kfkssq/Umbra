@@ -27,7 +27,8 @@ bool AUmbraPlayerController::IsWithinPickupRange(const AUmbraWorldItem* Item) co
 
 AUmbraWorldItem* AUmbraPlayerController::GetWorldItemUnderCursor() const
 {
-	if (!IsLocalPlayerController() || IsPointerOverAttributeDebugPanel()) return nullptr;
+	if (!IsLocalPlayerController() || bCharacterMenuOpen || IsPointerOverAttributeDebugPanel()) return nullptr;
+	if (auto* LabelItem = GetWorldItemLabelUnderCursor()) return LabelItem;
 	FHitResult Hit;
 	// Complex visibility queries cover the displayed weapon, including parts outside
 	// the root pickup sphere. Keep the original simple query as the no-mesh fallback.

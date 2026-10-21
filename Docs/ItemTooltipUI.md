@@ -1,5 +1,7 @@
 # 物品 Tooltip：分类、WBP 契约与正式 Hover
 
+2026-10-21：顶部 ItemName 固定白色；RarityText 保留稀有度颜色，其余行/背景行为不变。见 [本轮展示修正](WorldItemLabels.md)。
+
 2026-10-09：武器真实伤害区间、GUID 实例离散随机词缀、GAS 转移与 AffixEntry / SpecialEffects 新契约见 [ItemInstanceAffixes](ItemInstanceAffixes.md)。该文覆盖下文相关旧阶段说明；本轮未修改 Content，验证边界见 Progress。
 
 ## 2026-10-10 缩放比例与多帧稳定性（当前定位契约）
