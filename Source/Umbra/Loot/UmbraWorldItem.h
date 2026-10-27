@@ -30,6 +30,7 @@ class UMBRA_API AUmbraWorldItem : public AActor
 {
 	GENERATED_BODY()
 public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Audio") TObjectPtr<class UUmbraAudioComponent> AudioEvents;
 	AUmbraWorldItem();
 	bool InitializeInstance(const FUmbraItemInstance& InInstance);
 	UFUNCTION(BlueprintPure, Category = "World Item") FUmbraItemInstance GetItemInstance() const { return ItemInstance; }
@@ -54,6 +55,16 @@ private:
 	friend class FUmbraDropPhysicsTest;
 	friend class FUmbraWorldItemInteractionTest;
 	void StartDropPhysics();
+	void PlaySpawnAudio();
+	void RefreshLootAmbience();
+	void StopLootAmbience();
+	UPROPERTY(Transient) TObjectPtr<class UAudioComponent> LootAmbience;
+	FTimerHandle LootAmbienceTimer;
+	bool bLootAmbienceConfigured = false;
+	UFUNCTION() void HandleAudioGroundHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
+		UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit);
+	bool bSpawnAudioSent = false;
+	bool bLandAudioSent = false;
 	void UpdateDropPhysics();
 	void FreezeDrop(const FTransform& Pose);
 	void PublishDropMotion(bool bSettled);

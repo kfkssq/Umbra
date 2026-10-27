@@ -1,4 +1,5 @@
 #include "UmbraPlayerController.h"
+#include "Audio/UmbraAudioFunctionLibrary.h"
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "Characters/UmbraPlayerCharacter.h"
@@ -117,16 +118,22 @@ void AUmbraPlayerController::CancelPickupApproach()
 
 void AUmbraPlayerController::ServerPickupWorldItem_Implementation(AUmbraWorldItem* Item)
 {
-	ClientPickupResult(IsValid(Item) ? Item->TryPickup(this) : EUmbraPickupResult::Unavailable);
+	// Capture before TryPickup can hide/destroy the world actor.
+	const FUmbraAudioContext Context = FUmbraAudioContext::FromItem(IsValid(Item) ? Item->GetItemInstance().Definition.Get() : nullptr);
+	ClientPickupResult(IsValid(Item) ? Item->TryPickup(this) : EUmbraPickupResult::Unavailable, Context);
 }
 
-void AUmbraPlayerController::ClientPickupResult_Implementation(EUmbraPickupResult Result)
+void AUmbraPlayerController::ClientPickupResult_Implementation(EUmbraPickupResult Result, FUmbraAudioContext AudioContext)
 {
+	if (Result == EUmbraPickupResult::Success)
+		UUmbraAudioFunctionLibrary::PlayUI(this, EUmbraAudioEvent::PickupSuccess, AudioContext);
 	ReportPickupResult(Result);
 }
 
 void AUmbraPlayerController::ReportPickupResult(EUmbraPickupResult Result)
 {
+	if (Result != EUmbraPickupResult::Success && Result != EUmbraPickupResult::Cancelled)
+		UUmbraAudioFunctionLibrary::PlayUI(this, EUmbraAudioEvent::PickupFailed, {});
 	UE_LOG(LogUmbra, Log, TEXT("Pickup: %s"), *UEnum::GetValueAsString(Result));
 	BP_PickupResult(Result);
 }

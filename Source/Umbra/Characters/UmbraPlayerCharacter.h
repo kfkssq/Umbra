@@ -9,6 +9,9 @@
 #include "UmbraPlayerCharacter.generated.h"
 
 class UCameraComponent;
+class UAnimSequence;
+struct FOnAttributeChangeData;
+class UUmbraAudioComponent;
 class UInputAction;
 class USpringArmComponent;
 class UAbilitySystemComponent;
@@ -38,6 +41,9 @@ class UMBRA_API AUmbraPlayerCharacter : public ACharacter, public IAbilitySystem
 
 public:
 	AUmbraPlayerCharacter();
+	UFUNCTION(BlueprintPure, Category = "Combat|Death")
+	bool IsDead() const { return bIsDead; }
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Audio") TObjectPtr<UUmbraAudioComponent> AudioEvents;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
@@ -96,6 +102,16 @@ public:
 	UCameraComponent* GetTopDownCamera() const { return TopDownCamera; }
 
 protected:
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	/** Blueprint-selected full-body sequence; plays once and holds its final pose. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animation|Death")
+	TObjectPtr<UAnimSequence> DeathAnimation;
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat|Death")
+	void OnDeathStarted();
+
 	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
@@ -140,6 +156,16 @@ protected:
 	float MaxMovementYawRate = 1800.f;
 
 private:
+	void HandleHealthChanged(const FOnAttributeChangeData& ChangeData);
+	void ApplyDeathState();
+	void ApplyDeathAbilityState();
+	UFUNCTION()
+	void OnRep_IsDead();
+	UPROPERTY(ReplicatedUsing = OnRep_IsDead)
+	bool bIsDead = false;
+	bool bDeathStateApplied = false;
+	TWeakObjectPtr<UAbilitySystemComponent> BoundHealthASC;
+	FDelegateHandle HealthChangedHandle;
 	void Move(const FInputActionValue& Value);
 	void AbilityInputTagPressed(FGameplayTag InputTag);
 	void AbilityInputTagReleased(FGameplayTag InputTag);

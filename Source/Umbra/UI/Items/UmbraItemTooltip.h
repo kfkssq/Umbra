@@ -23,6 +23,8 @@ class UMBRA_API UUmbraItemTooltip : public UUserWidget
 {
 	GENERATED_BODY()
 public:
+	/** Off by default: use only for meaningful detail popups, not every slot hover. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Audio") bool bPlayShowAudio = false;
 	UFUNCTION(BlueprintCallable, Category = "Item Tooltip") void SetTooltipData(const FUmbraItemTooltipData& Data);
 	UFUNCTION(BlueprintCallable, Category = "Item Tooltip") void ClearTooltipData();
 	UFUNCTION(BlueprintPure, Category = "Item Tooltip") FUmbraItemTooltipData GetTooltipData() const { return TooltipData; }

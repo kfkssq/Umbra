@@ -1,4 +1,5 @@
 #include "UI/Inventory/UmbraInventoryMenu.h"
+#include "Audio/UmbraAudioFunctionLibrary.h"
 
 #include "Components/TextBlock.h"
 #include "Components/UniformGridPanel.h"
@@ -237,6 +238,8 @@ void UUmbraInventoryMenu::HandleSelection(UUmbraInventorySlot* RequestedSlot)
 	SelectedSlot = RequestedSlot;
 	SelectedInstanceId = RequestedSlot->GetItemDisplay().InstanceId;
 	SelectedSlot->SetSelected(true);
+	UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), EUmbraAudioEvent::InventorySelected,
+		FUmbraAudioContext::FromItem(Cast<UUmbraItemDefinition>(RequestedSlot->GetItemDisplay().Item)));
 }
 
 int32 UUmbraInventoryMenu::GetSelectedSlotIndex() const
@@ -259,6 +262,16 @@ EUmbraTransferResult UUmbraInventoryMenu::FinishEquip(EUmbraTransferResult Resul
 {
 	LastEquipResult = Result;
 	LastEquipMessage = UmbraTransferFeedback::Message(Result);
+	// Results are final here; snapshots during removal/rollback must never emit success sounds.
+	FUmbraAudioContext AudioContext;
+	if (const auto* State = GetOwningPlayerState<AUmbraPlayerState>())
+		if (const auto* Equipment = State->GetEquipmentComponent())
+			for (const auto& Item : Equipment->GetSnapshot().Items)
+				if (Item.InstanceId == InstanceId) { AudioContext = FUmbraAudioContext::FromItem(Item.Definition); break; }
+	UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), Result == EUmbraTransferResult::Success
+		? EUmbraAudioEvent::EquipSuccess : EUmbraAudioEvent::EquipFailed, AudioContext);
+	if (Result == EUmbraTransferResult::Success)
+		UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), EUmbraAudioEvent::InventoryTransfer, AudioContext);
 	BP_EquipFinished(Result, InstanceId, LastEquipMessage);
 	return Result;
 }

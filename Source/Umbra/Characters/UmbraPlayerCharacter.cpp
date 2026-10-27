@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Characters/UmbraPlayerCharacter.h"
+#include "Audio/UmbraAudioComponent.h"
+#include "AbilitySystem/UmbraAttributeSet.h"
+#include "Animation/AnimSequence.h"
+#include "Net/UnrealNetwork.h"
 
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
 #include "Interfaces/UmbraAttackable.h"
@@ -20,6 +24,7 @@
 
 AUmbraPlayerCharacter::AUmbraPlayerCharacter()
 {
+	AudioEvents = CreateDefaultSubobject<UUmbraAudioComponent>(TEXT("AudioEvents"));
 	PrimaryActorTick.bCanEverTick = true;
 
 	bUseControllerRotationPitch = false;
@@ -71,8 +76,8 @@ void AUmbraPlayerCharacter::BeginPlay()
 		MeshComponent->SetCustomDepthStencilValue(0);
 	}
 
-	bMovementEnabled = true;
-	if (GetCharacterMovement()->MovementMode == MOVE_None)
+	bMovementEnabled = !bIsDead;
+	if (!bIsDead && GetCharacterMovement()->MovementMode == MOVE_None)
 	{
 		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 	}
@@ -82,7 +87,7 @@ void AUmbraPlayerCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (IsLocallyControlled())
+	if (IsLocallyControlled() && !bIsDead)
 	{
 		if (UUmbraAbilitySystemComponent* AbilitySystemComponent = Cast<UUmbraAbilitySystemComponent>(GetAbilitySystemComponent()))
 		{
@@ -199,7 +204,7 @@ void AUmbraPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 bool AUmbraPlayerCharacter::TryActivatePrimaryAttack(AActor* TargetActor, bool bContinueAttacking)
 {
 	UUmbraAbilitySystemComponent* AbilitySystemComponent = Cast<UUmbraAbilitySystemComponent>(GetAbilitySystemComponent());
-	if (!IsValid(TargetActor) || !AbilitySystemComponent)
+	if (bIsDead || !IsValid(TargetActor) || !AbilitySystemComponent)
 	{
 		return false;
 	}
@@ -250,7 +255,7 @@ bool AUmbraPlayerCharacter::IsTargetInPrimaryAttackRange(const AActor* TargetAct
 void AUmbraPlayerCharacter::ReceivePrimaryAttackIntent(
 	AActor* TargetActor, bool bCombo, bool bContinueAttacking)
 {
-	if (!HasAuthority())
+	if (!HasAuthority() || bIsDead)
 	{
 		return;
 	}
@@ -328,7 +333,7 @@ void AUmbraPlayerCharacter::Move(const FInputActionValue& Value)
 
 void AUmbraPlayerCharacter::BeginPrimaryAttackFacing(uint32 AttackInstanceId, const FVector& WorldLocation)
 {
-	if (AttackInstanceId == 0)
+	if (bIsDead || AttackInstanceId == 0)
 	{
 		return;
 	}
@@ -393,8 +398,8 @@ void AUmbraPlayerCharacter::MoveTowardWorldLocation(const FVector& WorldLocation
 
 void AUmbraPlayerCharacter::FinishSpawnAnimation()
 {
-	bMovementEnabled = true;
-	if (GetCharacterMovement()->MovementMode == MOVE_None)
+	bMovementEnabled = !bIsDead;
+	if (!bIsDead && GetCharacterMovement()->MovementMode == MOVE_None)
 	{
 		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 	}
@@ -402,6 +407,7 @@ void AUmbraPlayerCharacter::FinishSpawnAnimation()
 
 void AUmbraPlayerCharacter::AbilityInputTagPressed(FGameplayTag InputTag)
 {
+	if (bIsDead) return;
 	if (const AUmbraPlayerController* PlayerController = Cast<AUmbraPlayerController>(GetController());
 		PlayerController && PlayerController->IsCharacterMenuOpen())
 	{
@@ -439,4 +445,76 @@ void AUmbraPlayerCharacter::InitializeAbilitySystem()
 	AbilitySystemComponent->InitAbilityActorInfo(UmbraPlayerState, this);
 	UmbraPlayerState->InitializeAttributes();
 	UmbraPlayerState->GrantInitialAbilities();
+	if (BoundHealthASC.IsValid())
+		BoundHealthASC->GetGameplayAttributeValueChangeDelegate(UUmbraAttributeSet::GetHealthAttribute()).Remove(HealthChangedHandle);
+	BoundHealthASC = AbilitySystemComponent;
+	HealthChangedHandle = AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UUmbraAttributeSet::GetHealthAttribute())
+		.AddUObject(this, &AUmbraPlayerCharacter::HandleHealthChanged);
+	// Replicated death can precede PlayerState/ASC initialization.
+	if (bIsDead)
+	{
+		ApplyDeathAbilityState();
+		GetCharacterMovement()->DisableMovement();
+	}
+	FOnAttributeChangeData Health;
+	Health.NewValue = AbilitySystemComponent->GetNumericAttribute(UUmbraAttributeSet::GetHealthAttribute());
+	HandleHealthChanged(Health);
+}
+
+void AUmbraPlayerCharacter::HandleHealthChanged(const FOnAttributeChangeData& ChangeData)
+{
+	if (!HasAuthority() || bIsDead || ChangeData.NewValue > 0.f) return;
+	bIsDead = true;
+	ApplyDeathState();
+	AudioEvents->PlayAuthority(EUmbraAudioEvent::Death, AudioEvents->GetContext(), GetActorLocation());
+	ForceNetUpdate();
+}
+
+void AUmbraPlayerCharacter::ApplyDeathAbilityState()
+{
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		ASC->SetLooseGameplayTagCount(UmbraGameplayTags::State_Dead, 1);
+		if (UUmbraAbilitySystemComponent* UmbraASC = Cast<UUmbraAbilitySystemComponent>(ASC)) UmbraASC->ClearAbilityInput();
+		ASC->CancelAllAbilities();
+	}
+}
+
+void AUmbraPlayerCharacter::ApplyDeathState()
+{
+	if (bDeathStateApplied) return;
+	bDeathStateApplied = true;
+	bMovementEnabled = false;
+	StopPrimaryAttackContinuation();
+	ClearPrimaryAttackTarget();
+	ApplyDeathAbilityState();
+	if (AController* OwningController = GetController()) OwningController->StopMovement();
+	ConsumeMovementInputVector();
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+	GetCharacterMovement()->bOrientRotationToMovement = false;
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// Single-node playback prevents locomotion transitions from overriding the corpse.
+	if (DeathAnimation) GetMesh()->PlayAnimation(DeathAnimation, false);
+	else UE_LOG(LogUmbra, Warning, TEXT("%s has no DeathAnimation configured."), *GetName());
+	OnDeathStarted();
+}
+
+void AUmbraPlayerCharacter::OnRep_IsDead()
+{
+	if (bIsDead) ApplyDeathState();
+}
+
+void AUmbraPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AUmbraPlayerCharacter, bIsDead);
+}
+
+void AUmbraPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (BoundHealthASC.IsValid())
+		BoundHealthASC->GetGameplayAttributeValueChangeDelegate(UUmbraAttributeSet::GetHealthAttribute()).Remove(HealthChangedHandle);
+	Super::EndPlay(EndPlayReason);
 }

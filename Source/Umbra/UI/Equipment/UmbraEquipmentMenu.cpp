@@ -1,4 +1,5 @@
 #include "UI/Equipment/UmbraEquipmentMenu.h"
+#include "Audio/UmbraAudioFunctionLibrary.h"
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/Image.h"
@@ -128,6 +129,9 @@ bool UUmbraEquipmentMenu::SetSlotItem(EUmbraEquipmentSlot Type, const FUmbraEqui
 
 void UUmbraEquipmentMenu::HandleSelection(UUmbraEquipmentSlotWidget* Selected)
 {
+	if (Selected && BoundSlots.Contains(Selected) && Selected->GetVisualState() != EUmbraEquipmentSlotState::Selected)
+		UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), EUmbraAudioEvent::EquipmentSelected,
+			FUmbraAudioContext::FromItem(Cast<UUmbraItemDefinition>(Selected->GetItemDisplay().Item)));
 	SelectedInstanceId = Selected ? Selected->GetItemDisplay().InstanceId : FGuid();
 	for (UUmbraEquipmentSlotWidget* EquipmentSlot : BoundSlots) if (EquipmentSlot) EquipmentSlot->SetSelected(EquipmentSlot == Selected);
 }
@@ -195,6 +199,11 @@ EUmbraUnequipResult UUmbraEquipmentMenu::RequestUnequipSlot(UUmbraEquipmentSlotW
 		LastUnequipMessage = UmbraTransferFeedback::Message(LastUnequipTransferResult);
 	// Snapshot notifications update all views; never optimistically clear a slot on a rejected request.
 	BP_UnequipFinished(Result, RemovedItem, LastUnequipMessage);
+	const auto AudioContext = FUmbraAudioContext::FromItem(RemovedItem.Definition);
+	UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), Result == EUmbraUnequipResult::Success
+		? EUmbraAudioEvent::UnequipSuccess : EUmbraAudioEvent::EquipFailed, AudioContext);
+	if (Result == EUmbraUnequipResult::Success)
+		UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), EUmbraAudioEvent::InventoryTransfer, AudioContext);
 	return Result;
 }
 

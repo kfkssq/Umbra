@@ -1,4 +1,8 @@
 #include "Loot/UmbraWorldItem.h"
+#include "Audio/UmbraAudioComponent.h"
+#include "Audio/UmbraAudioSubsystem.h"
+#include "Components/AudioComponent.h"
+#include "GameFramework/GameStateBase.h"
 #include "Loot/UmbraWorldItemVisualComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/BoxComponent.h"
@@ -17,6 +21,7 @@
 
 AUmbraWorldItem::AUmbraWorldItem()
 {
+	AudioEvents = CreateDefaultSubobject<UUmbraAudioComponent>(TEXT("AudioEvents"));
 	bReplicates = true;
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = false;
@@ -76,6 +81,7 @@ bool AUmbraWorldItem::InitializeInstance(const FUmbraItemInstance& InInstance)
 	if (HasActorBegunPlay()) StartDropPhysics();
 	RefreshPresentation();
 	ForceNetUpdate();
+	PlaySpawnAudio();
 	return true;
 }
 
@@ -85,8 +91,55 @@ void AUmbraWorldItem::BeginPlay()
 	// The atomic DropMotion snapshot owns movement; ignore any legacy BP replication override.
 	SetReplicateMovement(false);
 	LabelOffset = Label->GetRelativeLocation();
+	PhysicsBody->OnComponentHit.AddUniqueDynamic(this, &ThisClass::HandleAudioGroundHit);
 	StartDropPhysics();
 	RefreshPresentation();
+	PlaySpawnAudio();
+}
+
+void AUmbraWorldItem::PlaySpawnAudio()
+{
+	if (!HasActorBegunPlay() || bSpawnAudioSent || !ItemInstance.IsValid() || DropSpawnServerTime < 0
+		|| bPickedUp || GetNetMode() == NM_DedicatedServer) return;
+	bSpawnAudioSent = true;
+	// Initial actor multicast can precede its replication channel. Consume the replicated payload
+	// locally instead, but never announce old loot when it becomes relevant later.
+	const AGameStateBase* State = GetWorld()->GetGameState();
+	if (!HasAuthority() && !State) return;
+	const double Now = HasAuthority() ? GetWorld()->GetTimeSeconds() : State->GetServerWorldTimeSeconds();
+	const double Age = Now - DropSpawnServerTime;
+	if (Age < 0 || Age > 1.0 || DropMotion.bSettled) return;
+	const FUmbraAudioContext Context = FUmbraAudioContext::FromItem(ItemInstance.Definition);
+	AudioEvents->PlayLocal(EUmbraAudioEvent::LootSpawn, Context, GetActorLocation());
+}
+
+void AUmbraWorldItem::StopLootAmbience()
+{
+	GetWorldTimerManager().ClearTimer(LootAmbienceTimer);
+	if (IsValid(LootAmbience))
+	{
+		LootAmbience->Stop();
+		LootAmbience->DestroyComponent();
+	}
+	LootAmbience = nullptr;
+}
+
+void AUmbraWorldItem::RefreshLootAmbience()
+{
+	if (!HasActorBegunPlay() || GetNetMode() == NM_DedicatedServer) return;
+	if (bPickedUp || IsActorBeingDestroyed() || !ItemInstance.IsValid()) { StopLootAmbience(); return; }
+	// Replicated settled state also works for late relevance. Legacy visual drops use their animation completion.
+	const bool bReady = DropPhysics.bEnabled ? (DropMotion.bStarted && DropMotion.bSettled) : bDropAnimationWindowClosed;
+	if (!bReady) return;
+	if (!bLootAmbienceConfigured)
+	{
+		bLootAmbienceConfigured = true;
+		if (auto* Audio = GetWorld()->GetSubsystem<UUmbraAudioSubsystem>())
+			LootAmbience = Audio->CreateLootLoop(this, FUmbraAudioContext::FromItem(ItemInstance.Definition), AudioEvents->LibraryOverride);
+		// Retry only a configured loop rejected/stopped by distance or concurrency, never reroll probability.
+		if (LootAmbience) GetWorldTimerManager().SetTimer(LootAmbienceTimer, this, &ThisClass::RefreshLootAmbience, 1.f, true);
+	}
+	if (IsValid(LootAmbience) && !LootAmbience->IsPlaying()) LootAmbience->Play();
 }
 
 void AUmbraWorldItem::ClearMeshLoad()
@@ -104,6 +157,7 @@ void AUmbraWorldItem::ClearMeshLoad()
 
 void AUmbraWorldItem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	StopLootAmbience();
 	GetWorldTimerManager().ClearTimer(DropAnimationWindowTimer);
 	GetWorldTimerManager().ClearTimer(DropPhysicsTimer);
 	ClearMeshLoad();
@@ -115,6 +169,8 @@ void AUmbraWorldItem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void AUmbraWorldItem::RefreshPresentation()
 {
+	PlaySpawnAudio();
+	RefreshLootAmbience();
 	if (bPickedUp || !ItemInstance.IsValid())
 	{
 		bHighlighted = false;
@@ -192,6 +248,8 @@ void AUmbraWorldItem::CloseDropAnimationWindow()
 
 void AUmbraWorldItem::RefreshVisual()
 {
+	PlaySpawnAudio();
+	RefreshLootAmbience();
 	if (!HasActorBegunPlay() || GetNetMode() == NM_DedicatedServer) return;
 	if (bPickedUp || !ItemInstance.IsValid())
 	{

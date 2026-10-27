@@ -1,5 +1,7 @@
 # Umbra 架构与维护地图
 
+2026-10-24：[音频第一阶段](Audio/AudioSetupGuide.md)：AudioLibrary 配置事件/上下文，AudioSubsystem 负责无 Tick 的本地选择、冷却和原生播放；AudioComponent 提供角色配置与权威瞬时表现通知。AttributeSet 只增加结算表现快照；UI 使用最终结果，拾取沿用 Client RPC，掉落真实碰撞与生成提示分离。攻击/移动动画接口为纯表现 Notify，待手动添加；未改伤害公式、攻击周期或业务权威规则。[审计与资产证据](Audio/AudioAudit.md)。
+
 2026-10-21：[地面标签与悬停](WorldItemLabels.md)：骨骼展示组件增加三角形 Visibility 查询；本地 Controller 排布标签、缓存屏幕矩形并优先解析到原 WorldItem，复用高亮/拾取链。Tooltip 顶部名称固定白色，稀有度文字保留原色。
 
 2026-10-21 修订：[掉落自然收敛](DropPhysics.md) 将3秒硬截止改为接地后的阻尼渐变，正常固定不再调整落点或旋转。定义增加 PhysicsRotation，FitWorldDropPhysics 编辑器按钮按缩放后的模型本地边界生成有向盒；根与模型使用逆变换保持外观不变。6件定义已通过 UE 保存几何字段。
@@ -190,3 +192,15 @@ AUmbraWorldItem 持有 UUmbraWorldItemVisualComponent，复用 Mesh。Actor 负�
 ### WorldItem 标签稳定布局（2026-10-21）
 
 本地 PlayerController 在原有 Labels 实现文件维护每物品弱引用布局缓存和实际显示命中矩形。UmbraWorldLabelLayout 复用候选放置并批量预留历史目标、优先悬停、验证平滑扫掠路径；目标与显示位置独立。物理运动与相机变化通过每帧投影进入布局，未引入物理事件依赖。OnDestroyed/Controller EndPlay 管理缓存和委托寿命。参数、根因与验收边界见 [WorldItemLabels](WorldItemLabels.md)。
+
+### 角色受伤与暴击语音路由（2026-10-27）
+
+受伤沿用 AttributeSet 唯一伤害结算点 → DamageAudio → 受击者 AudioEvents；CriticalVoice 新增为同一结算结果驱动的攻击者事件，使用攻击者上下文和位置，保持目标 Critical 音效独立。枚举只在末尾追加，避免重编号既有资产。角色 BP 的 CharacterType 必须与库的 Match.CharacterType 一致；玩家映射与验证见 [音频指南](Audio/AudioSetupGuide.md)。
+
+## 玩家死亡状态（2026-10-27）
+
+PlayerCharacter 观察 PlayerState ASC Health → 权威死亡状态复制 → 取消能力/移动/碰撞 → 单次动画与 AudioEvents 死亡音；AI 忽略死亡目标。配置与生命周期边界见 [PlayerDeath](PlayerDeath.md)。
+
+### 敌人挥动音频资产接线（2026-10-27）
+
+已通过 UE 5.8.2 为敌人实际攻击蒙太奇 AM_Enemy_BasicAttack 配置0.339秒 AttackSwing Notify，走 AudioEvents 本地空间播放和默认库映射；服务端命中窗口不变。资产、时刻、备份和 PIE 验证边界见 [音频指南](Audio/AudioSetupGuide.md)。

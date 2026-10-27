@@ -1,4 +1,5 @@
 #include "Loot/UmbraWorldItem.h"
+#include "Audio/UmbraAudioComponent.h"
 #include "Components/BoxComponent.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Engine/World.h"
@@ -99,6 +100,7 @@ void AUmbraWorldItem::StartDropPhysics()
 		FCollisionQueryParams(SCENE_QUERY_STAT(UmbraDropLaunch), false, this)))
 		SetActorTransform(SafeDropPose, false, nullptr, ETeleportType::TeleportPhysics);
 	PhysicsBody->SetSimulatePhysics(true);
+	PhysicsBody->SetNotifyRigidBodyCollision(true);
 	const float Angle = FMath::FRandRange(0.f, 2.f * PI);
 	PhysicsBody->SetPhysicsLinearVelocity(FVector(FMath::Cos(Angle) * DropPhysics.HorizontalSpeed,
 		FMath::Sin(Angle) * DropPhysics.HorizontalSpeed, DropPhysics.UpwardSpeed));
@@ -117,6 +119,19 @@ void AUmbraWorldItem::PublishDropMotion(bool bSettled)
 	DropMotion.bStarted = true;
 	DropMotion.bSettled = bSettled;
 	ForceNetUpdate();
+}
+
+void AUmbraWorldItem::HandleAudioGroundHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit)
+{
+	// First actual static-ground contact only; rolling, settling and recovery never retrigger it.
+	if (!HasAuthority() || bLandAudioSent || bPickedUp || !ItemInstance.IsValid()
+		|| HitComponent != PhysicsBody || !PhysicsBody->IsSimulatingPhysics() || !OtherComponent
+		|| OtherComponent->GetCollisionObjectType() != ECC_WorldStatic || Hit.ImpactNormal.Z < 0.5f) return;
+	bLandAudioSent = true;
+	auto Context = FUmbraAudioContext::FromItem(ItemInstance.Definition);
+	Context.Surface = UPhysicalMaterial::DetermineSurfaceType(Hit.PhysMaterial.Get());
+	AudioEvents->PlayAuthority(EUmbraAudioEvent::LootLand, Context, Hit.ImpactPoint);
 }
 
 void AUmbraWorldItem::UpdateDropPhysics()
@@ -174,6 +189,7 @@ void AUmbraWorldItem::FreezeDrop(const FTransform& Pose)
 	SyncSkeletalQueryTransform();
 	UpdateLabelLocation();
 	PublishDropMotion(true);
+	RefreshLootAmbience();
 }
 
 void AUmbraWorldItem::OnRep_DropMotion()

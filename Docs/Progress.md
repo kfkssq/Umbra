@@ -1,4 +1,34 @@
 # Umbra 进度与验证状态
+## 敌人攻击 Swing（2026-10-27，配置已保存）
+
+- UE 5.8.2 保存 `AM_Enemy_BasicAttack`：新增 Audio 轨唯一 AttackSwing Notify（0.33909455秒），使用默认库 swordswing_fast_01；原命中窗口及底层动画保持不变。备份及配置方法见 [音频指南](Audio/AudioSetupGuide.md)。
+- 独立进程资产重载检查与最小 PIE 通过：真实敌人音频组件、1秒攻击蒙太奇启动、5秒 PIE 正常结束。报告 `Saved/EnemySwingPIE.json`，日志 `Saved/Logs/EnemySwingPIE.log`。目标资产 LFS 属性已确认。此次仅资产配置和脚本/文档，无新增 C++ 改动，未重新编译。
+- 未验证：实际听感、视觉同步、自然 AI 攻击全过程、多人和打包。使用 -nullrhi -nosound；Output Log 存在既有输入轴、动画除零、导航等警告。前述 Hurt/CriticalVoice 工作仍保持其单独待完成状态。
+## 玩家 Hurt 匹配与暴击语音（2026-10-27，待关闭编辑器完成）
+
+- 已用 UE 5.8.2 Python commandlet 只读核实：默认库 Hurt 行要求 Player.Greystone 且已引用 Greystone_Effort_Pain，但玩家 BP AudioEvents.CharacterType=None；现有 Critical 行引用 critical_hit。日志 `Saved/Logs/InspectCharacterAudio.log`。
+- C++ 已追加 CriticalVoice，基于同次 GAS 暴击结果从攻击者位置播放。准备 `Scripts/configure_character_audio.py` 修正玩家类型并配置 Greystone_Ability_ScoredCrit（每角色2秒冷却），脚本尚未执行、Content 尚未保存。配置与 PIE 验证见 [音频指南](Audio/AudioSetupGuide.md)。
+- 编译未通过：初次沙箱 UBA 系统缓存写入被拒，获准系统环境重试后被活动 Live Coding 锁阻止（`Saved/Logs/HurtCriticalBuild.log`）。已请求用户保存并关闭编辑器；本轮自动化、PIE、声音听感、网络均未验证。两项目标资产的 LFS 属性已确认；未提交或推送，保留已有工作区修改。
+
+## 掉落稀有度环境音（2026-10-26）
+
+- LootSpawn 继续使用真实物品稀有度匹配，为六品质生成提示补充独立配置步骤；LootRarity 改为落稳后跟随物品生命周期的3D循环环境音，支持旧掉落/晚到复制，拾取及销毁清理。独立并发默认4声，配置有效音源后低频恢复被抢占的播放；不改变掉落物理或拾取权威流程。
+- 素材需在编辑器设置循环并配置 DataAsset；未改用户 Content 或配置。详细步骤及 PIE 清单见 [音频指南](Audio/AudioSetupGuide.md)。新增映射和生命周期断言，但编译被 Live Coding 阻止，自动化及 PIE 尚未验证；日志 `Saved/Logs/AudioLootLoopBuild.log`。此前音频测试通过记录不代表本轮验证。
+
+## 槽位 Hover 静音（2026-10-26）
+
+- InventorySlot 与 EquipmentSlotWidget 均移除 Hover 音效调用，空槽及有物品槽位都静音；原有高亮、选择、Tooltip 交互和普通按钮 Hover 保留。配置说明见 [音频指南](Audio/AudioSetupGuide.md)。
+- UE 5.8.2 UmbraEditor Win64 Development 编译成功，日志 `Saved/Logs/AudioSlotHoverBuild.log`；有引擎 GetMovementBase 弃用警告。未进行本次 PIE 鼠标操作或听感验证，需检查两类槽位静音及普通按钮 Hover 正常。未修改用户音频资产或配置。
+
+## 音频框架第一阶段（2026-10-24）
+
+2026-10-25 交付复核：音频概率/变体/Pitch 改用独立 FRandomStream，避免影响玩法全局随机序列；UmbraEditor 再次构建成功，Umbra.Audio 两项重跑通过。日志 AudioBuildReview.log / AudioAutomationReview.log；本次未重复 PIE，听感与多人验证边界保持不变。
+
+- [实际项目审计](Audio/AudioAudit.md)、[486项音频资产清单](Audio/AudioAssetInventory.md)、[32项素材需求与来源](Audio/AudioAssetRequirements.md)、[配置/手动Notify/PIE指南](Audio/AudioSetupGuide.md)。未新增或修改 Content；素材映射默认空。
+- 新增事件/上下文、DataAsset、项目设置、无 Tick 本地播放策略、复制表现组件、蓝图 UI 入口与纯表现 AnimNotify。接入现有 UI、装备最终结果、拾取结果回传、掉落新鲜实例/真实接地、GAS 正数伤害/暴击/受伤/击杀/死亡。挥动/脚步待手动配置动画；格挡/闪避/环境及完整技能只预留，不重构业务。
+- UE 5.8.2 UmbraEditor Win64 Development 与 Rider 文件刷新成功；首轮7项回归通过，最终修改后音频2项和真实掉落物理1项重跑通过。精确名称/日志及警告见配置指南验证节。
+- 无资源原型 PIE 五秒启停通过，调用音频接口安全静默；使用 -nullrhi -nosound，未验证实际声音、鼠标操作、多客户端音频、动画接触帧与打包。Output Log 有既有动画除零/输入/导航等诊断，不能视为全项目无错误验收。
+
 ## 世界标签稳定布局（2026-10-21，本次修复）
 
 - 修复无历史的逐帧最近点布局导致的位置竞争：保留目标/显示位置、预留历史位置、修复候选滞回、稳定距离分桶、DeltaTime指数平滑。悬停标签优先保持实际显示位置；扫掠路径可能交叉时整批安全瞬移，命中矩形始终取显示位置。Destroy即时清理缓存和Hover。
@@ -580,3 +610,11 @@ Session Frontend → Automation 可运行下列现有测试：
 - WorldItem.Mesh 允许仅 Visibility 射线查询；Controller 物品选择优先复杂查询，覆盖根球外模型部位，保留简单查询兜底。未改变拾取距离/RPC/Inventory、VisualComponent 或材质资产。详见 [LootAndPickup](LootAndPickup.md)。
 - UE 5.8.2 UmbraEditor Win64 DebugGame 编译、DLL/lib 链接成功，日志 Saved/Logs/WorldItemCursorDebugBuild.log；保留非首选MSVC与引擎弃用警告。Development 因当前编辑器 Live Coding 被阻止，日志 WorldItemCursorBuild.log；当前打开的 Development 编辑器尚未加载本次修复，需要关闭后完整构建。差异空白检查通过，未运行自动化或PIE；mace实际复杂碰撞、锤头/柄与遮挡/点击一致性待手工验收。
 - 现有运行日志确认 AA=4、SecondaryScreenPercentage.GameViewport=100，LastSetBy=ProjectSetting；两项已生效。主渲染比例、PIE编辑器覆盖及当前画质问题尚未定位，不盲目增加配置覆盖。用户停止了此前电脑操作，本轮未继续操作编辑器或保存Content。
+
+## 2026-10-27 玩家生命归零死亡
+
+- 已实现玩家 GAS Health 归零死亡状态、能力和移动取消、复制表现、动画配置入口、死亡音去重、AI 放弃尸体与攻击窗口保护；见 [PlayerDeath](PlayerDeath.md)。
+- 已添加 `Umbra.Combat.PlayerDeath` 回归测试和 `Scripts/configure_player_death.py` 资产配置脚本。
+- 本轮编译首次发现局部变量遮蔽错误，已修正；再次完整构建被正在运行的编辑器 Live Coding 阻止（`Saved/Logs/DeathBuild.log`）。尚无本轮成功构建、自动化或 PIE 结果。配置脚本尚未执行，动画/音效资产引用待编辑器确认；未完成有声试听和多人验证。
+
+- 静态验证：`git diff --check -- Source Docs Scripts` 通过（仅换行提示），配置脚本 Python AST 语法通过，新增文档入口链接检查通过。全仓 diff 检查遇到沙箱 Git LFS 进程权限错误，因此不声称二进制资产检查通过。

@@ -1,4 +1,5 @@
 #include "AbilitySystem/UmbraAttributeSet.h"
+#include "Audio/UmbraDamageAudio.h"
 #include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
 #include "AbilitySystem/Damage/UmbraPhysicalDamage.h"
@@ -113,6 +114,7 @@ void UUmbraAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 		const float Damage = GetIncomingDamage();
 		const float HealthBefore = GetHealth();
 		const float HealthBaseBefore = Health.GetBaseValue();
+		const FUmbraDamageAudio Audio = FUmbraDamageAudio::Capture(GetOwningAbilitySystemComponent(), Data.EffectSpec, Damage, HealthBefore);
 		const FUmbraDamageNotification Notification = FUmbraDamageNotification::Capture(
 			GetOwningAbilitySystemComponent(), Data.EffectSpec, Damage);
 		// Clear first: Health delegates can synchronously cause another damage execution.
@@ -137,6 +139,7 @@ void UUmbraAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 			}
 		}
 		Notification.Dispatch();
+		Audio.Dispatch(GetHealth());
 		if (UmbraPhysicalDamage::IsLoggingEnabled())
 		{
 			UE_LOG(LogUmbra, Log, TEXT("[DamageHealth] Target=%s GE=%s Incoming=%.3f Health=%.3f->%.3f Base=%.3f->%.3f ObservedLost=%.3f"),

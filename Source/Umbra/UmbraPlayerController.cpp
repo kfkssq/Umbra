@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UmbraPlayerController.h"
+#include "Audio/UmbraAudioComponent.h"
+#include "Audio/UmbraAudioFunctionLibrary.h"
 
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
@@ -30,6 +32,11 @@ namespace UmbraAttackHighlightDebug
 	constexpr uint64 RequestEventMessageKey = 1003;
 	constexpr uint64 ForceTestMessageKey = 1004;
 	constexpr uint64 FunctionEventMessageKey = 1010;
+}
+
+AUmbraPlayerController::AUmbraPlayerController()
+{
+	AudioEvents = CreateDefaultSubobject<UUmbraAudioComponent>(TEXT("AudioEvents"));
 }
 
 void AUmbraPlayerController::BeginPlay()
@@ -128,6 +135,7 @@ void AUmbraPlayerController::ToggleCharacterMenu()
 	if (bCharacterMenuOpen)
 	{
 		bCharacterMenuOpen = false;
+		UUmbraAudioFunctionLibrary::PlayUI(this, EUmbraAudioEvent::MenuClose, {});
 		if (IsValid(CharacterMenu))
 		{
 			if (UUmbraCharacterMenu* Menu = Cast<UUmbraCharacterMenu>(CharacterMenu)) Menu->SetMenuOpen(false);
@@ -166,6 +174,7 @@ void AUmbraPlayerController::ToggleCharacterMenu()
 	}
 	CharacterMenu->SetVisibility(ESlateVisibility::Visible);
 	bCharacterMenuOpen = true;
+	UUmbraAudioFunctionLibrary::PlayUI(this, EUmbraAudioEvent::MenuOpen, {});
 	if (UUmbraCharacterMenu* Menu = Cast<UUmbraCharacterMenu>(CharacterMenu)) Menu->SetMenuOpen(true);
 	ResetPrimaryActionState();
 	CancelCombatCommandState();

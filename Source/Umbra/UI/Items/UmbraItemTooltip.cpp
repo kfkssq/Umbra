@@ -1,4 +1,5 @@
 #include "UI/Items/UmbraItemTooltip.h"
+#include "Audio/UmbraAudioFunctionLibrary.h"
 #include "UI/Items/UmbraTooltipStatEntry.h"
 #include "UI/Items/UmbraTooltipKeyValueEntry.h"
 #include "UI/Items/UmbraTooltipScalingEntry.h"
@@ -70,6 +71,7 @@ void UUmbraItemTooltip::PresentBeside(UWidget* AnchorWidget)
 
 void UUmbraItemTooltip::PresentAt(const FVector2D& Anchor, const FVector2D& ViewportSize)
 {
+	const bool bNewPresentation = !bPresented;
 	TrackedAnchor.Reset();
 	LastAnchor = Anchor;
 	bPresented = true;
@@ -77,6 +79,8 @@ void UUmbraItemTooltip::PresentAt(const FVector2D& Anchor, const FVector2D& View
 	SetVisibility(ESlateVisibility::HitTestInvisible);
 	SetAlignmentInViewport(FVector2D::ZeroVector);
 	ApplyViewportPosition(Anchor, ViewportSize);
+	if (bNewPresentation && bPlayShowAudio && TooltipData.bValid && !IsDesignTime())
+		UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), EUmbraAudioEvent::TooltipShown, {});
 }
 
 void UUmbraItemTooltip::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)

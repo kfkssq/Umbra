@@ -78,7 +78,7 @@ void UUmbraEnemyBasicAttackAbility::HandleHitWindow(FGameplayEventData Payload)
 		return;
 	}
 	UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Target);
-	if (!TargetASC)
+	if (!TargetASC || TargetASC->HasMatchingGameplayTag(UmbraGameplayTags::State_Dead))
 	{
 		return;
 	}

@@ -12,6 +12,7 @@ public class Umbra : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
+			"DeveloperSettings",
 			"InputCore",
 			"EnhancedInput",
 			"GameplayAbilities",

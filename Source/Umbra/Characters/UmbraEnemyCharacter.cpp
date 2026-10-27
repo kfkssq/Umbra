@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Characters/UmbraEnemyCharacter.h"
+#include "Audio/UmbraAudioComponent.h"
 #include "Stats/UmbraDerivedStatsComponent.h"
 #include "Equipment/UmbraEquipmentComponent.h"
 
@@ -22,6 +23,7 @@
 
 AUmbraEnemyCharacter::AUmbraEnemyCharacter()
 {
+	AudioEvents = CreateDefaultSubobject<UUmbraAudioComponent>(TEXT("AudioEvents"));
 	AIControllerClass = AUmbraAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 	AbilitySystemComponent = CreateDefaultSubobject<UUmbraAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
@@ -140,6 +142,7 @@ void AUmbraEnemyCharacter::Die()
 	}
 
 	bIsDead = true;
+	AudioEvents->PlayAuthority(EUmbraAudioEvent::Death, AudioEvents->GetContext(), GetActorLocation());
 	SpawnDeathLoot();
 	ApplyDeathState();
 	ForceNetUpdate();

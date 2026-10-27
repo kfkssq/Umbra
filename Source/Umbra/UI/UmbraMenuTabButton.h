@@ -42,4 +42,7 @@ protected:
 private:
 	UFUNCTION()
 	void HandleButtonClicked();
+	UFUNCTION() void HandleButtonHovered();
+	UFUNCTION() void HandleButtonUnhovered();
+	bool bAudioHovered = false;
 };

@@ -1,5 +1,7 @@
 # 编辑器配置入口
 
+2026-10-24：[音频配置指南](Audio/AudioSetupGuide.md)：新建 UmbraAudioLibrary，Project Settings → Game → Umbra Audio 选择默认库；角色 AudioEvents 可覆盖库/角色类型/命中表面。所有资源默认空，现有自动触发点无需增加蓝图播放节点；挥动/脚步需手动在动画添加 Umbra Audio Notify。未保存任何 Content 资产。[32项素材需求](Audio/AudioAssetRequirements.md)、[实际音频清单](Audio/AudioAssetInventory.md)。
+
 2026-10-21：[WorldItemLabel 避让与悬停](WorldItemLabels.md)：四件防具源模型已保存 Per Poly Collision；标签默认自动避让且可悬停/点击对应物品，无需新增 WBP Graph。控制器 World Item Label Gap 默认4 Slate单位。
 
 2026-10-21 修订：现有剑、锤和四件1730防具的有向盒已分别拟合。修改模型展示变换后，点击物品定义的 **Fit World Drop Physics** 并保存。BP 的旧 Maximum Simulation Time 显示为 **Settling Start Time**，现在只控制接地后开始减速，不再超时瞬移。新增渐变/异常回收参数和具体资产值见 [DropPhysics](DropPhysics.md)。
@@ -282,3 +284,7 @@ BP_WorldItem 的继承 VisualComponent 配置动画时长（秒）、高度（cm
 WorldItem.Mesh 的运行时碰撞现在是 QueryOnly / Visibility Block，其余通道 Ignore，替代此前 NoCollision。用于覆盖根部拾取球以外的锤头/剑尖；不启用物理或导航。鼠标复杂查询沿用模型复杂碰撞数据，导入模型若设置 Use Simple Collision As Complex 则不能保证逐三角形命中，需用户在编辑器确认。详见 [LootAndPickup](LootAndPickup.md)。
 
 渲染排查：2026-10-20 Saved/Logs/Umbra.log 已记录启动加载 AA=4、SecondaryScreenPercentage.GameViewport=100，并于07:56 UTC查询确认 LastSetBy=ProjectSetting。因此两项持久化有效，不能据画面问题认定配置未加载。主渲染比例/PIE编辑器覆盖及实际画质仍待现场核验，本轮没有再次改渲染配置。
+
+## 玩家死亡配置（2026-10-27）
+
+玩家蓝图 Death Animation 与 AudioEvents 的 Death 映射、配置脚本和覆盖顺序见 [PlayerDeath](PlayerDeath.md)。新增反射属性后需要关闭编辑器完整构建；资产由匹配版本编辑器脚本保存。

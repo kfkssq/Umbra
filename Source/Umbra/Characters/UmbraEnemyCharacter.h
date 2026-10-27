@@ -28,6 +28,7 @@ class UMBRA_API AUmbraEnemyCharacter : public ACharacter, public IUmbraAttackabl
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Audio") TObjectPtr<class UUmbraAudioComponent> AudioEvents;
 	AUmbraEnemyCharacter();
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	/** Enemy-owned ASC. Use it to bind attribute change delegates or apply Gameplay Effects. */

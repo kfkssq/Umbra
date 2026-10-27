@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Audio/UmbraAudioTypes.h"
 #include "GameFramework/PlayerController.h"
 #include "GameplayEffectTypes.h"
 #include "UI/UmbraAttributeDebugTypes.h"
@@ -45,6 +46,8 @@ class AUmbraPlayerController : public APlayerController
 	GENERATED_BODY()
 
 public:
+	AUmbraPlayerController();
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Audio") TObjectPtr<class UUmbraAudioComponent> AudioEvents;
 	/** Centimeters, checked again on the server; Blueprint defaults override native defaults. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "100", ClampMax = "500")) float PickupRange = 150.f;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "1", ClampMax = "60")) float PickupApproachTimeout = 15.f;
@@ -256,7 +259,7 @@ private:
 	void CancelPickupApproach();
 	void ReportPickupResult(EUmbraPickupResult Result);
 	UFUNCTION(Server, Reliable) void ServerPickupWorldItem(AUmbraWorldItem* Item);
-	UFUNCTION(Client, Reliable) void ClientPickupResult(EUmbraPickupResult Result);
+	UFUNCTION(Client, Reliable) void ClientPickupResult(EUmbraPickupResult Result, FUmbraAudioContext AudioContext);
 	TWeakObjectPtr<AUmbraWorldItem> PendingPickup;
 	TWeakObjectPtr<AUmbraWorldItem> QueuedPickup;
 	TWeakObjectPtr<AUmbraWorldItem> HoveredWorldItem;

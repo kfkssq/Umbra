@@ -1,4 +1,5 @@
 #include "UI/UmbraAttributeMenu.h"
+#include "Audio/UmbraAudioFunctionLibrary.h"
 
 #include "Components/WidgetSwitcher.h"
 #include "UI/UmbraMenuTabButton.h"
@@ -40,7 +41,9 @@ void UUmbraAttributeMenu::NativeDestruct()
 
 void UUmbraAttributeMenu::HandleTabClicked(int32 Index)
 {
+	const int32 Previous = CurrentTabIndex;
 	SetActiveTab(Index);
+	if (CurrentTabIndex != Previous) UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), EUmbraAudioEvent::PageChanged, {});
 }
 
 void UUmbraAttributeMenu::SetActiveTab(int32 Index)

@@ -4,6 +4,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "Characters/UmbraEnemyCharacter.h"
+#include "Characters/UmbraPlayerCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameplayTags/UmbraGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
@@ -70,6 +71,12 @@ void AUmbraAIController::Tick(float DeltaSeconds)
 		{
 			return;
 		}
+	}
+
+	if (const AUmbraPlayerCharacter* Player = Cast<AUmbraPlayerCharacter>(Target); Player && Player->IsDead())
+	{
+		ClearCombatTarget(false);
+		return;
 	}
 
 	const float DistanceSquared = FVector::DistSquared2D(Enemy->GetActorLocation(), Target->GetActorLocation());

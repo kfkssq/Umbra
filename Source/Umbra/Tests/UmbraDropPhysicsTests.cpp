@@ -4,6 +4,9 @@
 #include "Loot/UmbraWorldItemVisualComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/AudioComponent.h"
+#include "Audio/UmbraAudioComponent.h"
+#include "Audio/UmbraAudioLibrary.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -79,6 +82,7 @@ bool FUmbraDropPhysicsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Pickup volume follows motion"), Drop->Collision->GetComponentLocation().Equals(Drop->GetActorLocation(), 0.1f));
 	Advance(120);
 	TestTrue(TEXT("Natural support settles before timeout"), Drop->IsDropSettled());
+	TestTrue(TEXT("Real Chaos floor collision emits first landing event"), Drop->bLandAudioSent);
 	Advance(120);
 	TestTrue(TEXT("Bounded simulation settles"), Drop->IsDropSettled());
 	TestFalse(TEXT("Physics disabled permanently"), Drop->PhysicsBody->IsSimulatingPhysics());
@@ -98,6 +102,7 @@ bool FUmbraDropPhysicsTest::RunTest(const FString& Parameters)
 	Airborne->PhysicsStartTime = World->GetTimeSeconds() - 1;
 	Airborne->UpdateDropPhysics();
 	TestFalse(TEXT("Apex is not settled"), Airborne->IsDropSettled());
+	TestFalse(TEXT("Airborne support queries never emit landing audio"), Airborne->bLandAudioSent);
 	TestEqual(TEXT("Unsupported rest does not accumulate"), Airborne->StableSeconds, 0.f);
 	// The old deadline must not teleport or add aerial damping, even well after three seconds.
 	Airborne->SetActorLocation(FVector(5000, 0, 500), false, nullptr, ETeleportType::TeleportPhysics);
@@ -134,6 +139,26 @@ bool FUmbraDropPhysicsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Late client receives exact settled pose"), Replica->GetActorTransform().Equals(SettledPose));
 	TestFalse(TEXT("Late client does not simulate"), Replica->PhysicsBody->IsSimulatingPhysics());
 	TestFalse(TEXT("Late client does not tick"), Replica->IsActorTickEnabled());
+	TestFalse(TEXT("Motion without item payload cannot initialize ambience"), Replica->bLootAmbienceConfigured);
+	Replica->ItemInstance = Drop->ItemInstance;
+	Replica->AudioEvents->LibraryOverride = NewObject<UUmbraAudioLibrary>(Replica);
+	FUmbraAudioEntry SilentRarity;
+	SilentRarity.Event = EUmbraAudioEvent::LootRarity;
+	Replica->AudioEvents->LibraryOverride->Events.Add(SilentRarity);
+	Replica->RefreshPresentation();
+	TestTrue(TEXT("Late settled item initializes ambience after payload arrives"), Replica->bLootAmbienceConfigured);
+	// Inject a silent component to verify lifecycle cleanup without a sound device or saved asset.
+	auto* SilentLoop = NewObject<UAudioComponent>(Replica);
+	SilentLoop->bAutoActivate = false;
+	SilentLoop->RegisterComponent();
+	Replica->LootAmbience = SilentLoop;
+	World->GetTimerManager().SetTimer(Replica->LootAmbienceTimer, FTimerDelegate::CreateLambda([] {}), 1.f, true);
+	Replica->bPickedUp = true;
+	Replica->RefreshPresentation();
+	TestNull(TEXT("Pickup clears owned ambience"), Replica->LootAmbience.Get());
+	TestFalse(TEXT("Pickup clears ambience retry timer"), World->GetTimerManager().IsTimerActive(Replica->LootAmbienceTimer));
+	TestFalse(TEXT("Pickup destroys the audio component"), SilentLoop->IsRegistered());
+	Replica->bPickedUp = false;
 	Replica->DropMotion.bSettled = false;
 	Replica->DropMotion.Location += FVector(100, 0, 0);
 	Replica->OnRep_DropMotion();
