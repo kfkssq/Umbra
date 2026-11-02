@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "note": "Presentation suggestions only; no WeaponProfile, AllowedSlots or combat values are assigned. Review before applying to ItemDefinition.",
+  "weapons": {
+    "1": {"ItemCategory": "Weapon", "WeaponType": "Dagger"},
+    "3": {"ItemCategory": "Weapon", "WeaponType": "OneHandedSword"},
+    "5": {"ItemCategory": "Weapon", "WeaponType": "TwoHandedSword"},
+    "7": {"ItemCategory": "Weapon", "WeaponType": "TwoHandedSword"},
+    "9": {"ItemCategory": "Weapon", "WeaponType": "OneHandedSword"},
+    "11": {"ItemCategory": "Weapon", "WeaponType": "TwoHandedSword"},
+    "15": {"ItemCategory": "Weapon", "WeaponType": "Rapier"},
+    "17": {"ItemCategory": "Weapon", "WeaponType": "OneHandedAxe"},
+    "19": {"ItemCategory": "Weapon", "WeaponType": "TwoHandedAxe"},
+    "21": {"ItemCategory": "Weapon", "WeaponType": "OneHandedMace"},
+    "23": {"ItemCategory": "Weapon", "WeaponType": "TwoHandedMace"},
+    "25": {"ItemCategory": "Weapon", "WeaponType": "Spear"},
+    "28": {"ItemCategory": "Weapon", "WeaponType": "Spear"},
+    "29": {"ItemCategory": "Weapon", "WeaponType": "Halberd"},
+    "50": {"ItemCategory": "Weapon", "WeaponType": "Bow"},
+    "51": {"ItemCategory": "Weapon", "WeaponType": "Bow"},
+    "53": {"ItemCategory": "Weapon", "WeaponType": "Bow"},
+    "55": {"ItemCategory": "Weapon", "WeaponType": "Crossbow"},
+    "57": {"ItemCategory": "Weapon", "WeaponType": "Staff"}
+  },
+  "armor": {
+    "0": {"ItemCategory": "Armor", "SuggestedSlot": "Head"},
+    "1": {"ItemCategory": "Armor", "SuggestedSlot": "Chest"},
+    "2": {"ItemCategory": "Armor", "SuggestedSlot": "Hands"},
+    "3": {"ItemCategory": "Armor", "SuggestedSlot": "Legs"}
+  }
+}

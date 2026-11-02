@@ -88,10 +88,11 @@ bool UUmbraEquipmentComponent::ValidateItem(const UUmbraItemDefinition* Item) co
 EUmbraEquipResult UUmbraEquipmentComponent::Equip(EUmbraEquipmentSlot Slot, UUmbraItemDefinition* Item, FGuid InstanceId)
 {
 	// Legacy definition-only grants remain valid for fixed gear; random gear must be created first.
-	if (IsValid(Item) && !Item->AffixRollConfigs.IsEmpty()) return EUmbraEquipResult::InvalidItem;
+	if (IsValid(Item) && (!Item->AffixRollConfigs.IsEmpty() || Item->GenerationProfile)) return EUmbraEquipResult::InvalidItem;
 	FUmbraItemInstance Instance;
 	Instance.Definition = Item;
 	Instance.InstanceId = InstanceId;
+	if (!Instance.UpgradeLegacy()) return EUmbraEquipResult::InvalidItem;
 	// Preserve the legacy fixed-item replacement API. Random instances require the complete API.
 	const auto* Existing = Snapshot.Items.FindByPredicate([Slot](const auto& Entry) { return Entry.Slot == Slot; });
 	if (Existing && !Existing->RolledAffixes.IsEmpty()) return EUmbraEquipResult::InvalidItem;
@@ -148,9 +149,7 @@ EUmbraEquipResult UUmbraEquipmentComponent::EquipInstance(EUmbraEquipmentSlot Sl
 	Snapshot.Items.RemoveAll([Slot](const FUmbraEquippedItem& Entry) { return Entry.Slot == Slot; });
 	FUmbraEquippedItem& Entry = Snapshot.Items.AddDefaulted_GetRef();
 	Entry.Slot = Slot;
-	Entry.InstanceId = InstanceId;
-	Entry.Definition = Item;
-	Entry.RolledAffixes = Instance.RolledAffixes;
+	Entry.SetInstance(Instance);
 	if (OldHandle.IsValid()) BoundASC->RemoveActiveGameplayEffect(OldHandle);
 	if (ReplacedItem) *ReplacedItem = PreviousItem;
 	Derived->bEquipmentUpdating = false;

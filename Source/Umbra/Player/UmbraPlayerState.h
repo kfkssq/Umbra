@@ -38,7 +38,9 @@ enum class EUmbraTransferResult : uint8
 	EffectRejected,
 	AppliedInvalid,
 	TransferFailed,
-	SlotSelectionRequired
+	SlotSelectionRequired,
+	Pending,
+	StaleRequest
 };
 
 /** Persistent replicated owner of a player's ability system and attributes. */
@@ -77,6 +79,8 @@ public:
 	/** Unequip an item and return it to the inventory. Requires an empty cell; rolls back on failure. */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory|Transfer")
 	EUmbraTransferResult UnequipToInventory(EUmbraEquipmentSlot Slot, FGuid ExpectedInstanceId, FUmbraInventoryItem& OutReturnedItem);
+	EUmbraTransferResult UnequipToInventorySlot(EUmbraEquipmentSlot Slot, FGuid ExpectedInstanceId, int32 TargetSlot, FUmbraInventoryItem& OutReturnedItem);
+	EUmbraInventoryResult MoveInventoryItem(FGuid InstanceId, int32 TargetSlot);
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	UUmbraInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }

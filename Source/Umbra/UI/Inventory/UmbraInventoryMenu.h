@@ -22,6 +22,7 @@ UCLASS(Blueprintable, meta = (DisableNativeTick))
 class UMBRA_API UUmbraInventoryMenu : public UUserWidget
 {
 	GENERATED_BODY()
+	friend class UUmbraItemDragDropOperation;
 public:
 	/** Shared WBP_ItemTooltip, configured in the menu's Class Defaults. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Tooltip") TSubclassOf<UUmbraItemTooltip> ItemTooltipClass;

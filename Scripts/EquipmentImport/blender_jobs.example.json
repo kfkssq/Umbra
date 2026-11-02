@@ -1,0 +1,12 @@
+{
+  "report": "export_report.json",
+  "jobs": [
+    {
+      "source": "Sword.blend",
+      "collection": "Sword",
+      "output": "Export/Sword.fbx",
+      "material_names": { "OriginalBladeMaterial": "Blade" }
+    },
+    { "source": "Armor.fbx", "output": "Export/Armor.fbx" }
+  ]
+}

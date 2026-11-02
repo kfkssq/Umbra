@@ -16,6 +16,7 @@ void AUmbraLootTestSpawner::BeginPlay()
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 	if (!HasAuthority() || bSpawned) return;
 	bSpawned = true;
+	FRandomStream ItemSeeds(GenerationSeed);
 	// Test fixture: 100 cm spacing, static ground within 500 cm, 2 cm clearance.
 	for (int32 Index = 0; Index < Items.Num(); ++Index)
 	{
@@ -29,9 +30,13 @@ void AUmbraLootTestSpawner::BeginPlay()
 			continue;
 		}
 		FUmbraItemInstance Instance;
-		if (!FUmbraItemInstance::Create(this, Items[Index], FGuid::NewGuid(), Instance))
+		FString GenerationError;
+		const bool bCreated = Items[Index] && Items[Index]->GenerationProfile
+			? UmbraItemGeneration::Generate(this, Items[Index], GenerationContext, int32(ItemSeeds.GetUnsignedInt() & MAX_int32), FGuid::NewGuid(), Instance, GenerationError)
+			: FUmbraItemInstance::Create(this, Items[Index], FGuid::NewGuid(), Instance);
+		if (!bCreated)
 		{
-			UE_LOG(LogUmbra, Warning, TEXT("Loot test index %d: invalid definition; skipped."), Index);
+			UE_LOG(LogUmbra, Warning, TEXT("Loot test index %d: generation rejected: %s"), Index, *GenerationError);
 			continue;
 		}
 		const FTransform Transform(FRotator::ZeroRotator, Ground.ImpactPoint + FVector(0, 0, 2));
@@ -41,6 +46,8 @@ void AUmbraLootTestSpawner::BeginPlay()
 		if (!Item) continue;
 		if (!Item->InitializeInstance(Instance)) { Item->Destroy(); continue; }
 		Item->FinishSpawning(Transform);
+		UE_LOG(LogUmbra, Display, TEXT("RandomMVP item=%s guid=%s seed=%d level=%d rarity=%d affixes=%d"),
+			*Instance.DefinitionId.ToString(), *Instance.InstanceId.ToString(), Instance.GenerationSeed, Instance.GetItemLevel(), int32(Instance.GetRarity()), Instance.RolledAffixes.Num());
 	}
 #endif
 }

@@ -35,7 +35,7 @@ void UUmbraWorldItemLabel::RefreshVisuals()
 		FSlateColor NameColor = DefaultNameColor;
 		if (Definition)
 		{
-			const FLinearColor& Color = Definition->RarityColor;
+			const FLinearColor Color = Item.GetRarityColor();
 			// Transparent/nonfinite/negative colors are unset; opaque black is a valid authored color.
 			if (FMath::IsFinite(Color.R) && FMath::IsFinite(Color.G) && FMath::IsFinite(Color.B)
 				&& FMath::IsFinite(Color.A) && Color.A > 0.f && Color.R >= 0.f && Color.G >= 0.f && Color.B >= 0.f)

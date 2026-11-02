@@ -159,6 +159,7 @@ struct FUmbraItemTooltipData
 	UPROPERTY(BlueprintReadOnly) EUmbraItemRarity Rarity = EUmbraItemRarity::Common;
 	UPROPERTY(BlueprintReadOnly) int32 ItemLevel = 1;
 	UPROPERTY(BlueprintReadOnly) FLinearColor RarityColor = FLinearColor::White;
+	UPROPERTY(BlueprintReadOnly) bool bTintRarityBackgrounds = false;
 	UPROPERTY(BlueprintReadOnly) TObjectPtr<UTexture2D> TooltipTitleBackgroundTexture;
 	UPROPERTY(BlueprintReadOnly) TObjectPtr<UTexture2D> TooltipIconBackgroundTexture;
 	UPROPERTY(BlueprintReadOnly) double TotalBaseDamage = 0.;

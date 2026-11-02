@@ -1,4 +1,129 @@
 # Umbra 进度与验证状态
+
+## 装备全量队列入口（2026-11-02）
+
+- [ImportAllEquipment.ps1](../Scripts/EquipmentImport/ImportAllEquipment.ps1)提供一次启动、固定清单、顺序分组导入/回读和断点续跑。失败材质单独记录、不循环重试；环境故障停止并保留待处理项。细节见[批量操作教程](EquipmentBulkImport.md)。
+- 51项Python回归通过（含模拟中断/恢复/完成后零启动）；实际PowerShell Dry Run固定剩余857件，29批/143组。默认队列Equipment_All_001，清单与状态位于Saved，不入Git；正式目标为Library。
+- 本次只交付脚本并生成计划，未启动全量UE导入，未运行C++构建或PIE。此前Equipment_001真实导入验证继续有效，但不等同于新总队列已全量验收。
+
+## 首批正式装备资源导入（2026-11-02）
+
+- 新增显式Library目标，默认Staging行为不变；模型、材质、icon与展示草稿统一使用清单中的目标位置。Library可进入Git/LFS，不依赖被忽略的测试目录。正式入口见[批量导入](EquipmentBulkImport.md)。
+- Equipment_001按每进程6件处理30件：24件资源成功、214个资产包，其中13份展示草稿、11件现有类别尚未映射的仅资源；6件特殊材质隔离（鳞甲、黑王大剑、诺克斯流体剑、铁头盔、蒙格温圣矛、皮革长裤）。资产位于`/Game/EquipmentImport/Library/Equipment_001`。
+- 最终45项Python测试通过；独立UE进程24件回读全部通过，检查模型、骨架、材质/父材质/贴图、icon和草稿引用均在本批目录，以及实际纹理设置和参数。未做本批逐件视觉验收、PIE、掉落物理、穿戴验证或C++编译；没有提交或推送。
+- 本机结果：`Saved/EquipmentImport/Bulk/Bulk_9e73885b/report.json`、`report.md`、`verification.json`、6项`retry.json`。排除本批所有已尝试模型后，第二批30件计划已生成于`Saved/EquipmentImport/Bulk/Equipment_002_39cc5630/selection.json`，尚未执行；续跑使用该固定清单，不能重新从第一条自动选样。
+
+## 装备批量管线修正（2026-11-02）
+
+- [正式入口、边界与实测](EquipmentBulkImport.md)：一键选样/Dry Run、分块执行、失败隔离、缓存与增量重试；补齐MATBIN精确默认引用、共享贴图、主/细节法线区分、裁切/双面规则，修复布料次级POSITION误追加及多静态部件WorldDrop导入。
+- 最终BatchReady42_03实际42件：33件资源成功（23份展示草稿、10件分类待映射的仅资源），9件特殊/常量材质隔离；保存311包。新UE进程33件回读通过，7件14张高清预览生成、进程正常退出。基础外观不等于完整原版着色器还原。
+- 成功33件复跑保存0、失败0；6938个既有资产包、42件源模型/icon、311个本批资产包哈希不变。最终44项Python回归通过；材质索引辅助C#工具正式入口构建成功且索引重建一致。
+- 未验证PIE、穿戴、掉落物理或Unreal C++构建。预览启动阶段仍有13条AutomationTest条件错误（在Python运行前），未定位；不宣称项目整体日志无错误。详见上述实测文档和本机Saved报告。
+
+## 18件跨类型导入测试（2026-11-01）
+
+- [逐项结果与限制](EquipmentBatchCoverage18.md)：18件均满足模型/icon存在门槛；7件成功导入，6份草稿+1件盾资源，保存68包。11件因模板/Alpha/detail法线/贴图命名被拒绝；不能声称当前规则覆盖大多数装备。
+- 两个新UE进程回读7件通过，生成28张光照/BaseColor预览；33项Python回归通过；6870个既有资产包导入后哈希零变化。未运行PIE/穿戴/原版外观还原验收。
+
+## 普通模板直接法线（2026-11-01）
+
+- [匕首验证与默认规则](DaggerNormalValidation.md)：_n原PNG以Normalmap/sRGB=false接入，真实帧渲染对比观察到细节响应。普通metal/leather/fabric/belt模板采用RG约定与引用/缩放/保真检查；未知B/A及_m不接线。
+- ItemNormalAuto01默认一站式成功19包，三处法线绑定回读通过，重跑零保存；33项Python测试通过。未声称原版逐像素还原或全库逐件视觉验收。
+
+## 小批物品一站式导入（2026-11-01）
+
+- [入口与验证](EquipmentItemImport.md)：ImportItems.ps1 接通源资料门槛、DCX/Blender、UE 模型材质、UI icon、独立 ItemDefinition 展示草稿。匕首+旅行手套共18包成功，既有配置不覆盖，不自动赋战斗/生成配置。
+- 实际RHI材质编译与新进程回读通过；重跑零保存，85个包哈希不变。27项Python测试及4项实际输入负向检查通过。
+- 未验收：最终材质外观、匕首特殊法线、PIE/掉落物理/穿戴适配；1140仍为限定候选规则，不能推广全库。
+
+## 装备源资料关联（2026-11-01）
+
+- 新增模型+icon同时存在且对应明确的资源入选门槛：3391条入选、1083条排除；6项测试通过。多模型变体待选择、缺失或重复icon不进入候选清单。只验证源文件与编号，未执行UE导入。
+
+- [使用与验证](EquipmentItemCatalog.md)：BuildItemCatalog.ps1 只读两张 CSV、中文 JSON、icon 和 parts，输出源物品目录、资源去重索引及异常报告；不写 UE/ItemDefinition。
+- 实测 4474 条记录，4151 条匹配名称、4308 条找到模型候选、3623 条所需 icon 按编号找到。5 项边界测试通过；全量重复构建结果一致、输入哈希未变、建议枚举与当前头文件一致。
+- 待确认：数据版本一致性、icon 视觉对应、男女/骨骼适配；UE icon/资料导入及 ItemDefinition 补全尚未实现。本次未编译 C++ 或运行 PIE。
+
+## AM_M_1140 材质通道审计（2026-11-01）
+
+- [证据、候选规则与复验](Material1140Audit.md)：读取实际Test01确认仅BaseColor接线；DDS仅_a/_n，没有_m。新增单模板+源哈希限定的RG法线重建及1-B粗糙度候选，输出到Material1140Review，默认规则和Test01不改。
+- Blender通道转换7测试、纯Python回归21测试通过；实际候选7包导入、回读配置、重复零保存与Test01哈希保护通过。视觉、绿色方向、Alpha用途和原版材质还原未验收，不能推广为所有法环贴图规则。
+- 显式AllowCommandletRendering后D3D12/SM6实际编译通过，0编译错误、4采样器；原Test01和候选包哈希保持不变。该结果不是人工视觉验收。
+
+## DCX源资源导入入口（2026-11-01）
+
+- [流程与当前限制](EquipmentDcxImport.md)：ImportDcx.ps1接通原DCX→Witchy→Blender插件→FBX/PNG→UE，默认只列计划，Apply执行，缓存与失败报告在Saved。
+- 新武器wp_a_0100（两个模型）与新防具am_m_1130端到端成功；后者重复运行缓存复用、UE零保存；19项Python测试通过。am_m_1140仅转换通过；四种贴图/Alpha/特殊材质异常真实触发并保留失败报告。
+- 未运行全部3046包、GPU/PIE视觉或穿戴验收。未知法线/遮罩不连接，Hair/crystal等特殊模板不自动猜测；规则扩展仍需验证。未接Icon/params或修改Definition。
+
+## 模型与材质批导入 M1（2026-10-31）
+
+- [流程、配置和验收](EquipmentAssetImportM1.md)：独立 EquipmentImport 脚本，FBX/PNG、三类基础Master/MI、精确槽绑定、隔离输出与增量保护；不改Icon/Definition。
+- UE 5.8.2六件真实样品导入23包、三个材质探针15包；独立重载与重复零写入、手改保留、冲突拒绝通过；标准库13测试通过。最终目录M1Validated/M1Probes，早期M1Samples失败诊断包不作交付样品。
+- NullRHI验证不代表视觉验收；源FBX绑定姿势/平滑组有告警。未执行Blender、PIE视觉、穿戴适配、GPU着色或生产规模测试；未改C++，未重新编译。本次止于M1，DDS/特殊编码转换和Icon参数匹配未实现。
+
+## 六品质、掉落音效与客户端Tooltip修复（2026-10-31）
+
+- [修复契约和复验步骤](SixRarityRepair.md)：Common白、Magic绿、Rare蓝、Epic深紫、Legendary玫红、Unique暗金。生成校验支持全部六品质；RandomMVP扩为六行、规则版本2。实际实例品质驱动标题、品质文字、槽位背景/边框和Tooltip背景；物品图标本体不染色。
+- UE保存6个固定定义和2个测试生成配置，清单在 `Saved/SixRarityMigration.json`；音效库迁移前后SHA256相同。保留既有地图、音效和其他未提交修改，本轮未保存地图、未提交/推送。
+- 修复客户端时钟暂不可用时过早消耗生成音、落稳状态导致新物品静音、不同品质共享全局冷却互相压制。仍保留同品质冷却和超过1秒历史掉落不补播规则。
+- **UE 5.8.2 UmbraEditor Win64 Development编译通过**，`Saved/Logs/SixRarityBuild.log`。**相关自动化22/22通过**（20成功、2带警告、0失败），`Saved/Automation/SixRarityFinal/index.json`；范围 Umbra.Audio、Umbra.Items、Umbra.UI.Items、Umbra.Loot.DropPhysics。旧标题固定白色断言按本轮品质色要求更新后重跑通过。未重跑旧Armor1730Definitions，不宣称历史差异已解决。
+- **真实Health归零→敌人死亡→掉落单机PIE通过**：六品质各1件，逐件拾取和Tooltip品质/颜色/背景开关校验通过，`Saved/SixRarityDeathPIE.json`。`Saved/SixRarityAudioDispatch.json`按Actor逐件匹配日志，六件各有且仅有1次LootSpawn，分别使用库中六种正确音源；同帧掉落均触发。脚本首次受UE Python接口限制及Guid包装对象比较影响，修正测试适配后最终通过；以最终报告为准。
+- **专用服务器+客户端网络PIE通过**：3个World、100ms延迟/10%丢包；远端背包和装备Tooltip均有效，详细需求保持未知，已装备需求状态来自服务器。复制、穿戴/卸装/移动RPC、实际GE伤害快照同轮通过。证据 `Saved/TooltipNetworkDedicated.json`、`Saved/Logs/TooltipAfter.log`；修复前 `TooltipBefore.log`实际复现 ContextUnavailable。
+- **未验证**：真实鼠标悬停视觉、六色屏幕观感、耳听音量/设备输出、打包独立客户端。死亡PIE启用音频但使用nullrhi，日志只证明播放API请求；网络PIE使用nullrhi/nosound。当前测试不替代人工视听验收。
+
+## M5 批量资产管线：核心实现与样品闭环已验证（2026-10-30）
+
+- [管线契约与运行方法](EquipmentPipelineM5.md)：清单驱动来源/hash/类型/生成池校验，默认 dry-run/CreateMissingOnly；UpdateManagedFields 以同包基线进行三方比较，保留锁定字段，冲突全批停止，支持选中ID、失败报告和已保存包续跑。未新增运行时全库加载。
+- 本轮 UE 5.8.2 UmbraEditor Win64 Development **编译通过**，日志 EquipmentM5Build.log；未改模块/Target。新增 TryFitWorldDropPhysics 可观测拟合成功/失败，保留原 Blueprint void 入口。首次编译发现不可达返回语句，已修复。
+- **9/9 Python测试通过**：源hash/路径/来源、预检不写、重复零写、手改/锁/选中ID、提交后恢复。**Umbra.Loot.DropPhysics 1/1通过，无警告**，证据 Saved/Automation/EquipmentM5/index.json。本轮未重跑M4全套37项；旧 Armor1730Definitions 差异没有修改，不宣称已解决。
+- UE 实际导入保存 10定义+10静态网格+10透明图标，另一个测试生成器，共31包：/Game/Items/Tests/PipelineM5。全部 .uasset 和 PNG 使用既有 LFS 属性；OBJ 是自有文本几何且已从编译器 .obj 忽略规则中精确豁免。来源 Scripts/EquipmentPipeline/PROVENANCE.md；样品不是正式美术。
+- 初次导入遇到 DataAssetFactory Python 属性访问错误，仅保存2个依赖包；修正后新进程复用依赖并完成其余28包。Saved/EquipmentPipeline/apply.json 与 apply-resumed.json 记录这次真实恢复。未覆盖已有导入。
+- 独立编辑器重载、原生DataValidation、物理拟合参数和注册表依赖通过；两种模式再次执行0保存且包哈希不变。Saved/EquipmentPipeline/audit.json、CreateMissingOnly.json、UpdateManagedFields.json；Saved/Logs/EquipmentM5Verify.log。最初30包218682字节，首次独立验证进程峰值物理内存1734MB含整个编辑器，暖加载计时不能当作冷加载或运行时性能。
+- **单机PIE 10/10模板通过**：Saved/EquipmentM5PIESmoke.json、Saved/Logs/EquipmentM5PIE.log。真实拾取→穿戴→卸装，完整实例字段保持；显式设单机并恢复原播放设置，干净EndPIE。仅临时放置Actor，不保存地图。运行使用nullrhi/nosound，未验收真实视觉/音效。
+- 最终编辑器适配器验收通过：临时手改重量触发冲突且0保存；单ID修改显示名仅保存1包，通过管线恢复原值后全清单再次0保存。证据 manual-conflict.json、selected-update.json、selected-restore.json、final-noop.json。最终 audit.json 包含31包244531字节，验证进程峰值1702MB；这些文件位于 Saved/EquipmentPipeline。
+- **Windows Cook通过，退出0、0错误/0警告**：Saved/Logs/EquipmentM5Cook.log，334.41秒；614包烘焙、7包平台跳过，共621包，包含引擎/插件公共资源；峰值物理内存4227MB。原生 AssetRegistryDump 解码 DevelopmentAssetRegistry.bin 后验证31个样品包及武器/生成配置直接引用均有非零Cook包数据，Saved/EquipmentPipeline/cook-audit.json 与 CookRegistryFirst/AssetRegistry。不是只Cook30包，也不是打包客户端运行验收。Cook后进行过显示名更新/恢复测试，内容恢复但编辑器包序列化字节不保证与Cook前完全相同。
+- 未验证：正式美术质量/真实UI可读性、骨骼FBX/材质槽分支、Blender实际运行（未安装）、穿戴外观、打包独立客户端冷加载和大规模性能。未更改正式地图/掉落表；未提交/推送，用户已有改动保留。M6尚未开始。
+
+## 随机装备 M4：实现、真实网络 PIE 核心闭环已验证（2026-10-30）
+
+- 公共池支持 Damage A/X，沿用原条件过滤和 TypedExecution。装备 GE 使用可复制 `FUmbraEquipmentEffectContext` 保存伤害快照；旧内嵌随机伤害和公共池伤害统一读取，不再根据当前模板重建随机条件。每件装备仍只持有一个 GE，卸下准确撤销。配置/序列化边界见 [M4实施说明](RandomEquipmentM4.md)。
+- 拥有者 Controller 新增穿戴/卸装/移动 Reliable RPC。请求仅含 GUID、槽位、操作和预期 Revision；服务端固定操作自身 PlayerState，校验请求序号、所有权与快照版本，复用原事务。客户端一次一个挂起请求，按请求号处理反馈，不预测修改背包；菜单与拖拽已接入。
+- **最终编译通过**：UE 5.8.2 UmbraEditor Win64 Development，`Saved/Logs/RandomM4Build.log`；保留既有引擎弃用/非首选编译器警告。未改模块依赖或 Target。
+- **最终相关自动化36/37通过**：32无警告、4带警告、1失败；`Saved/Automation/RandomM4Verified/index.json`、`Saved/Logs/RandomM4Verified.log`。新增 `Umbra.Items.Generation.DamageSnapshot`、`Umbra.Inventory.RequestProtocol` 通过，覆盖位流往返（含条件TagQuery）、深拷贝、真实扣血、模板变更隔离、单句柄/撤回、重复/过期/越权请求。旧内嵌 A/X、转移失败回滚与UI回归通过。
+- **唯一保留失败仍为 `Umbra.Loot.Armor1730Definitions`**：和M0/M1–M3相同的5条资产固定值差异；未覆盖用户资产或放宽旧断言。
+- **Listen Server + 远端客户端通过**：`Saved/RandomM4NetworkListen.json`、`Saved/Logs/RandomM4NetworkListen.log`，2个PIE世界。实际 `PktLag=100`、`PktLoss=10` 设置有引擎日志；服务器拾取后完整实例复制到拥有者，远端穿戴RPC成功，客户端实际活动GE收到2条伤害快照；远端卸装后快照移除，移动至第23格并保持全部实例字段。
+- **编辑器内专用服务器 + 客户端通过**：`Saved/RandomM4NetworkDedicated.json`、`Saved/Logs/RandomM4NetworkDedicated.log`，3个PIE世界，同样100ms延迟/10%丢包，以上闭环通过。属于同进程多World网络PIE，不能称为打包独立服务器或跨机器测试。
+- 网络脚本为 [smoke_random_m4_network.py](../Scripts/smoke_random_m4_network.py)。首次运行发现编辑器设置未导出到Python，且Python执行保护将Actor RPC强制本地；新增Tests下适配器恢复真实网络callspace并在结束还原播放设置。生产权限检查未放宽。仅最终两个JSON作为通过证据。
+- **6个独立M4资产**：`/Game/Items/Tests/RandomM4`，UE保存、LFS属性确认。创建日志 `Saved/Logs/RandomM4Assets.log`；ItemDefinition原生DataValidation最终退出0，`Saved/Logs/RandomM4Validation.log`。原模板、正式地图、正式掉落表与Config无新增改动；用户已有音频及拖拽修改保留。未提交/推送。
+- 自动审批曾因服务用量限制中断一次最终回归启动，该命令当时未执行；用户要求继续后审批成功，最终回归和专用服务器PIE已完成。
+- **未验证/待人工验收**：真实视听和鼠标菜单操作、双玩家实际拾取RPC竞争、网络满包失败场景、断线重连/晚相关、打包独立服务器与跨机器。原生测试覆盖事务满包和同物品重复拾取，但不能替代以上网络场景。运行采用 `-nullrhi -nosound`；M4核心实现已交付，路线图人工验收未全部关闭，M5当前状态见顶部条目。
+
+## 随机装备 M1–M3：实现与单机自动验证已交付，人工验收待完成（2026-10-30）
+
+- M1：版本化实例携带稳定定义 ID、等级、品质、seed、规则版本及完整词缀；背包/装备统一 SetInstance/GetInstance；保留 Blueprint 旧字段投影、版本0适配与旧固定装备入口。内存 DTO 序列化往返已验证，不包含完整存档系统。
+- M2：新增 AffixDefinition、AffixPool、GenerationProfile、Context 和确定性生成器。Primary/Attribute 公共池支持等级档、三品质权重、分类/槽位/品质/Tags 过滤、语义去重、互斥组、候选值和失败原子性；编辑器模板校验已接入。详见 [配置与实施契约](RandomEquipmentMVP.md)。
+- M3：接入敌人/测试生成器；Tooltip、世界展示、背包/装备与音频上下文读取实例品质。UE 5.8.2 创建并保存 `/Game/Items/Tests/RandomMVP` 下11个独立资产，复用剑/胸甲模型，不改原模板、地图或正式掉落表。测试资产使用 LFS 规则；未提交或推送，用户原有音频/拖拽等改动保留。
+- **编译通过**：UmbraEditor Win64 Development，`Saved/Logs/RandomM123Build.log`。仍有既有引擎弃用/编译器非首选警告。
+- **自动化34/35通过**：29无警告通过、5带警告通过、1失败。报告 `Saved/Automation/RandomM123Verified/index.json`，日志 `Saved/Logs/RandomM123Verified.log`。范围与M0相同，新增 `Umbra.Items.Generation.Rules`、`Umbra.Items.Generation.Lifecycle` 均通过，覆盖固定seed/排序不变、权重/过滤/互斥错误、DTO往返、真实TryPickup、GAS应用/撤回、完整metadata转移及展示。不将退出码0当作全绿。
+- **唯一保留失败**：`Umbra.Loot.Armor1730Definitions`，仍为M0已有的5条资产固定值断言差异；未通过覆盖用户资产或放宽断言消除它。临时World无Context与现有UI警告有记录，未成为新增测试失败。
+- **单机 headless PIE 通过**：`Saved/RandomMVPPIESmoke.json`、`Saved/Logs/RandomMVPPIE.log`。真实 L_Prototype 临时生成12件（6 Common、5 Magic、1 Rare；剑/胸甲各6件），逐件 TryPickup→穿戴→卸装，逐字段保持 ID/版本/等级/品质/seed/档位/候选/掷值，GUID唯一，正常 EndPIE，未保存地图。脚本 [smoke_random_mvp_pie.py](../Scripts/smoke_random_mvp_pie.py)。
+- **原生资产校验通过**：DataValidation 对8个注册 ItemDefinition 执行校验，包含两个新模板及其池/Profile；命令结果0，日志 `Saved/Logs/RandomMVPValidation.log`。资产创建日志 `Saved/Logs/RandomMVPAssets.log`。
+- 首轮验证修复了旧固定 Equip 版本0与背包版本1冲突，以及测试代码数组自引用、Python GUID比较问题；以上最终报告已重跑，不采用失败轮次充当通过证据。构建/运行日志时间为执行主机2026-10-29；本条按客户端2026-10-30收尾。
+- **尚未验证**：真实渲染中的品质框/Tooltip视觉、实际听感、人工鼠标导航拾取/拖拽/菜单重开、双端网络、打包。当前自动化/PIE使用 `-nullrhi -nosound`；M3人工验收不标通过。M4公共Damage池与多人装备生命周期未开始。
+
+## 随机装备 M0：源码基线已建立，资产基线与人工验收待确认（2026-10-29）
+
+- 新增 [UmbraRandomEquipmentBaselineTests.cpp](../Source/Umbra/Tests/UmbraRandomEquipmentBaselineTests.cpp)：`Umbra.Items.RandomBaseline.Creation`、`Umbra.Items.RandomBaseline.TransferAndEffects`。覆盖5/6档/显式候选、整数重复与非法范围、权限/GUID/重复词缀拒绝、完整payload比较、世界实例接收、Tooltip实际值、同GUID篡改拒绝、移动/穿脱/重注册不重掷、低等级/错槽/满包/GE拒绝、双向中途失败回滚、随机Primary/Attribute/A/X真实生效及卸下恢复。
+- 兼容约束见 [ItemInstanceAffixes 的 M0 节](ItemInstanceAffixes.md#m0-基线契约2026-10-29)：未来版本适配保留既有掷值；不改变SelectedTier语义。本轮未新增实例字段、词缀池、生成规则、存档或平衡数值；M1未开始。
+- 修正测试与现实现的差异：Tooltip普通词缀改用AffixEntry，X单独展示；Hover测试改读菜单持有的Tooltip，并提供无界面视口容器；非法武器范围日志列为精确预期错误；DropPhysics复制夹具显式DispatchBeginPlay，使音频生命周期断言实际运行。未修改这些模块的生产玩法逻辑。
+- 构建前发现已有拖拽修改使两个槽位cpp不再首先include自身头文件；本轮仅调整 `UmbraInventorySlot.cpp` / `UmbraEquipmentSlotWidget.cpp` 的前两行顺序，保留用户其他修改。
+- **编译通过**：Launcher安装记录确认UE 5.8.2，UmbraEditor Win64 Development；日志 `Saved/Logs/RandomM0Build.log`。保留编译器版本非首选、引擎弃用API警告。初次沙箱构建/DDC访问失败，获准系统环境后执行成功；中途自动审批服务用量限制曾阻止一次构建，用户要求继续后重试成功。
+- **最终自动化32/33通过**（29项无警告通过、3项带警告通过，1项失败、0未运行）：报告 `Saved/Automation/RandomM0Verified/index.json`，日志 `Saved/Logs/RandomM0Verified.log`。覆盖 `Umbra.Items`、`Umbra.Equipment`、`Umbra.Inventory`、`Umbra.Loot`、`Umbra.Damage`、`Umbra.UI.Items`、`Umbra.UI.Equipment`、`Umbra.Attributes.WeaponDerivedPower`。不能按进程退出码0误称全绿；以JSON测试状态为准。新随机生命周期测试有一次临时World无Context的DestroyActor警告，未发生测试错误；另外两项带警告为HoverAndLabelLayout和PageVisibility。
+- **保留失败：`Umbra.Loot.Armor1730Definitions`**。UE实际只读加载了现有四件资产；其中两件不满足“No affixes”，三件某主属性需求实际为10而测试预期0，共5条失败断言。旧测试将2026-10-20的初始测试数值当固定契约，不能据此认定当前资产错误；本轮不改资产、不删除断言来掩盖差异。下一步在编辑器逐件核对Head/Chest/Hands/Legs与Hand/Hands引用，确认哪些为正式调参、哪些仍是固定测试夹具；随后另立变更将固定数值测试迁到专用夹具或更新经确认的资产契约。
+- 新测试初版曾因数组自引用追加触发断言，已修正；首轮相关回归也暴露旧Tooltip强制转换崩溃，已改为真实AffixEntry并通过最终运行。此前失败日志不作为最终验证结果。
+- **未验证**：人工PIE鼠标/导航拾取、真实WBP视觉/音效、双端网络、角色外观、打包和存档。此次用 `-nullrhi -nosound` 跑原生自动化；随机世界转移测试调用PlayerState接收边界，不代替完整TryPickup RPC。未创建测试地图、未执行资产保存/重导入脚本、未修改Content、未提交或推送。M0源码基线与兼容文档已交付，资产基线和路线图中的人工验收仍待完成。
+
 ## 敌人攻击 Swing（2026-10-27，配置已保存）
 
 - UE 5.8.2 保存 `AM_Enemy_BasicAttack`：新增 Audio 轨唯一 AttackSwing Notify（0.33909455秒），使用默认库 swordswing_fast_01；原命中窗口及底层动画保持不变。备份及配置方法见 [音频指南](Audio/AudioSetupGuide.md)。

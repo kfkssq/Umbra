@@ -1,0 +1,17 @@
+{
+  "description": "Ordinary ER parts template approximation. Direct RG normals use UE Normalmap compression after semantic/reference/layout checks. Dagger tested; other assets use the family convention, not per-asset visual certification. B/A and _m stay unused. Unknown templates/alpha fail for review.",
+  "templates": {
+    "metal": {"surface": "Opaque", "preset": "metal", "normal_encoding": "er_rg_direct"},
+    "leather": {"surface": "Opaque", "preset": "leather", "normal_encoding": "er_rg_direct"},
+    "fabric": {"surface": "Cloth", "preset": "cloth", "normal_encoding": "er_rg_direct"},
+    "belt": {"surface": "Opaque", "preset": "leather", "normal_encoding": "er_rg_direct"},
+    "wood": {"surface": "Opaque", "preset": "wood", "normal_encoding": "er_rg_direct"},
+    "rope": {"surface": "Cloth", "preset": "cloth", "normal_encoding": "er_rg_direct"},
+    "belt_leather": {"surface": "Opaque", "preset": "leather", "normal_encoding": "er_rg_direct"},
+    "belt_metal": {"surface": "Opaque", "preset": "metal", "normal_encoding": "er_rg_direct"},
+    "belt_leather_cloth": {"surface": "Opaque", "preset": "leather", "normal_encoding": "er_rg_direct"},
+    "belt_metal_cloth": {"surface": "Opaque", "preset": "metal", "normal_encoding": "er_rg_direct"},
+    "fabric_cloth": {"surface": "Cloth", "preset": "cloth", "normal_encoding": "er_rg_direct"}
+  },
+  "materials": {}
+}

@@ -1,0 +1,14 @@
+{
+  "batch": "Coverage18_01",
+  "source_ids": [
+    "ER:EquipParamWeapon:2010000", "ER:EquipParamWeapon:3000000",
+    "ER:EquipParamWeapon:11000000", "ER:EquipParamWeapon:12000000",
+    "ER:EquipParamWeapon:14000000", "ER:EquipParamWeapon:16000000",
+    "ER:EquipParamWeapon:18000000", "ER:EquipParamWeapon:33000000",
+    "ER:EquipParamWeapon:41000000", "ER:EquipParamWeapon:30000000",
+    "ER:EquipParamWeapon:31010000", "ER:EquipParamProtector:50000",
+    "ER:EquipParamProtector:60000", "ER:EquipParamProtector:50100",
+    "ER:EquipParamProtector:90100", "ER:EquipParamProtector:50200",
+    "ER:EquipParamProtector:40300", "ER:EquipParamProtector:100300"
+  ]
+}

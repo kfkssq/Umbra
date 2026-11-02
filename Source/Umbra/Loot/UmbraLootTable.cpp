@@ -4,6 +4,12 @@
 
 void UUmbraLootTable::Select(const AActor* Authority, TArray<UUmbraItemDefinition*>& OutDefinitions) const
 {
+	FRandomStream Random(FMath::Rand());
+	Select(Authority, Random, OutDefinitions);
+}
+
+void UUmbraLootTable::Select(const AActor* Authority, FRandomStream& Random, TArray<UUmbraItemDefinition*>& OutDefinitions) const
+{
 	OutDefinitions.Reset();
 	if (!Authority || !Authority->HasAuthority()) return;
 	auto Eligible = [](const FUmbraLootEntry& Entry)
@@ -15,14 +21,14 @@ void UUmbraLootTable::Select(const AActor* Authority, TArray<UUmbraItemDefinitio
 	double Total = FMath::IsFinite(NoDropWeight) ? FMath::Max(0.f, NoDropWeight) : 0.f;
 	for (const auto& Entry : Entries) if (Eligible(Entry)) Total += Entry.Weight;
 	if (Total <= 0.0) return;
-	double Choice = FMath::FRand() * Total;
+	double Choice = Random.FRand() * Total;
 	for (const auto& Entry : Entries)
 	{
 		if (!Eligible(Entry)) continue;
 		if (Choice < Entry.Weight)
 		{
-			if (Entry.DropChance <= 0.f || (Entry.DropChance < 1.f && FMath::FRand() >= Entry.DropChance)) return;
-			const int32 Count = FMath::RandRange(FMath::Min(Entry.MinCount, MaximumItems), FMath::Min(Entry.MaxCount, MaximumItems));
+			if (Entry.DropChance <= 0.f || (Entry.DropChance < 1.f && Random.FRand() >= Entry.DropChance)) return;
+			const int32 Count = Random.RandRange(FMath::Min(Entry.MinCount, MaximumItems), FMath::Min(Entry.MaxCount, MaximumItems));
 			for (int32 Index = 0; Index < Count; ++Index) OutDefinitions.Add(Entry.ItemDefinition);
 			return;
 		}

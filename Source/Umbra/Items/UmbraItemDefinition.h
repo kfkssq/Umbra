@@ -11,6 +11,7 @@
 class UTexture2D;
 class UStaticMesh;
 class USkeletalMesh;
+class UUmbraItemGenerationProfile;
 
 /** New display-only identity. Explicit values are serialization-stable; append future values. */
 UENUM(BlueprintType)
@@ -80,6 +81,8 @@ USTRUCT(BlueprintType)
 struct FUmbraRolledAffix : public FUmbraAffixIdentity
 {
 	GENERATED_BODY()
+	/** Content tier identity, distinct from SelectedTier's candidate index. */
+	UPROPERTY(BlueprintReadOnly) FName AffixTierId;
 	UPROPERTY(BlueprintReadOnly) float Value = 0.f;
 	/** Effective candidates at creation, independent of later definition tuning. */
 	UPROPERTY(BlueprintReadOnly) TArray<float> CandidateValues;
@@ -92,8 +95,18 @@ class UMBRA_API UUmbraItemDefinition : public UDataAsset
 {
 	GENERATED_BODY()
 public:
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
+#endif
+	/** Stable content identity for generated items. Legacy definitions may leave this empty. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Generation") FName DefinitionId;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Generation") FGameplayTagContainer EquipmentTags;
+	/** Opt-in; cannot be combined with legacy AffixRollConfigs. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Generation") TObjectPtr<UUmbraItemGenerationProfile> GenerationProfile;
 	/** Editor-only authoring action. Fits the proxy to the transformed reference-pose bounds; does not save assets. */
 	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Presentation|Drop Physics") void FitWorldDropPhysics();
+	/** Automation variant: false leaves all proxy fields unchanged. Does not save the package. */
+	UFUNCTION(BlueprintCallable, Category = "Presentation|Drop Physics") bool TryFitWorldDropPhysics();
 	/** Presentation classification only; Unknown preserves legacy profile/slot fallback. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation|Classification") EUmbraItemCategory ItemCategory = EUmbraItemCategory::Unknown;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation|Classification") EUmbraWeaponType WeaponType = EUmbraWeaponType::Unknown;
@@ -108,6 +121,8 @@ public:
 	/** Null preserves the cell's legacy frame and RarityColor styling. Configured art is shown untinted. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") TObjectPtr<UTexture2D> RarityFrameTexture;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") FLinearColor RarityColor = FLinearColor::White;
+	/** Neutral rarity artwork may share one tint. Precolored custom artwork leaves this disabled. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") bool bTintRarityBackgrounds = false;
 	/** Visual only. Null leaves the world label and independent pickup sphere available. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") TSoftObjectPtr<UStaticMesh> WorldDropMesh;
 	/** Reference-pose model; takes precedence over WorldDropMesh and uses the asset's materials. */

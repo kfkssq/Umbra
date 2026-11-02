@@ -1,0 +1,19 @@
+{
+  "description": "OPT-IN candidate for audited AM_M_1140 only. RG normal reconstruction + 1-B roughness. Verify UE tangent/green orientation and appearance before promoting. Alpha is not used.",
+  "templates": {
+    "metal": {"surface":"Opaque","preset":"metal"},
+    "leather": {"surface":"Opaque","preset":"leather"},
+    "fabric": {"surface":"Cloth","preset":"cloth"},
+    "belt": {"surface":"Opaque","preset":"leather"}
+  },
+  "materials": {
+    "N:\\GR\\data\\Material\\mtd\\Parts\\matxml\\P[AM_M_1140]_fabric.matxml": {
+      "surface":"Cloth",
+      "preset":"cloth",
+      "normal_encoding":"er_rg_gloss_candidate",
+      "normal_dds_sha256":"65b1a0841b4596bc55823befd7e3ac7337d189548e556e5116e63cfa6d4bb98b",
+      "flip_green":false,
+      "evidence":"Docs/Material1140Audit.md; requires visual acceptance"
+    }
+  }
+}

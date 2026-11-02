@@ -1,4 +1,5 @@
 #include "Equipment/UmbraEquipmentEffect.h"
+#include "Equipment/UmbraEquipmentEffectContext.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "NativeGameplayTags.h"
 #include "Items/UmbraItemDefinition.h"
@@ -94,44 +95,28 @@ int32 UUmbraEquipmentEffect::AffixIndex(EUmbraEquipmentAffixStat Stat)
 
 TArray<FUmbraDamageBonus> UUmbraEquipmentDamageBonusComponent::GetBonuses(const FGameplayEffectSpec& Spec) const
 {
+	if (const auto* Snapshot = FUmbraEquipmentEffectContext::Get(Spec.GetContext())) return Snapshot->DamageBonuses;
 	const auto* Item = Cast<UUmbraItemDefinition>(Spec.GetContext().GetSourceObject());
-	TArray<FUmbraDamageBonus> Result;
-	if (!Item) return Result;
-	Result = Item->DamageBonuses;
-	for (const auto& Config : Item->AffixRollConfigs)
-	{
-		if (Config.Kind != EUmbraAffixKind::Damage) continue;
-		const FName Key(*FString::Printf(TEXT("Umbra.Affix.%s"), *Config.AffixId.ToString()));
-		if (const float* Value = Spec.SetByCallerNameMagnitudes.Find(Key))
-		{
-			auto Bonus = Config.DamageBonus;
-			Bonus.Magnitude = FScalableFloat(*Value);
-			Result.Add(MoveTemp(Bonus));
-		}
-	}
-	return Result;
+	return Item ? Item->DamageBonuses : TArray<FUmbraDamageBonus>();
 }
-
 bool UUmbraEquipmentEffect::ApplyRolledAffixes(FGameplayEffectSpec& Spec, const TArray<FUmbraRolledAffix>& Rolls)
 {
 	const auto Tags = MagnitudeTags();
 	const auto* Item = Cast<UUmbraItemDefinition>(Spec.GetContext().GetSourceObject());
 	if (!Item) return false;
+	auto* Snapshot = new FUmbraEquipmentEffectContext();
+	static_cast<FGameplayEffectContext&>(*Snapshot) = *Spec.GetContext().Get();
+	Snapshot->DamageBonuses = Item->DamageBonuses;
+	for (auto& Bonus : Snapshot->DamageBonuses) Bonus.Magnitude = FScalableFloat(Bonus.Magnitude.GetValueAtLevel(Spec.GetLevel()));
+	Spec.SetContext(FGameplayEffectContextHandle(Snapshot));
 	for (const auto& Roll : Rolls)
 	{
 		if (Roll.Kind == EUmbraAffixKind::Damage)
 		{
-			// Definitions are immutable during play; only the spec's magnitude is instance-specific.
-			const auto* Config = Item->AffixRollConfigs.FindByPredicate([&Roll](const auto& Entry)
-				{ return Entry.AffixId == Roll.AffixId && Entry.Kind == EUmbraAffixKind::Damage; });
-			if (!Config || Config->DamageBonus.Bucket != Roll.DamageBonus.Bucket
-				|| Config->DamageBonus.Types != Roll.DamageBonus.Types
-				|| Config->DamageBonus.AttackSource != Roll.DamageBonus.AttackSource
-				|| Config->DamageBonus.bRequiresCritical != Roll.DamageBonus.bRequiresCritical
-				|| Config->DamageBonus.bRequiresVulnerable != Roll.DamageBonus.bRequiresVulnerable
-				|| !(Config->DamageBonus.SourceRequirements == Roll.DamageBonus.SourceRequirements)
-				|| !(Config->DamageBonus.TargetRequirements == Roll.DamageBonus.TargetRequirements)) return false;
-			Spec.SetSetByCallerMagnitude(FName(*FString::Printf(TEXT("Umbra.Affix.%s"), *Roll.AffixId.ToString())), Roll.Value);
+			// Rolls entered through a trusted server inventory boundary, not client-supplied data.
+			auto Bonus = Roll.DamageBonus;
+			Bonus.Magnitude = FScalableFloat(Roll.Value);
+			Snapshot->DamageBonuses.Add(MoveTemp(Bonus));
 			continue;
 		}
 		const int32 Index = Roll.Kind == EUmbraAffixKind::Primary ? int32(Roll.Primary) : AffixIndex(Roll.Attribute);
@@ -141,6 +126,7 @@ bool UUmbraEquipmentEffect::ApplyRolledAffixes(FGameplayEffectSpec& Spec, const 
 		Spec.SetSetByCallerMagnitude(Tags[Index], float(Value));
 	}
 	// Intrinsic defense is added later by Refresh; reject overflow before committing a handle.
+	if (Snapshot->DamageBonuses.Num() > 64) return false;
 	if (double(Item->Armor) + Spec.GetSetByCallerMagnitude(Tags[4], false, 0.f) > MAX_flt
 		|| double(Item->MagicResistance) + Spec.GetSetByCallerMagnitude(Tags[5], false, 0.f) > MAX_flt) return false;
 	return true;

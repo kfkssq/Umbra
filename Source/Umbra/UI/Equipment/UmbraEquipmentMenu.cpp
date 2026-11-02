@@ -1,4 +1,5 @@
 #include "UI/Equipment/UmbraEquipmentMenu.h"
+#include "UmbraPlayerController.h"
 #include "Audio/UmbraAudioFunctionLibrary.h"
 
 #include "Blueprint/WidgetTree.h"
@@ -68,6 +69,7 @@ void UUmbraEquipmentMenu::UnbindSlots()
 		EquipmentSlot->OnUnequipRequested.RemoveDynamic(this, &ThisClass::HandleUnequip);
 		EquipmentSlot->OnTooltipHoverChanged.RemoveAll(this);
 		EquipmentSlot->SetToolTip(nullptr);
+		EquipmentSlot->InteractionMenu.Reset();
 		EquipmentSlot->OnSlotTypeChanged.RemoveDynamic(this, &ThisClass::HandleSlotTypeChanged);
 	}
 	BoundSlots.Reset();
@@ -86,6 +88,8 @@ void UUmbraEquipmentMenu::RebuildSlotBindings()
 		UUmbraEquipmentSlotWidget* EquipmentSlot = Cast<UUmbraEquipmentSlotWidget>(Widget);
 		if (!EquipmentSlot) continue;
 		BoundSlots.Add(EquipmentSlot);
+		EquipmentSlot->InteractionMenu = this;
+		EquipmentSlot->SetVisibility(ESlateVisibility::Visible);
 		EquipmentSlot->OnSelectionRequested.AddUniqueDynamic(this, &ThisClass::HandleSelection);
 		EquipmentSlot->OnUnequipRequested.AddUniqueDynamic(this, &ThisClass::HandleUnequip);
 		EquipmentSlot->OnTooltipHoverChanged.AddUObject(this, &ThisClass::HandleTooltipHover);
@@ -131,7 +135,7 @@ void UUmbraEquipmentMenu::HandleSelection(UUmbraEquipmentSlotWidget* Selected)
 {
 	if (Selected && BoundSlots.Contains(Selected) && Selected->GetVisualState() != EUmbraEquipmentSlotState::Selected)
 		UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), EUmbraAudioEvent::EquipmentSelected,
-			FUmbraAudioContext::FromItem(Cast<UUmbraItemDefinition>(Selected->GetItemDisplay().Item)));
+			Selected->GetItemDisplay().AudioContext);
 	SelectedInstanceId = Selected ? Selected->GetItemDisplay().InstanceId : FGuid();
 	for (UUmbraEquipmentSlotWidget* EquipmentSlot : BoundSlots) if (EquipmentSlot) EquipmentSlot->SetSelected(EquipmentSlot == Selected);
 }
@@ -142,6 +146,11 @@ void UUmbraEquipmentMenu::HandleUnequip(UUmbraEquipmentSlotWidget* EquipmentSlot
 }
 
 EUmbraUnequipResult UUmbraEquipmentMenu::RequestUnequipSlot(UUmbraEquipmentSlotWidget* EquipmentSlot)
+{
+ return UnequipToCell(EquipmentSlot, INDEX_NONE);
+}
+
+EUmbraUnequipResult UUmbraEquipmentMenu::UnequipToCell(UUmbraEquipmentSlotWidget* EquipmentSlot, int32 TargetSlot)
 {
 	EUmbraUnequipResult Result = EUmbraUnequipResult::NotReady;
 	LastUnequipTransferResult = EUmbraTransferResult::NotReady;
@@ -160,10 +169,29 @@ EUmbraUnequipResult UUmbraEquipmentMenu::RequestUnequipSlot(UUmbraEquipmentSlotW
 		Result = EUmbraUnequipResult::StaleInstance;
 		if (Display.bFromEquipmentSnapshot)
 		{
+			if (!GetOwningPlayerState<AUmbraPlayerState>()->HasAuthority())
+			{
+				auto* Controller = Cast<AUmbraPlayerController>(GetOwningPlayer());
+				if (!Controller) return EUmbraUnequipResult::NotReady;
+				TWeakObjectPtr<UUmbraEquipmentMenu> Weak(this);
+				LastUnequipTransferResult = Controller->SubmitItemTransfer(EUmbraItemTransferOperation::Unequip,
+					Display.InstanceId, EquipmentSlot->GetSlotType(), TargetSlot, [Weak](const FUmbraItemTransferResponse& Response)
+					{
+						if (!Weak.IsValid()) return;
+						Weak->LastUnequipTransferResult = Response.Result;
+						Weak->LastUnequipMessage = UmbraTransferFeedback::Message(Response.Result);
+						FUmbraEquippedItem Removed; Removed.Slot = Response.Request.EquipmentSlot;
+						const bool bSuccess = Response.Result == EUmbraTransferResult::Success;
+						if (bSuccess) Removed.SetInstance(Response.Instance);
+						Weak->BP_UnequipFinished(bSuccess ? EUmbraUnequipResult::Success : EUmbraUnequipResult::Failed, Removed, Weak->LastUnequipMessage);
+					});
+				LastUnequipMessage = UmbraTransferFeedback::Message(LastUnequipTransferResult);
+				return LastUnequipTransferResult == EUmbraTransferResult::Pending ? EUmbraUnequipResult::Pending : EUmbraUnequipResult::NotReady;
+			}
 			FUmbraInventoryItem Returned;
 			bTransferAttempted = true;
-			LastUnequipTransferResult = GetOwningPlayerState<AUmbraPlayerState>()->UnequipToInventory(
-				EquipmentSlot->GetSlotType(), Display.InstanceId, Returned);
+			LastUnequipTransferResult = GetOwningPlayerState<AUmbraPlayerState>()->UnequipToInventorySlot(
+				EquipmentSlot->GetSlotType(), Display.InstanceId, TargetSlot, Returned);
 			switch (LastUnequipTransferResult)
 			{
 			case EUmbraTransferResult::Success: Result = EUmbraUnequipResult::Success; break;
@@ -178,8 +206,7 @@ EUmbraUnequipResult UUmbraEquipmentMenu::RequestUnequipSlot(UUmbraEquipmentSlotW
 			if (Result == EUmbraUnequipResult::Success || Result == EUmbraUnequipResult::AppliedInvalid)
 			{
 				RemovedItem.Slot = EquipmentSlot->GetSlotType();
-				RemovedItem.Definition = Returned.Definition;
-				RemovedItem.InstanceId = Returned.InstanceId;
+				RemovedItem.SetInstance(Returned.GetInstance());
 				RemovedItem.bRequirementsMet = Display.bRequirementsMet;
 			}
 		}
@@ -199,7 +226,7 @@ EUmbraUnequipResult UUmbraEquipmentMenu::RequestUnequipSlot(UUmbraEquipmentSlotW
 		LastUnequipMessage = UmbraTransferFeedback::Message(LastUnequipTransferResult);
 	// Snapshot notifications update all views; never optimistically clear a slot on a rejected request.
 	BP_UnequipFinished(Result, RemovedItem, LastUnequipMessage);
-	const auto AudioContext = FUmbraAudioContext::FromItem(RemovedItem.Definition);
+	const auto AudioContext = FUmbraAudioContext::FromInstance(RemovedItem.GetInstance());
 	UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), Result == EUmbraUnequipResult::Success
 		? EUmbraAudioEvent::UnequipSuccess : EUmbraAudioEvent::EquipFailed, AudioContext);
 	if (Result == EUmbraUnequipResult::Success)
@@ -366,7 +393,7 @@ void UUmbraEquipmentMenu::RefreshSlotData()
 		const auto* Entry = bEquipmentDataReady && GetEquipmentSlot(EquipmentSlot->GetSlotType()) == EquipmentSlot
 			? Snapshot.Items.FindByPredicate([EquipmentSlot](const FUmbraEquippedItem& Item) { return Item.Slot == EquipmentSlot->GetSlotType(); }) : nullptr;
 		if (!Entry || !IsValid(Entry->Definition)) { EquipmentSlot->ClearItem(); continue; }
-		auto Display = FUmbraEquipmentItemDisplay::FromDefinition(Entry->Definition, Entry->InstanceId);
+		auto Display = FUmbraEquipmentItemDisplay::FromInstance(Entry->GetInstance());
 		Display.bFromEquipmentSnapshot = true;
 		Display.bRequirementsMet = Entry->bRequirementsMet;
 		EquipmentSlot->SetItem(Display);

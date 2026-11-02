@@ -56,3 +56,26 @@ Desktop.ini
 
 # Art source files (kept outside repo)
 *.psd
+
+# Local Python tooling caches
+__pycache__/
+*.pyc
+
+# Equipment import: local staging assets, not production equipment.
+/Content/EquipmentImport/Staging/
+/Content/Items/Tests/PipelineM5/
+
+# Reproducible M5 fixtures (regenerate with generate_samples.py).
+/Scripts/EquipmentPipeline/Source/
+/Scripts/EquipmentPipeline/samples.json
+
+# Machine-specific paths; keep general examples, rules and test code tracked.
+/Scripts/EquipmentImport/*.local.json
+# Despite its historical name, this file contains this machine's actual paths.
+/Scripts/EquipmentImport/item_catalog.local.example.json
+
+# Material index helper build output; sources and project file stay tracked.
+/Scripts/EquipmentImport/MaterialIndexTool/bin/
+/Scripts/EquipmentImport/MaterialIndexTool/obj/
+# Extraction caches, reports, previews and material indexes already live in
+# Saved/ and are excluded by the generated-directory rule above.

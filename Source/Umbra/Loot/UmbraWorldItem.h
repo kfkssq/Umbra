@@ -34,6 +34,7 @@ public:
 	AUmbraWorldItem();
 	bool InitializeInstance(const FUmbraItemInstance& InInstance);
 	UFUNCTION(BlueprintPure, Category = "World Item") FUmbraItemInstance GetItemInstance() const { return ItemInstance; }
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "World Item")
 	EUmbraPickupResult TryPickup(AUmbraPlayerController* Controller);
 	void SetHighlighted(bool bValue);
 	UWidgetComponent* GetLabelComponent() const { return Label; }
@@ -53,6 +54,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<UWidgetComponent> Label;
 private:
 	friend class FUmbraDropPhysicsTest;
+	friend class FUmbraLootSpawnAudioTest;
 	friend class FUmbraWorldItemInteractionTest;
 	void StartDropPhysics();
 	void PlaySpawnAudio();
@@ -64,6 +66,8 @@ private:
 	UFUNCTION() void HandleAudioGroundHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 		UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit);
 	bool bSpawnAudioSent = false;
+	FTimerHandle SpawnAudioRetryTimer;
+	int32 SpawnAudioRetryCount = 0;
 	bool bLandAudioSent = false;
 	void UpdateDropPhysics();
 	void FreezeDrop(const FTransform& Pose);

@@ -1,0 +1,259 @@
+{
+  "batch": "BatchReady42_03",
+  "allow_unmapped_asset_only": true,
+  "items": [
+    {
+      "source_id": "ER:EquipParamWeapon:2010000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0199",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:3000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0600",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:11000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0802",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:12000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0850",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:14000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0701",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:16000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0923",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:18000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_1001",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:33000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_1310",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:41000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_1410",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:30000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_2098",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:31010000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_2101",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamProtector:50000",
+      "usage": "WorldDrop",
+      "primary_model": "HD_M_1840",
+      "icon_field": "iconIdM"
+    },
+    {
+      "source_id": "ER:EquipParamProtector:60000",
+      "usage": "WorldDrop",
+      "primary_model": "HD_M_1100",
+      "icon_field": "iconIdM"
+    },
+    {
+      "source_id": "ER:EquipParamProtector:50100",
+      "usage": "WorldDrop",
+      "primary_model": "BD_M_1840",
+      "icon_field": "iconIdM"
+    },
+    {
+      "source_id": "ER:EquipParamProtector:90100",
+      "usage": "WorldDrop",
+      "primary_model": "BD_M_1130",
+      "icon_field": "iconIdM"
+    },
+    {
+      "source_id": "ER:EquipParamProtector:50200",
+      "usage": "WorldDrop",
+      "primary_model": "AM_M_1840",
+      "icon_field": "iconIdM"
+    },
+    {
+      "source_id": "ER:EquipParamProtector:40300",
+      "usage": "WorldDrop",
+      "primary_model": "LG_M_1010",
+      "icon_field": "iconIdM"
+    },
+    {
+      "source_id": "ER:EquipParamProtector:100300",
+      "usage": "WorldDrop",
+      "primary_model": "LG_M_1140",
+      "icon_field": "iconIdM"
+    },
+    {
+      "source_id": "ER:EquipParamProtector:40200",
+      "usage": "WorldDrop",
+      "primary_model": "AM_M_1010",
+      "icon_field": "iconIdM"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:50000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_7000",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:14010000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0406",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:44000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_1510",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamProtector:40100",
+      "usage": "WorldDrop",
+      "primary_model": "BD_M_1010",
+      "icon_field": "iconIdM"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:52000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_7500",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:41010000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_1403",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:22000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_1152",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:4000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0612",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:23000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0856",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:43000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_1501",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:8010000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0404",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:2080000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0217",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:1010000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0101",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:21000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_1150",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:13000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_1251",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:12010000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0803",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:15000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0750",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:42000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_1408",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:32000000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_2208",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:2090000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0614",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:18010000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0911",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamWeapon:11010000",
+      "usage": "WorldDrop",
+      "primary_model": "WP_A_0800",
+      "icon_field": "iconId"
+    },
+    {
+      "source_id": "ER:EquipParamProtector:40000",
+      "usage": "WorldDrop",
+      "primary_model": "HD_M_1010",
+      "icon_field": "iconIdM"
+    }
+  ],
+  "combine_world_drop_components": true
+}

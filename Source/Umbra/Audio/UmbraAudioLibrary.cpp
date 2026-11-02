@@ -1,4 +1,12 @@
 #include "Audio/UmbraAudioLibrary.h"
+#include "Items/UmbraItemInstance.h"
+
+FUmbraAudioContext FUmbraAudioContext::FromInstance(const FUmbraItemInstance& Instance)
+{
+	auto Context = FromItem(Instance.Definition);
+	if (Instance.IsValid()) Context.Rarity = Instance.GetRarity();
+	return Context;
+}
 
 FUmbraAudioContext FUmbraAudioContext::FromItem(const UUmbraItemDefinition* Item)
 {

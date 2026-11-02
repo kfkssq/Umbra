@@ -144,6 +144,7 @@ bool FUmbraItemTooltipWidgetTest::RunTest(const FString& Parameters)
 	auto* Tooltip = CreateWidget<UUmbraItemTooltipTestWidget>(PC);
 	Tooltip->Configure();
 	Tooltip->StatEntryClass = UUmbraTooltipEntryTestWidget::StaticClass();
+	Tooltip->AffixEntryClass = UUmbraTooltipAffixTestWidget::StaticClass();
 	auto* Item = NewObject<UUmbraItemDefinition>();
 	Item->DisplayName = FText::FromString(TEXT("Tooltip sword"));
 	Item->ItemCategory = EUmbraItemCategory::Weapon;
@@ -173,7 +174,7 @@ bool FUmbraItemTooltipWidgetTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Name copied"), Block(TEXT("ItemName"))->GetText().ToString(), Data.DisplayName.ToString());
 	TestEqual(TEXT("Specific localized type"), Block(TEXT("ItemTypeText"))->GetText().ToString(), FString(TEXT("单手剑")));
 	TestEqual(TEXT("Epic localized"), Block(TEXT("RarityText"))->GetText().ToString(), FString(TEXT("史诗")));
-	TestEqual(TEXT("Name remains white"), Block(TEXT("ItemName"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::White);
+	TestEqual(TEXT("Name stays white"), Block(TEXT("ItemName"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::White);
 	TestEqual(TEXT("Rarity keeps authored color"), Block(TEXT("RarityText"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Red);
 	TestEqual(TEXT("Item level copied independent of requirement"), Block(TEXT("ItemLevelText"))->GetText().ToString(), Data.ItemLevelText.ToString());
 	TestEqual(TEXT("Damage total copied"), Block(TEXT("TotalDamageText"))->GetText().ToString(), Data.TotalDamageText.ToString());
@@ -195,20 +196,20 @@ bool FUmbraItemTooltipWidgetTest::RunTest(const FString& Parameters)
 	Tooltip->SetVisibility(ESlateVisibility::Visible);
 	TestEqual(TEXT("Visible cannot enable hit tests"), Tooltip->GetVisibility(), ESlateVisibility::HitTestInvisible);
 	TestFalse(TEXT("No keyboard focus"), Tooltip->IsFocusable());
-	auto* OldRow = CastChecked<UUmbraTooltipEntryTestWidget>(Rows(TEXT("StatRows"))->GetChildAt(0));
+	auto* OldRow = CastChecked<UUmbraTooltipAffixTestWidget>(Rows(TEXT("StatRows"))->GetChildAt(0));
 	for (int32 Index = 0; Index < 4; ++Index) Tooltip->SetTooltipData(Data);
-	TestTrue(TEXT("Detached row text cleared"), OldRow->GetEntryText().IsEmpty());
+	TestTrue(TEXT("Detached affix row cleared"), OldRow->GetAffixData().DisplayName.IsEmpty());
 	TestEqual(TEXT("Refresh never duplicates rows"), Rows(TEXT("StatRows"))->GetChildrenCount(), Data.Stats.Num());
 	Tooltip->ConstructForTest();
 	TestEqual(TEXT("Repeated Construct never duplicates rows"), Rows(TEXT("StatRows"))->GetChildrenCount(), Data.Stats.Num());
 	// Pure projection: deliberately different preformatted text must be used verbatim.
 	auto DisplayOnly = Data;
-	DisplayOnly.Stats[0].Text = FText::FromString(TEXT("already formatted condition"));
+	DisplayOnly.AffixEntries[0].ValueText = FText::FromString(TEXT("already formatted condition"));
 	DisplayOnly.TotalDamageText = FText::FromString(TEXT("authored total caption"));
 	DisplayOnly.FlavorText = FText::FromString(TEXT("A saved story"));
 	DisplayOnly.SpecialEffects.Add(FText::FromString(TEXT("external presentation extension")));
 	Tooltip->SetTooltipData(DisplayOnly);
-	TestEqual(TEXT("Stat string not recomputed"), CastChecked<UUmbraTooltipEntryTestWidget>(Rows(TEXT("StatRows"))->GetChildAt(0))->GetEntryText().ToString(), DisplayOnly.Stats[0].Text.ToString());
+	TestEqual(TEXT("Affix string not recomputed"), CastChecked<UUmbraTooltipAffixTestWidget>(Rows(TEXT("StatRows"))->GetChildAt(0))->GetAffixData().ValueText.ToString(), DisplayOnly.AffixEntries[0].ValueText.ToString());
 	TestEqual(TEXT("Damage string not recomputed"), Block(TEXT("TotalDamageText"))->GetText().ToString(), DisplayOnly.TotalDamageText.ToString());
 	TestTrue(TEXT("Nonempty extension displayed"), Visible(TEXT("SpecialEffectsSection")));
 	TestTrue(TEXT("Nonempty flavor displayed"), Visible(TEXT("FlavorTextSection")));

@@ -1,5 +1,19 @@
 # 编辑器配置入口
 
+2026-11-01：[1140材质候选](Material1140Audit.md)：review规则必须显式指定并匹配DDS哈希；粗糙度图乘Roughness标量（有图默认1，无图沿用preset），Normal/Roughness均关闭sRGB。Material1140Review与用户Test01分开，视觉确认前不推广规则。
+
+2026-11-01：[DCX一键入口](EquipmentDcxImport.md)：ImportDcx.ps1读取Saved中的本机工具路径，默认用户parts目录；关闭UE后Apply。基础模板规则→完整模板路径覆盖，未知特殊材质和Alpha须明确配置后重试。
+
+2026-10-31：[装备批导入M1](EquipmentAssetImportM1.md)：Run.ps1默认Dry Run、ImportFolder.ps1文件夹入口；预设→显式材质数值覆盖，标准DX法线须声明、Alpha须明确策略；脚本自动解析关联引擎，Apply前关闭交互编辑器。
+
+2026-10-31：[六品质配色与音效配置](SixRarityRepair.md)：白/绿/蓝/深紫/玫红/暗金；固定Definition与随机Profile的配置优先级、中性背景染色、迁移脚本及复验入口见该文。
+
+2026-10-30：[M5 批量资产配置](EquipmentPipelineM5.md)：清单默认 dry-run/CreateMissingOnly；更新需基线和托管字段，手工锁与冲突阻止覆盖。来源、厘米单位、静态/骨骼导入边界、可选 Blender、10件隔离样品和重复执行验收入口见该文。
+
+2026-10-30：[M4伤害词缀和网络测试](RandomEquipmentM4.md)：新测试资产在 `/Game/Items/Tests/RandomM4`，A为比例、X为因子；运行网络脚本仅临时修改播放设置并在结束恢复，不改正式地图或掉落表。
+
+2026-10-29：[随机装备 MVP 配置](RandomEquipmentMVP.md)：独立资产位于 `/Game/Items/Tests/RandomMVP`；参数来源、覆盖顺序、量纲、模板校验、创建脚本及测试生成器使用方式见该文。正式地图/敌人掉落表保持原配置。
+
 2026-10-24：[音频配置指南](Audio/AudioSetupGuide.md)：新建 UmbraAudioLibrary，Project Settings → Game → Umbra Audio 选择默认库；角色 AudioEvents 可覆盖库/角色类型/命中表面。所有资源默认空，现有自动触发点无需增加蓝图播放节点；挥动/脚步需手动在动画添加 Umbra Audio Notify。未保存任何 Content 资产。[32项素材需求](Audio/AudioAssetRequirements.md)、[实际音频清单](Audio/AudioAssetInventory.md)。
 
 2026-10-21：[WorldItemLabel 避让与悬停](WorldItemLabels.md)：四件防具源模型已保存 Per Poly Collision；标签默认自动避让且可悬停/点击对应物品，无需新增 WBP Graph。控制器 World Item Label Gap 默认4 Slate单位。

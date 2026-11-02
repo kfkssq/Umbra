@@ -16,7 +16,7 @@ UENUM(BlueprintType)
 enum class EUmbraLoadState : uint8 { Light, Medium, Heavy, Overweight };
 
 UENUM(BlueprintType)
-enum class EUmbraUnequipResult : uint8 { Success, NotReady, AuthorityRequired, EmptySlot, StaleInstance, Locked, InvalidSlot, Failed, AppliedInvalid };
+enum class EUmbraUnequipResult : uint8 { Success, NotReady, AuthorityRequired, EmptySlot, StaleInstance, Locked, InvalidSlot, Failed, AppliedInvalid, Pending };
 
 USTRUCT(BlueprintType)
 struct FUmbraEquippedItem
@@ -26,7 +26,9 @@ struct FUmbraEquippedItem
 	UPROPERTY(BlueprintReadOnly) FGuid InstanceId;
 	UPROPERTY(BlueprintReadOnly) TObjectPtr<UUmbraItemDefinition> Definition;
 	UPROPERTY(BlueprintReadOnly) TArray<FUmbraRolledAffix> RolledAffixes;
-	FUmbraItemInstance GetInstance() const { FUmbraItemInstance Item; Item.Definition = Definition; Item.InstanceId = InstanceId; Item.RolledAffixes = RolledAffixes; return Item; }
+	UPROPERTY(BlueprintReadOnly) FUmbraItemInstance Instance;
+	void SetInstance(const FUmbraItemInstance& Value) { Instance = Value; Definition = Value.Definition; InstanceId = Value.InstanceId; RolledAffixes = Value.RolledAffixes; }
+	FUmbraItemInstance GetInstance() const { if (Instance.SchemaVersion > 0) return Instance; FUmbraItemInstance Item; Item.Definition = Definition; Item.InstanceId = InstanceId; Item.RolledAffixes = RolledAffixes; return Item; }
 	UPROPERTY(BlueprintReadOnly) bool bRequirementsMet = false;
 };
 USTRUCT(BlueprintType)

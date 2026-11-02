@@ -1,8 +1,18 @@
 #include "UI/Inventory/UmbraInventorySlot.h"
+#include "UI/Items/UmbraItemDragDropOperation.h"
 
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "InputCoreTypes.h"
+#include "Items/UmbraItemInstance.h"
+
+void UUmbraInventorySlot::SetItemInstance(const FUmbraItemInstance& Instance)
+{
+	bFromInventorySnapshot = false;
+	CurrentItem = FUmbraEquipmentItemDisplay::FromInstance(Instance);
+	RefreshVisual();
+	if (bHovered) OnTooltipHoverChanged.Broadcast(this, true);
+}
 
 void UUmbraInventorySlot::SetItemDefinition(UUmbraItemDefinition* Definition, FGuid InstanceId)
 {
@@ -105,7 +115,18 @@ FReply UUmbraInventorySlot::NativeOnMouseButtonDown(const FGeometry& Geometry, c
 	if (Event.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
 		RequestSelection();
-		return FReply::Handled();
+		return HasItem() ? FReply::Handled().DetectDrag(TakeWidget(), EKeys::LeftMouseButton) : FReply::Handled();
 	}
 	return Super::NativeOnMouseButtonDown(Geometry, Event);
+}
+
+void UUmbraInventorySlot::NativeOnDragDetected(const FGeometry& Geometry, const FPointerEvent& Event, UDragDropOperation*& Operation)
+{
+ Operation = UUmbraItemDragDropOperation::Begin(this);
+}
+
+bool UUmbraInventorySlot::NativeOnDrop(const FGeometry& Geometry, const FDragDropEvent& Event, UDragDropOperation* Operation)
+{
+ if (auto* Drag = Cast<UUmbraItemDragDropOperation>(Operation)) return Drag->DropOn(this);
+ return Super::NativeOnDrop(Geometry, Event, Operation);
 }

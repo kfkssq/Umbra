@@ -5,6 +5,8 @@
 #include "Engine/EngineTypes.h"
 #include "UmbraAudioTypes.generated.h"
 
+struct FUmbraItemInstance;
+
 UENUM(BlueprintType)
 enum class EUmbraAudioEvent : uint8
 {
@@ -32,4 +34,5 @@ struct UMBRA_API FUmbraAudioContext
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) TEnumAsByte<EPhysicalSurface> Surface = SurfaceType_Default;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) FName CharacterType;
 	static FUmbraAudioContext FromItem(const UUmbraItemDefinition* Item);
+	static FUmbraAudioContext FromInstance(const FUmbraItemInstance& Instance);
 };

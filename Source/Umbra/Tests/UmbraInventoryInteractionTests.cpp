@@ -14,6 +14,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
+#include "UI/Items/UmbraItemDragDropOperation.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUmbraInventoryInteractionTest, "Umbra.UI.Inventory.EquipInteraction",
  EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -122,6 +123,40 @@ bool FUmbraInventoryInteractionTest::RunTest(const FString& Parameters)
  MainHand->MouseDownForTest(RightClick);
  TestEqual(TEXT("Repeated right click creates nothing"), Inventory->GetSnapshot().Items.Num(), 96);
  TestEqual(TEXT("Same definition second GUID preserved"), Menu->GetInventorySlot(0)->GetItemDisplay().InstanceId, SecondId);
+ const auto InventorySlate = Menu->TakeWidget();
+ const auto EquipmentSlate = EquipmentMenu->TakeWidget();
+ Menu->SetPageActive(true); EquipmentMenu->SetPageActive(true);
+ // Exercise the actual drag operation against live menus and full inventory snapshots.
+ auto* SwordCell = Menu->GetInventorySlot(Removed.SlotIndex);
+ auto* MoveDrag = UUmbraItemDragDropOperation::Begin(SwordCell);
+ if (TestNotNull(TEXT("Live inventory drag begins"), MoveDrag))
+ {
+  MoveDrag->DropOn(Menu->GetInventorySlot(0));
+  TestEqual(TEXT("Occupied cell swaps sword"), Menu->GetInventorySlot(0)->GetItemDisplay().InstanceId, SwordId);
+  TestEqual(TEXT("Swap preserves displaced identity"), SwordCell->GetItemDisplay().InstanceId, SecondId);
+  MoveDrag->DropOn(Menu->GetInventorySlot(2));
+  TestEqual(TEXT("Consumed drag cannot repeat"), Menu->GetInventorySlot(0)->GetItemDisplay().InstanceId, SwordId);
+ }
+ auto* EquipDrag = UUmbraItemDragDropOperation::Begin(Menu->GetInventorySlot(0));
+ if (TestNotNull(TEXT("Equip drag begins"), EquipDrag)) EquipDrag->DropOn(MainHand);
+ TestEqual(TEXT("Drag equips exact instance"), MainHand->GetItemDisplay().InstanceId, SwordId);
+ TestEqual(TEXT("Drag applies GAS armor"), ASC->GetNumericAttribute(UUmbraAttributeSet::GetArmorAttribute()), OldArmor + 20.f);
+ auto* OccupiedDrag = UUmbraItemDragDropOperation::Begin(MainHand);
+ if (TestNotNull(TEXT("Equipment drag begins"), OccupiedDrag)) OccupiedDrag->DropOn(SwordCell);
+ TestEqual(TEXT("Occupied bag destination preserves equipment"), MainHand->GetItemDisplay().InstanceId, SwordId);
+ auto* ReturnDrag = UUmbraItemDragDropOperation::Begin(MainHand);
+ if (ReturnDrag) ReturnDrag->DropOn(Menu->GetInventorySlot(0));
+ TestEqual(TEXT("Drag returns to exact cell"), Menu->GetInventorySlot(0)->GetItemDisplay().InstanceId, SwordId);
+ TestEqual(TEXT("Drag removes GAS armor"), ASC->GetNumericAttribute(UUmbraAttributeSet::GetArmorAttribute()), OldArmor);
+ auto* StaleDrag = UUmbraItemDragDropOperation::Begin(Menu->GetInventorySlot(0));
+ State->MoveInventoryItem(SwordId, 2);
+ if (StaleDrag) StaleDrag->DropOn(MainHand);
+ TestFalse(TEXT("Stale drag cannot equip replaced cell"), MainHand->HasItem());
+ auto* ClosedDrag = UUmbraItemDragDropOperation::Begin(Menu->GetInventorySlot(2));
+ Menu->SetPageActive(false);
+ if (ClosedDrag) ClosedDrag->DropOn(MainHand);
+ TestFalse(TEXT("Closed page rejects in-flight drag"), MainHand->HasItem());
+ Menu->SetPageActive(true);
  EquipmentMenu->DestructForTest();
  auto* NewState = World->SpawnActor<AUmbraPlayerState>(); PC->SetPlayerState(NewState);
  TestEqual(TEXT("Stale player context cannot mutate"), Menu->RequestEquipItem(SecondId), EUmbraTransferResult::NotReady);

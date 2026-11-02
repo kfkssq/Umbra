@@ -10,6 +10,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/GameViewportClient.h"
+#include "Widgets/SOverlay.h"
 #include "Engine/Texture2D.h"
 #include "GameFramework/PlayerController.h"
 #include "Async/TaskGraphInterfaces.h"
@@ -21,7 +23,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUmbraTooltipHoverTest, "Umbra.UI.Items.Tooltip
 bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 {
 	auto* World = UWorld::CreateWorld(EWorldType::Game, false);
-	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	auto& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	WorldContext.SetCurrentWorld(World);
+	// The production tooltip is viewport-owned. Retain its Slate host in this headless fixture.
+	WorldContext.GameViewport = NewObject<UGameViewportClient>(GEngine);
+	const TSharedRef<SOverlay> ViewportOverlay = SNew(SOverlay);
+	WorldContext.GameViewport->SetViewportOverlayWidget(nullptr, ViewportOverlay);
 	World->InitializeActorsForPlay(FURL());
 	auto* PC = World->SpawnActor<APlayerController>();
 	PC->SetPlayer(NewObject<ULocalPlayer>(GEngine));
@@ -62,11 +69,22 @@ bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 	EquipmentMenu->ConstructForTest(); EquipmentMenu->SetPageActive(true);
 	auto* Cell = CastChecked<UUmbraInventorySlotTestWidget>(Menu->GetInventorySlot(0));
 	auto* MainHand = EquipmentMenu->GetEquipmentSlot(EUmbraEquipmentSlot::MainHand);
-	auto Tip = [](UWidget* Slot) { return Cast<UUmbraItemTooltip>(Slot->GetToolTip()); };
+	// Tooltips are now viewport presentations owned by menus, not UWidget tooltip attachments.
+	auto Tip = [&](UWidget* Slot) -> UUmbraItemTooltip*
+	{
+		const auto* InventorySlot = Cast<UUmbraInventorySlot>(Slot);
+		UObject* OwnerMenu = InventorySlot ? static_cast<UObject*>(Menu) : static_cast<UObject*>(EquipmentMenu);
+		const auto* Property = FindFProperty<FObjectPropertyBase>(OwnerMenu->GetClass(), TEXT("CachedTooltip"));
+		auto* Tooltip = Property ? Cast<UUmbraItemTooltip>(Property->GetObjectPropertyValue_InContainer(OwnerMenu)) : nullptr;
+		if (!Tooltip || !Tooltip->GetTooltipData().bValid || !Tooltip->IsVisible()) return nullptr;
+		const auto Current = Tooltip->GetTooltipData();
+		if (InventorySlot && Current.InventorySlot != InventorySlot->GetSlotIndex()) return nullptr;
+		return Tooltip;
+	};
 	auto Data = [&](UWidget* Slot) { return Tip(Slot) ? Tip(Slot)->GetTooltipData() : FUmbraItemTooltipData(); };
 	Cell->EnterForTest(); MainHand->SetHovered(true);
-	TestNull(TEXT("Empty inventory has no tooltip"), Cell->GetToolTip());
-	TestNull(TEXT("Empty equipment has no tooltip"), MainHand->GetToolTip());
+	TestNull(TEXT("Empty inventory has no tooltip"), Tip(Cell));
+	TestNull(TEXT("Empty equipment has no tooltip"), Tip(MainHand));
 	auto* Item = NewObject<UUmbraItemDefinition>(State);
 	TestNull(TEXT("Title background defaults null"), Item->TooltipTitleBackgroundTexture.Get());
 	TestNull(TEXT("Icon background defaults null"), Item->TooltipIconBackgroundTexture.Get());
@@ -90,7 +108,13 @@ bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Inventory icon background copied"), Data(Cell).TooltipIconBackgroundTexture.Get(), Item->TooltipIconBackgroundTexture.Get());
 	TestFalse(TEXT("Initial requirements unmet"), Data(Cell).Requirements.bPrimariesMet);
 	auto* InitialTooltip = Tip(Cell);
-	if (!TestNotNull(TEXT("Tooltip created"), InitialTooltip)) return false;
+	if (!TestNotNull(TEXT("Tooltip created"), InitialTooltip))
+	{
+		Menu->DestructForTest(); EquipmentMenu->DestructForTest();
+		MenuSlate.Reset(); EquipmentSlate.Reset(); Flush();
+		GEngine->DestroyWorldContext(World); World->DestroyWorld(false);
+		return false;
+	}
 	auto* Quality = CastChecked<UImage>(InitialTooltip->GetWidgetFromName(TEXT("quality_bg")));
 	auto* Background = CastChecked<UImage>(InitialTooltip->GetWidgetFromName(TEXT("SlotBackground")));
 	auto* Icon = CastChecked<UImage>(InitialTooltip->GetWidgetFromName(TEXT("ItemIcon")));
@@ -130,7 +154,7 @@ bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 	auto* OtherCell = CastChecked<UUmbraInventorySlotTestWidget>(Menu->GetInventorySlot(1));
 	Cell->LeaveForTest(); OtherCell->EnterForTest();
 	TestEqual(TEXT("Same definition different GUID"), Data(OtherCell).InstanceId, OtherId);
-	TestNull(TEXT("Leave detaches old tooltip"), Cell->GetToolTip());
+	TestNull(TEXT("Leave detaches old tooltip"), Tip(Cell));
 	OtherCell->LeaveForTest(); Cell->EnterForTest();
 	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetStrengthAttribute(), 10.f); Flush();
 	TestTrue(TEXT("Primary context refreshes active tooltip"), Data(Cell).Requirements.bPrimariesMet);
@@ -150,10 +174,10 @@ bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 	Equipment->CharacterLevel = 7; Cell->LeaveForTest(); Cell->EnterForTest();
 	TestEqual(TEXT("Latest level read on hover"), Data(Cell).Requirements.CurrentLevel, 7);
 	Cell->SetItemDefinition(Item, Id); Cell->EnterForTest();
-	TestNull(TEXT("Manual inventory preview is not a snapshot"), Cell->GetToolTip());
+	TestNull(TEXT("Manual inventory preview is not a snapshot"), Tip(Cell));
 	Menu->NotifyPlayerContextChanged(); Cell->EnterForTest();
 	TestEqual(TEXT("Equip through real menu"), Menu->RequestEquipItem(Id), EUmbraTransferResult::Success);
-	TestNull(TEXT("Equip immediately clears inventory tooltip"), Cell->GetToolTip());
+	TestNull(TEXT("Equip immediately clears inventory tooltip"), Tip(Cell));
 	Flush(); MainHand->SetHovered(true);
 	TestTrue(TEXT("Equipment tooltip valid"), Data(MainHand).bValid);
 	TestEqual(TEXT("Equipment builder source"), Data(MainHand).Source, EUmbraTooltipSource::Equipment);
@@ -171,12 +195,12 @@ bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 	FUmbraInventoryItem Removed;
 	Inventory->RemoveItem(OtherId, Removed);
 	TestEqual(TEXT("Unequip through real menu"), EquipmentMenu->RequestUnequipSlot(MainHand), EUmbraUnequipResult::Success);
-	TestNull(TEXT("Unequip immediately clears tooltip"), MainHand->GetToolTip()); Flush();
+	TestNull(TEXT("Unequip immediately clears tooltip"), Tip(MainHand)); Flush();
 	OtherCell->EnterForTest();
 	TestEqual(TEXT("Returned GUID tooltip"), Data(OtherCell).InstanceId, Id);
 	const auto NewId = FGuid::NewGuid();
 	Inventory->RemoveItem(Id, Removed);
-	TestNull(TEXT("Removal invalidates open tooltip"), OtherCell->GetToolTip());
+	TestNull(TEXT("Removal invalidates open tooltip"), Tip(OtherCell));
 	Inventory->AddItem(Item, NewId);
 	TestEqual(TEXT("Replacement GUID same cell"), Data(OtherCell).InstanceId, NewId);
 	Equipment->Equip(EUmbraEquipmentSlot::MainHand, Item, Id); Flush(); MainHand->SetHovered(true);
@@ -189,31 +213,31 @@ bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 	const auto SavedInventory = *InventorySnapshot;
 	const auto Duplicate = InventorySnapshot->Items[0]; InventorySnapshot->Items.Add(Duplicate);
 	Inventory->OnInventoryChanged.Broadcast(*InventorySnapshot);
-	TestNull(TEXT("Invalid inventory snapshot clears tooltip"), OtherCell->GetToolTip());
+	TestNull(TEXT("Invalid inventory snapshot clears tooltip"), Tip(OtherCell));
 	*InventorySnapshot = SavedInventory; Inventory->OnInventoryChanged.Broadcast(*InventorySnapshot);
 	auto* EquipmentProperty = FindFProperty<FStructProperty>(Equipment->GetClass(), TEXT("Snapshot"));
 	auto* EquipmentSnapshot = EquipmentProperty->ContainerPtrToValuePtr<FUmbraEquipmentSnapshot>(Equipment);
 	const auto SavedEquipment = *EquipmentSnapshot;
 	EquipmentSnapshot->bValid = false; Equipment->OnEquipmentChanged.Broadcast(*EquipmentSnapshot); Flush();
-	TestNull(TEXT("Invalid equipment clears tooltip"), MainHand->GetToolTip());
+	TestNull(TEXT("Invalid equipment clears tooltip"), Tip(MainHand));
 	*EquipmentSnapshot = SavedEquipment; Equipment->OnEquipmentChanged.Broadcast(*EquipmentSnapshot); Flush();
 	Cell = CastChecked<UUmbraInventorySlotTestWidget>(Menu->GetInventorySlot(0));
 	Cell->EnterForTest(); MainHand->SetHovered(true);
 	Menu->SetPageActive(false); EquipmentMenu->SetPageActive(false); Flush();
-	TestNull(TEXT("Inventory page close clears"), Cell->GetToolTip());
-	TestNull(TEXT("Equipment page close clears"), MainHand->GetToolTip());
+	TestNull(TEXT("Inventory page close clears"), Tip(Cell));
+	TestNull(TEXT("Equipment page close clears"), Tip(MainHand));
 	Menu->SetPageActive(true); EquipmentMenu->SetPageActive(true);
 	Cell->EnterForTest(); MainHand->SetHovered(true);
 	auto* ReplacementState = MakeState(); PC->SetPlayerState(ReplacementState);
 	Menu->NotifyPlayerContextChanged(); EquipmentMenu->NotifyPlayerContextChanged(); Flush();
-	TestNull(TEXT("PS change clears inventory tooltip"), Cell->GetToolTip());
-	TestNull(TEXT("PS change clears equipment tooltip"), MainHand->GetToolTip());
+	TestNull(TEXT("PS change clears inventory tooltip"), Tip(Cell));
+	TestNull(TEXT("PS change clears equipment tooltip"), Tip(MainHand));
 	PC->SetPlayerState(State); Menu->NotifyPlayerContextChanged(); EquipmentMenu->NotifyPlayerContextChanged();
 	Cell->EnterForTest(); MainHand->SetHovered(true);
 	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetStrengthAttribute(), 9.f);
 	Menu->DestructForTest(); EquipmentMenu->DestructForTest(); Flush();
-	TestNull(TEXT("Queued event cannot reopen destructed menu"), Cell->GetToolTip());
-	TestNull(TEXT("Equipment destruct clears reference"), MainHand->GetToolTip());
+	TestNull(TEXT("Queued event cannot reopen destructed menu"), Tip(Cell));
+	TestNull(TEXT("Equipment destruct clears reference"), Tip(MainHand));
 	Menu->ConstructForTest(); Menu->ConstructForTest();
 	EquipmentMenu->ConstructForTest(); EquipmentMenu->ConstructForTest(); EquipmentMenu->SetPageActive(true);
 	Cell = CastChecked<UUmbraInventorySlotTestWidget>(Menu->GetInventorySlot(0));
@@ -223,9 +247,9 @@ bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 	Menu->ConstructForTest(); EquipmentMenu->ConstructForTest(); EquipmentMenu->SetPageActive(true);
 	Cell->EnterForTest(); MainHand->SetHovered(true);
 	Inventory->UnregisterComponent();
-	TestNull(TEXT("Inventory unregister invalidates"), Cell->GetToolTip());
+	TestNull(TEXT("Inventory unregister invalidates"), Tip(Cell));
 	Equipment->UnregisterComponent(); Flush();
-	TestNull(TEXT("Equipment unregister invalidates"), MainHand->GetToolTip());
+	TestNull(TEXT("Equipment unregister invalidates"), Tip(MainHand));
 	MenuSlate.Reset(); EquipmentSlate.Reset(); Flush();
 	GEngine->DestroyWorldContext(World); World->DestroyWorld(false);
 	return true;

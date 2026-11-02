@@ -5,6 +5,8 @@
 #include "UI/Items/UmbraItemSlotVisual.h"
 #include "UmbraInventorySlot.generated.h"
 
+class UUmbraInventoryMenu;
+class UUmbraItemDragDropOperation;
 class UImage;
 class UTextBlock;
 class UUmbraInventoryMenu;
@@ -17,11 +19,15 @@ UCLASS(Blueprintable, meta = (DisableNativeTick))
 class UMBRA_API UUmbraInventorySlot : public UUserWidget
 {
 	GENERATED_BODY()
+	friend class UUmbraItemDragDropOperation;
+	friend class UUmbraInventoryMenu;
+	TWeakObjectPtr<UUmbraInventoryMenu> InteractionMenu;
 public:
 	bool IsFromInventorySnapshot() const { return bFromInventorySnapshot; }
  FUmbraInventoryTooltipHover OnTooltipHoverChanged;
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void SetItemDefinition(UUmbraItemDefinition* Definition, FGuid InstanceId);
+	void SetItemInstance(const FUmbraItemInstance& Instance);
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void ClearItem();
 	UFUNCTION(BlueprintPure, Category = "Inventory")
@@ -47,6 +53,8 @@ public:
 protected:
 	UPROPERTY(BlueprintReadOnly, Transient, Category = "Inventory") FUmbraEquipmentItemDisplay CurrentItem;
 	UPROPERTY(Transient) FUmbraItemSlotVisual ItemVisual;
+	virtual void NativeOnDragDetected(const FGeometry& Geometry, const FPointerEvent& Event, UDragDropOperation*& Operation) override;
+	virtual bool NativeOnDrop(const FGeometry& Geometry, const FDragDropEvent& Event, UDragDropOperation* Operation) override;
 	virtual void NativePreConstruct() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;

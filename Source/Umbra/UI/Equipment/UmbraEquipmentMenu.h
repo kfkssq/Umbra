@@ -24,6 +24,7 @@ UCLASS(Blueprintable, meta = (DisableNativeTick))
 class UMBRA_API UUmbraEquipmentMenu : public UUserWidget
 {
 	GENERATED_BODY()
+	friend class UUmbraItemDragDropOperation;
 public:
 	/** Shared WBP_ItemTooltip, configured in the menu's Class Defaults. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Tooltip") TSubclassOf<UUmbraItemTooltip> ItemTooltipClass;
@@ -79,6 +80,7 @@ protected:
 	TObjectPtr<UImage> CharacterPreview;
 
 private:
+	EUmbraUnequipResult UnequipToCell(UUmbraEquipmentSlotWidget* EquipmentSlot, int32 TargetSlot);
 	void HandleTooltipHover(UUmbraEquipmentSlotWidget* Slot, bool bHovered);
 	void RefreshHoveredTooltip();
 	void ClearHoveredTooltip(bool bForgetHover = true);

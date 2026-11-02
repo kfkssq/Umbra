@@ -129,7 +129,7 @@ void AUmbraWorldItem::HandleAudioGroundHit(UPrimitiveComponent* HitComponent, AA
 		|| HitComponent != PhysicsBody || !PhysicsBody->IsSimulatingPhysics() || !OtherComponent
 		|| OtherComponent->GetCollisionObjectType() != ECC_WorldStatic || Hit.ImpactNormal.Z < 0.5f) return;
 	bLandAudioSent = true;
-	auto Context = FUmbraAudioContext::FromItem(ItemInstance.Definition);
+	auto Context = FUmbraAudioContext::FromInstance(ItemInstance);
 	Context.Surface = UPhysicalMaterial::DetermineSurfaceType(Hit.PhysMaterial.Get());
 	AudioEvents->PlayAuthority(EUmbraAudioEvent::LootLand, Context, Hit.ImpactPoint);
 }

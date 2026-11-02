@@ -73,7 +73,7 @@
 
 拾取上下文在服务器 TryPickup 前从实际 ItemInstance.Definition 捕获，成功只在 Reliable ClientPickupResult 收到后播；ReportPickupResult 处理失败，不对 Cancelled 播失败。重复点击同一已取物品只返回 Unavailable，不会再播成功；延迟导致晚到的成功仍代表真实已完成操作。
 
-LootSpawn 在本地首次收到年龄 0–1 秒且尚未落稳的新实例时尝试一次，携带实际 Definition.Rarity。超过窗口、没有客户端 GameState 或时钟显示未来的实例保守静默，不补播历史生成提示。极高网络延迟可能听不到。真实落地 LootLand 使用服务器 PhysicsBody.OnComponentHit，第一次与 WorldStatic 且法线 Z≥0.5 的接触；滚动/重复碰撞/FreezeDrop/异常回收不会响。动态物体接触目前不作为落地提示。
+LootSpawn 在本地首次收到年龄 0–1 秒的新实例时尝试一次，携带实际实例品质（固定旧物品回退 Definition.Rarity），不因已落稳而丢失首次提示。客户端 GameState 缺失或时钟显示未来时，每0.05秒重试，最多20次；超过年龄窗口不补播历史生成提示。LootSpawn 全局冷却按品质分开，同品质仍限流。详见[六品质修复](../SixRarityRepair.md)。真实落地 LootLand 使用服务器 PhysicsBody.OnComponentHit，第一次与 WorldStatic 且法线 Z≥0.5 的接触；滚动/重复碰撞/FreezeDrop/异常回收不会响。动态物体接触目前不作为落地提示。
 
 ### 稀有度生成提示与持续环境音（2026-10-26）
 

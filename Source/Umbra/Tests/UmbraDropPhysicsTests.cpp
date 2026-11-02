@@ -133,6 +133,7 @@ bool FUmbraDropPhysicsTest::RunTest(const FString& Parameters)
 
 	// Exercise the receive path without pretending this is a real network transport test.
 	auto* Replica = World->SpawnActor<AUmbraWorldItem>();
+	if (!Replica->HasActorBegunPlay()) Replica->DispatchBeginPlay();
 	Replica->SetRole(ROLE_SimulatedProxy);
 	Replica->DropMotion = Drop->DropMotion;
 	Replica->OnRep_DropMotion();

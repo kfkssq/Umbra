@@ -2,8 +2,30 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
 #include "Umbra.h"
+#include "Items/UmbraItemGeneration.h"
+#include "Misc/DataValidation.h"
+
+#if WITH_EDITOR
+EDataValidationResult UUmbraItemDefinition::IsDataValid(FDataValidationContext& Context) const
+{
+	const auto Base = Super::IsDataValid(Context);
+	if (!GenerationProfile) return Base;
+	FString Error;
+	if (!UmbraItemGeneration::Validate(this, Error))
+	{
+		Context.AddError(FText::FromString(GetPathName() + TEXT(": ") + Error));
+		return EDataValidationResult::Invalid;
+	}
+	return Base == EDataValidationResult::Invalid ? Base : EDataValidationResult::Valid;
+}
+#endif
 
 void UUmbraItemDefinition::FitWorldDropPhysics()
+{
+	TryFitWorldDropPhysics();
+}
+
+bool UUmbraItemDefinition::TryFitWorldDropPhysics()
 {
 #if WITH_EDITOR
 	FBox Bounds(ForceInit);
@@ -29,12 +51,15 @@ void UUmbraItemDefinition::FitWorldDropPhysics()
 		|| ScaledBounds.GetExtent().GetMax() > 200 || Bounds.GetCenter().GetAbsMax() > 500)
 	{
 		UE_LOG(LogUmbra, Warning, TEXT("Cannot fit drop physics for %s: missing mesh or bounds outside supported limits."), *GetName());
-		return;
+		return false;
 	}
 	Modify();
 	WorldDropPhysicsExtent = ScaledBounds.GetExtent().ComponentMax(FVector(1));
 	WorldDropPhysicsCenter = Bounds.GetCenter();
 	WorldDropPhysicsRotation = WorldDropRotation;
 	MarkPackageDirty();
+	return true;
+#else
+	return false;
 #endif
 }

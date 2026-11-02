@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "UI/Items/UmbraItemTooltip.h"
 #include "UI/Items/UmbraTooltipStatEntry.h"
+#include "UI/Items/UmbraTooltipAffixEntry.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/TextBlock.h"
 #include "Components/Image.h"
@@ -23,6 +24,22 @@ protected:
 		EntryText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EntryText"));
 		EntryText->SetColorAndOpacity(FLinearColor::Blue);
 		WidgetTree->RootWidget = EntryText;
+	}
+};
+
+UCLASS(Transient, NotBlueprintable)
+class UUmbraTooltipAffixTestWidget : public UUmbraTooltipAffixEntry
+{
+	GENERATED_BODY()
+protected:
+	virtual void NativeOnInitialized() override
+	{
+		Super::NativeOnInitialized();
+		auto* Root = WidgetTree->ConstructWidget<UVerticalBox>();
+		WidgetTree->RootWidget = Root;
+		AffixName = WidgetTree->ConstructWidget<UTextBlock>();
+		AffixValue = WidgetTree->ConstructWidget<UTextBlock>();
+		Root->AddChild(AffixName); Root->AddChild(AffixValue);
 	}
 };
 

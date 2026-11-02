@@ -1,5 +1,6 @@
 #include "Characters/UmbraEnemyCharacter.h"
 #include "Loot/UmbraLootTable.h"
+#include "Items/UmbraItemGeneration.h"
 #include "Loot/UmbraWorldItem.h"
 #include "NavigationSystem.h"
 #include "Engine/World.h"
@@ -46,7 +47,13 @@ void AUmbraEnemyCharacter::SpawnDeathLoot()
 			continue;
 		}
 		FUmbraItemInstance Instance;
-		if (!FUmbraItemInstance::Create(this, Definition, FGuid::NewGuid(), Instance)) continue;
+		FUmbraGenerationContext Context; Context.SourceLevel = LootItemLevel;
+		Context.SourceTags = LootSourceTags;
+		FString Error;
+		const bool bCreated = Definition && Definition->GenerationProfile
+			? UmbraItemGeneration::Generate(this, Definition, Context, FMath::Rand(), FGuid::NewGuid(), Instance, Error)
+			: FUmbraItemInstance::Create(this, Definition, FGuid::NewGuid(), Instance);
+		if (!bCreated) { UE_LOG(LogUmbra, Warning, TEXT("Loot generation rejected: %s"), *Error); continue; }
 		const FTransform Transform(FRotator::ZeroRotator, Location);
 		auto* Item = GetWorld()->SpawnActorDeferred<AUmbraWorldItem>(WorldItemClass ? WorldItemClass.Get() : AUmbraWorldItem::StaticClass(),
 			Transform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);

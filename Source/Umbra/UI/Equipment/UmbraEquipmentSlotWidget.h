@@ -7,6 +7,8 @@
 #include "UmbraEquipmentSlotWidget.generated.h"
 
 class UUmbraEquipmentSlotWidget;
+class UUmbraEquipmentMenu;
+class UUmbraItemDragDropOperation;
 class UImage;
 class UTexture2D;
 DECLARE_MULTICAST_DELEGATE_TwoParams(FUmbraEquipmentTooltipHover, UUmbraEquipmentSlotWidget*, bool);
@@ -17,6 +19,9 @@ UCLASS(Blueprintable, meta = (DisableNativeTick))
 class UMBRA_API UUmbraEquipmentSlotWidget : public UUserWidget
 {
 	GENERATED_BODY()
+	friend class UUmbraItemDragDropOperation;
+	friend class UUmbraEquipmentMenu;
+	TWeakObjectPtr<UUmbraEquipmentMenu> InteractionMenu;
 public:
  FUmbraEquipmentTooltipHover OnTooltipHoverChanged;
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
@@ -68,6 +73,8 @@ protected:
 	TObjectPtr<UImage> RarityFrame;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
 	TObjectPtr<UImage> LockedOverlay;
+	virtual void NativeOnDragDetected(const FGeometry& Geometry, const FPointerEvent& Event, UDragDropOperation*& Operation) override;
+	virtual bool NativeOnDrop(const FGeometry& Geometry, const FDragDropEvent& Event, UDragDropOperation* Operation) override;
 	virtual void NativePreConstruct() override;
 	virtual void NativeDestruct() override;
 	virtual void NativeOnMouseEnter(const FGeometry& Geometry, const FPointerEvent& Event) override;

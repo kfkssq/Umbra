@@ -101,15 +101,24 @@ void AUmbraWorldItem::PlaySpawnAudio()
 {
 	if (!HasActorBegunPlay() || bSpawnAudioSent || !ItemInstance.IsValid() || DropSpawnServerTime < 0
 		|| bPickedUp || GetNetMode() == NM_DedicatedServer) return;
-	bSpawnAudioSent = true;
 	// Initial actor multicast can precede its replication channel. Consume the replicated payload
 	// locally instead, but never announce old loot when it becomes relevant later.
 	const AGameStateBase* State = GetWorld()->GetGameState();
-	if (!HasAuthority() && !State) return;
+	auto RetryClock = [this]()
+	{
+		// Bound the wait for GameState/time sync; never turn late relevance into a historical cue.
+		if (++SpawnAudioRetryCount <= 20)
+			GetWorldTimerManager().SetTimer(SpawnAudioRetryTimer, this, &ThisClass::PlaySpawnAudio, 0.05f, false);
+		else bSpawnAudioSent = true;
+	};
+	if (!HasAuthority() && !State) { RetryClock(); return; }
 	const double Now = HasAuthority() ? GetWorld()->GetTimeSeconds() : State->GetServerWorldTimeSeconds();
 	const double Age = Now - DropSpawnServerTime;
-	if (Age < 0 || Age > 1.0 || DropMotion.bSettled) return;
-	const FUmbraAudioContext Context = FUmbraAudioContext::FromItem(ItemInstance.Definition);
+	if (Age < 0) { RetryClock(); return; }
+	bSpawnAudioSent = true;
+	GetWorldTimerManager().ClearTimer(SpawnAudioRetryTimer);
+	if (Age > 1.0) return;
+	const FUmbraAudioContext Context = FUmbraAudioContext::FromInstance(ItemInstance);
 	AudioEvents->PlayLocal(EUmbraAudioEvent::LootSpawn, Context, GetActorLocation());
 }
 
@@ -135,7 +144,7 @@ void AUmbraWorldItem::RefreshLootAmbience()
 	{
 		bLootAmbienceConfigured = true;
 		if (auto* Audio = GetWorld()->GetSubsystem<UUmbraAudioSubsystem>())
-			LootAmbience = Audio->CreateLootLoop(this, FUmbraAudioContext::FromItem(ItemInstance.Definition), AudioEvents->LibraryOverride);
+			LootAmbience = Audio->CreateLootLoop(this, FUmbraAudioContext::FromInstance(ItemInstance), AudioEvents->LibraryOverride);
 		// Retry only a configured loop rejected/stopped by distance or concurrency, never reroll probability.
 		if (LootAmbience) GetWorldTimerManager().SetTimer(LootAmbienceTimer, this, &ThisClass::RefreshLootAmbience, 1.f, true);
 	}
@@ -159,6 +168,7 @@ void AUmbraWorldItem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	StopLootAmbience();
 	GetWorldTimerManager().ClearTimer(DropAnimationWindowTimer);
+	GetWorldTimerManager().ClearTimer(SpawnAudioRetryTimer);
 	GetWorldTimerManager().ClearTimer(DropPhysicsTimer);
 	ClearMeshLoad();
 	Label->SetVisibility(false);
@@ -259,7 +269,7 @@ void AUmbraWorldItem::RefreshVisual()
 	const UUmbraItemDefinition* Definition = ItemInstance.Definition;
 	VisualComponent->InitializeVisual(GetDisplayMesh(), ItemInstance.InstanceId,
 		GetRestTransform(),
-		Definition->RarityColor, DropSpawnServerTime, bDropAnimationWindowClosed || DropPhysics.bEnabled);
+		ItemInstance.GetRarityColor(), DropSpawnServerTime, bDropAnimationWindowClosed || DropPhysics.bEnabled);
 	VisualComponent->SetHighlighted(bHighlighted);
 	SyncSkeletalQueryTransform();
 	UpdateLabelLocation();

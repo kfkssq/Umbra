@@ -1,0 +1,7 @@
+{
+  "batch": "ItemNormalAuto01",
+  "items": [
+    {"source_id": "ER:EquipParamWeapon:1000000", "primary_model": "WP_A_0100", "icon_field": "iconId", "usage": "WorldDrop"},
+    {"source_id": "ER:EquipParamProtector:100200", "primary_model": "AM_M_1140", "icon_field": "iconIdM", "usage": "WorldDrop"}
+  ]
+}

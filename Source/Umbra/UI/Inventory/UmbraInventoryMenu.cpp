@@ -1,4 +1,5 @@
 #include "UI/Inventory/UmbraInventoryMenu.h"
+#include "UmbraPlayerController.h"
 #include "Audio/UmbraAudioFunctionLibrary.h"
 
 #include "Components/TextBlock.h"
@@ -139,7 +140,7 @@ void UUmbraInventoryMenu::RefreshInventory()
 	for (UUmbraInventorySlot* Cell : Slots)
 	{
 		const auto* Entry = bInventoryDataReady ? ViewSnapshot.Items.FindByPredicate([Cell](const auto& Item) { return Item.SlotIndex == Cell->GetSlotIndex(); }) : nullptr;
-		if (Entry) Cell->SetItemDefinition(Entry->Definition, Entry->InstanceId); else Cell->ClearItem();
+		if (Entry) Cell->SetItemInstance(Entry->GetInstance()); else Cell->ClearItem();
 		Cell->bFromInventorySnapshot = Entry != nullptr;
 		const bool bSelect = Entry && Entry->InstanceId == SelectedInstanceId;
 		Cell->SetSelected(bSelect);
@@ -160,6 +161,7 @@ void UUmbraInventoryMenu::UnbindSlots()
 		Cell->OnEquipRequested.RemoveDynamic(this, &ThisClass::HandleEquip);
 		Cell->OnTooltipHoverChanged.RemoveAll(this);
 		Cell->SetToolTip(nullptr);
+		Cell->InteractionMenu.Reset();
 	}
 }
 
@@ -224,6 +226,7 @@ void UUmbraInventoryMenu::InitializeSlots()
 	}
 	for (UUmbraInventorySlot* Cell : Slots)
 	{
+		Cell->InteractionMenu = this;
 		Cell->OnSelectionRequested.AddUniqueDynamic(this, &ThisClass::HandleSelection);
 		Cell->OnEquipRequested.AddUniqueDynamic(this, &ThisClass::HandleEquip);
 		Cell->OnTooltipHoverChanged.RemoveAll(this);
@@ -239,7 +242,7 @@ void UUmbraInventoryMenu::HandleSelection(UUmbraInventorySlot* RequestedSlot)
 	SelectedInstanceId = RequestedSlot->GetItemDisplay().InstanceId;
 	SelectedSlot->SetSelected(true);
 	UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), EUmbraAudioEvent::InventorySelected,
-		FUmbraAudioContext::FromItem(Cast<UUmbraItemDefinition>(RequestedSlot->GetItemDisplay().Item)));
+		RequestedSlot->GetItemDisplay().AudioContext);
 }
 
 int32 UUmbraInventoryMenu::GetSelectedSlotIndex() const
@@ -262,12 +265,13 @@ EUmbraTransferResult UUmbraInventoryMenu::FinishEquip(EUmbraTransferResult Resul
 {
 	LastEquipResult = Result;
 	LastEquipMessage = UmbraTransferFeedback::Message(Result);
+	if (Result == EUmbraTransferResult::Pending) return Result;
 	// Results are final here; snapshots during removal/rollback must never emit success sounds.
 	FUmbraAudioContext AudioContext;
 	if (const auto* State = GetOwningPlayerState<AUmbraPlayerState>())
 		if (const auto* Equipment = State->GetEquipmentComponent())
 			for (const auto& Item : Equipment->GetSnapshot().Items)
-				if (Item.InstanceId == InstanceId) { AudioContext = FUmbraAudioContext::FromItem(Item.Definition); break; }
+				if (Item.InstanceId == InstanceId) { AudioContext = FUmbraAudioContext::FromInstance(Item.GetInstance()); break; }
 	UUmbraAudioFunctionLibrary::PlayUI(GetOwningPlayer(), Result == EUmbraTransferResult::Success
 		? EUmbraAudioEvent::EquipSuccess : EUmbraAudioEvent::EquipFailed, AudioContext);
 	if (Result == EUmbraTransferResult::Success)
@@ -291,14 +295,28 @@ EUmbraTransferResult UUmbraInventoryMenu::TryEquip(FGuid InstanceId, const EUmbr
 	auto* PS = GetOwningPlayerState<AUmbraPlayerState>();
 	if (!bObserving || !bBindInventoryData || !bInventoryDataReady || !PS || !BoundInventory.IsValid()
 		|| BoundInventory->GetOwner() != PS) return EUmbraTransferResult::NotReady;
-	if (!PS->HasAuthority()) return EUmbraTransferResult::AuthorityRequired;
 	if (!InstanceId.IsValid()) return EUmbraTransferResult::InvalidIdentity;
 	const auto Inventory = BoundInventory->GetSnapshot();
 	if (ValidateSnapshot(Inventory) != EUmbraInventoryViewState::Ready) return EUmbraTransferResult::NotReady;
 	const auto* Item = Inventory.Items.FindByPredicate([InstanceId](const auto& Entry) { return Entry.InstanceId == InstanceId; });
 	if (!Item) return EUmbraTransferResult::NotFound;
 	auto* Equipment = PS->GetEquipmentComponent();
-	if (!Equipment || !Equipment->IsRegistered() || !Equipment->IsReadyForCombat()) return EUmbraTransferResult::NotReady;
+	if (!Equipment || !Equipment->IsRegistered() || (PS->HasAuthority() ? !Equipment->IsReadyForCombat() : !Equipment->GetSnapshot().bValid)) return EUmbraTransferResult::NotReady;
+	auto SendEquip = [&](EUmbraEquipmentSlot Destination)
+	{
+		if (PS->HasAuthority()) return PS->EquipFromInventory(Destination, InstanceId);
+		auto* Controller = Cast<AUmbraPlayerController>(GetOwningPlayer());
+		if (!Controller) return EUmbraTransferResult::NotReady;
+		TWeakObjectPtr<UUmbraInventoryMenu> Weak(this);
+		return Controller->SubmitItemTransfer(EUmbraItemTransferOperation::Equip, InstanceId, Destination, INDEX_NONE,
+			[Weak](const FUmbraItemTransferResponse& Response)
+			{
+				if (!Weak.IsValid()) return;
+				Weak->LastEquipResult = Response.Result;
+				Weak->LastEquipMessage = UmbraTransferFeedback::Message(Response.Result);
+				Weak->BP_EquipFinished(Response.Result, Response.Request.InstanceId, Weak->LastEquipMessage);
+			});
+	};
 	TArray<EUmbraEquipmentSlot> Allowed;
 	for (const auto Candidate : Item->Definition->AllowedSlots)
 	{
@@ -309,9 +327,9 @@ EUmbraTransferResult UUmbraInventoryMenu::TryEquip(FGuid InstanceId, const EUmbr
 	if (ExplicitSlot)
 	{
 		if (!Allowed.Contains(*ExplicitSlot)) return EUmbraTransferResult::InvalidSlot;
-		return PS->EquipFromInventory(*ExplicitSlot, InstanceId);
+		return SendEquip(*ExplicitSlot);
 	}
-	if (Allowed.Num() == 1) return PS->EquipFromInventory(Allowed[0], InstanceId);
+	if (Allowed.Num() == 1) return SendEquip(Allowed[0]);
 	const auto Equipped = Equipment->GetSnapshot();
 	Allowed.RemoveAll([&Equipped](EUmbraEquipmentSlot Candidate)
 	{
@@ -319,5 +337,5 @@ EUmbraTransferResult UUmbraInventoryMenu::TryEquip(FGuid InstanceId, const EUmbr
 	});
 	if (Allowed.IsEmpty()) return EUmbraTransferResult::SlotOccupied;
 	if (Allowed.Num() > 1) return EUmbraTransferResult::SlotSelectionRequired;
-	return PS->EquipFromInventory(Allowed[0], InstanceId);
+	return SendEquip(Allowed[0]);
 }

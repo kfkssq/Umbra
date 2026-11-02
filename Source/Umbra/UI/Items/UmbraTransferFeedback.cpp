@@ -4,8 +4,10 @@ FText UmbraTransferFeedback::Message(EUmbraTransferResult Result)
 {
 	switch (Result)
 	{
+	case EUmbraTransferResult::Pending: return NSLOCTEXT("UmbraTransfer", "Pending", "Waiting for server.");
+	case EUmbraTransferResult::StaleRequest: return NSLOCTEXT("UmbraTransfer", "StaleRequest", "Items changed. Refresh and try again.");
 	case EUmbraTransferResult::Success: return NSLOCTEXT("UmbraTransfer", "Success", "Item transferred.");
-	case EUmbraTransferResult::AuthorityRequired: return NSLOCTEXT("UmbraTransfer", "Authority", "This action requires server authority. Remote client requests are not supported yet.");
+	case EUmbraTransferResult::AuthorityRequired: return NSLOCTEXT("UmbraTransfer", "Authority", "This action requires the owning player's server request.");
 	case EUmbraTransferResult::NotReady: return NSLOCTEXT("UmbraTransfer", "NotReady", "Inventory or equipment is not ready.");
 	case EUmbraTransferResult::InvalidSlot: return NSLOCTEXT("UmbraTransfer", "InvalidSlot", "This item cannot use that equipment slot.");
 	case EUmbraTransferResult::InvalidIdentity: return NSLOCTEXT("UmbraTransfer", "InvalidIdentity", "The item identity is invalid.");

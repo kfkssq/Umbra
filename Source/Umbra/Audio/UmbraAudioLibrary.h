@@ -26,7 +26,7 @@ struct UMBRA_API FUmbraAudioEntry
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0", ClampMax="1")) float Probability = 1.f;
 	/** Seconds, shared by all variants of this event for one emitter. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0")) float Cooldown = 0.08f;
-	/** Seconds between this event across all emitters in one world. */
+	/** Seconds between this event across emitters. LootSpawn with rarity is limited per rarity. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0")) float GlobalCooldown = 0.015f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly) TObjectPtr<USoundAttenuation> Attenuation;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly) TObjectPtr<USoundConcurrency> Concurrency;

@@ -96,6 +96,7 @@ bool FUmbraTooltipDefinitionTest::RunTest(const FString& Parameters)
 	Item->Weapon->Damage.Channels.Reset();
 	TestTrue(TEXT("Empty profile valid"), UUmbraItemTooltipDataBuilder::FromDefinition(Item).bValid);
 	Item->Weapon->Damage.Channels.AddDefaulted_GetRef().BaseDamage = -1.f;
+	AddExpectedError(TEXT("invalid base damage range"), EAutomationExpectedErrorFlags::Contains, 1);
 	Data = UUmbraItemTooltipDataBuilder::FromDefinition(Item);
 	TestFalse(TEXT("Invalid profile fails closed"), Data.bValid);
 	TestNull(TEXT("Failure clears previous definition"), Data.ItemDefinition.Get());
@@ -144,7 +145,10 @@ bool FUmbraTooltipFormattingTest::RunTest(const FString& Parameters)
 	Item->DamageBonuses.Add(Bonus);
 	const auto Data = UUmbraItemTooltipDataBuilder::FromDefinition(Item);
 	if (!TestTrue(TEXT("Formatting definition valid"), Data.bValid)) return false;
-	TestEqual(TEXT("One unified list"), Data.Stats.Num(), 24);
+	TestEqual(TEXT("Ordinary stats exclude multiplicative effects"), Data.Stats.Num(), 23);
+	TestEqual(TEXT("Multiplicative effect has separate row"), Data.SpecialEffectStats.Num(), 1);
+	TestTrue(TEXT("X uses increase wording and preserves source filter"), Data.SpecialEffectStats[0].Text.ToString().Contains(TEXT("20%"))
+		&& Data.SpecialEffectStats[0].Text.ToString().Contains(TEXT("仅普通攻击")));
 	TestEqual(TEXT("Intrinsic source"), Data.Stats[0].Source, EUmbraTooltipStatSource::Intrinsic);
 	TestEqual(TEXT("Affix source"), Data.Stats[2].Source, EUmbraTooltipStatSource::FixedAffix);
 	for (const auto& Line : Data.Stats)

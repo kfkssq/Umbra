@@ -119,7 +119,7 @@ void AUmbraPlayerController::CancelPickupApproach()
 void AUmbraPlayerController::ServerPickupWorldItem_Implementation(AUmbraWorldItem* Item)
 {
 	// Capture before TryPickup can hide/destroy the world actor.
-	const FUmbraAudioContext Context = FUmbraAudioContext::FromItem(IsValid(Item) ? Item->GetItemInstance().Definition.Get() : nullptr);
+	const FUmbraAudioContext Context = IsValid(Item) ? FUmbraAudioContext::FromInstance(Item->GetItemInstance()) : FUmbraAudioContext();
 	ClientPickupResult(IsValid(Item) ? Item->TryPickup(this) : EUmbraPickupResult::Unavailable, Context);
 }
 

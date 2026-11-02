@@ -282,6 +282,11 @@ void UUmbraItemTooltip::RefreshDisplay(bool bNotify)
 	// Quality backgrounds use authored textures, never a color tint; unconfigured restores the designer brush.
 	ApplyBackground(quality_bg, bValid ? Data.TooltipTitleBackgroundTexture.Get() : nullptr, QualityBackgroundBrush, bQualityBackgroundCaptured);
 	ApplyBackground(SlotBackground, bValid ? Data.TooltipIconBackgroundTexture.Get() : nullptr, SlotBackgroundBrush, bSlotBackgroundCaptured);
+	if (bValid && Data.bTintRarityBackgrounds)
+	{
+		if (quality_bg) quality_bg->SetColorAndOpacity(Data.RarityColor);
+		if (SlotBackground) SlotBackground->SetColorAndOpacity(Data.RarityColor);
+	}
 
 	Text(ItemLevelText, Data.ItemLevelText, bValid);
 	Show(HeaderSection, bValid);

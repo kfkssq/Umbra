@@ -206,11 +206,11 @@ bool FUmbraTooltipTitleColorTest::RunTest(const FString& Parameters)
 	Data.RarityColor = FLinearColor::Red;
 	Tooltip->SetTooltipData(Data);
 	const auto Text = [&](const TCHAR* Name) { return CastChecked<UTextBlock>(Tooltip->GetWidgetFromName(Name)); };
-	TestEqual(TEXT("Title stays white with red rarity"), Text(TEXT("ItemName"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::White);
+	TestEqual(TEXT("Title follows red rarity"), Text(TEXT("ItemName"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Red);
 	TestEqual(TEXT("Rarity remains red"), Text(TEXT("RarityText"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Red);
 	Data.RarityColor = FLinearColor::Green;
 	Tooltip->SetTooltipData(Data);
-	TestEqual(TEXT("Reused title still white"), Text(TEXT("ItemName"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::White);
+	TestEqual(TEXT("Reused title follows green rarity"), Text(TEXT("ItemName"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Green);
 	TestEqual(TEXT("Rarity changes normally"), Text(TEXT("RarityText"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Green);
 	Tooltip->SetTooltipData(FUmbraItemTooltipData());
 	TestEqual(TEXT("Cleared title remains white"), Text(TEXT("ItemName"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::White);

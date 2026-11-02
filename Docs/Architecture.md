@@ -1,5 +1,27 @@
 # Umbra 架构与维护地图
 
+2026-11-01：[跨类型批测](EquipmentBatchCoverage18.md)：逐包转换失败隔离→成功资源继续进入UE→逐行草稿创建；盾等未映射类型仅在测试计划显式允许时导入资源，不伪造分类。18件样本7成功/11阻断，下一步优先解析detail层语义。
+
+2026-11-01：[直接RG法线](DaggerNormalValidation.md)：普通ER模板→语义/引用/保真检查→原_n PNG→UE Normalmap。模板级自动化与逐资产视觉验收分开，未知B/A和_m不扩展接线。
+
+2026-11-01：[物品导入桥接](EquipmentItemImport.md)：显式源物品选择→资源硬门槛与哈希→复用DCX/模型材质管线→UI icon与现有ItemDefinition类的独立展示草稿；原始信息保留编辑器元数据，战斗/生成字段不自动映射。
+
+2026-11-01：[装备源资料目录](EquipmentItemCatalog.md)：源 CSV/FMG 文本/icon/parts → 表名+行ID稳定身份 → 分类建议与精确资源候选 → 独立报告；原始数值只作参考，现有 ItemDefinition 仍为项目配置权威。此阶段不写 UE 资产。
+
+2026-11-01：[1140材质审计](Material1140Audit.md)：明确通道配方→独立派生纹理→Normalmap/线性RoughnessMap→单样品候选；roughness_texture为可选新接口，旧Master/MI配方和默认规则保持兼容。
+
+2026-11-01：[DCX导入前端](EquipmentDcxImport.md)：只读原DCX→隔离解包→插件材质索引适配/通道转换校验→自动manifest→M1导入器；内容哈希缓存，不修改原插件或运行时装备系统。
+
+2026-10-31：[装备模型材质导入M1](EquipmentAssetImportM1.md)：纯Python清单计划→UE分件导入纹理/材质/网格→配方归属保护→报告；WorldDrop/Wearable分目录，不修改运行时装备、Definition或Icon。
+
+2026-10-31：[六品质修复](SixRarityRepair.md)：实例品质行统一驱动文字、槽位和Tooltip背景；LootSpawn按品质限流并等待客户端时钟；客户端Tooltip读取复制快照，不调用服务端需求查询器。
+
+2026-10-30：[M5 清单管线](EquipmentPipelineM5.md)：离线源哈希/来源验证 → UE 类型与生成规则预检 → 缺失导入 → Definition受控字段/物理拟合 → 同包基线保存。三方差异保护手改字段，重复执行零保存；未新增运行时全库加载或异步框架。
+
+2026-10-30：[随机装备M4](RandomEquipmentM4.md)：装备GE Context携带固定/随机伤害条件快照并复制，GetBonuses统一读取；Controller拥有者请求按GUID/槽位/Revision执行原PlayerState事务，远端菜单和拖拽接入。
+
+2026-10-29：[随机装备 M1–M3](RandomEquipmentMVP.md)：完整版本化实例跨世界/背包/装备传递；GenerationProfile opt-in 公共 Primary/Attribute 池；独立随机流生成，展示和音频读取实例品质；旧 Blueprint 投影和旧 A/X 路径保留。内存 DTO 不等于完整存档。
+
 2026-10-24：[音频第一阶段](Audio/AudioSetupGuide.md)：AudioLibrary 配置事件/上下文，AudioSubsystem 负责无 Tick 的本地选择、冷却和原生播放；AudioComponent 提供角色配置与权威瞬时表现通知。AttributeSet 只增加结算表现快照；UI 使用最终结果，拾取沿用 Client RPC，掉落真实碰撞与生成提示分离。攻击/移动动画接口为纯表现 Notify，待手动添加；未改伤害公式、攻击周期或业务权威规则。[审计与资产证据](Audio/AudioAudit.md)。
 
 2026-10-21：[地面标签与悬停](WorldItemLabels.md)：骨骼展示组件增加三角形 Visibility 查询；本地 Controller 排布标签、缓存屏幕矩形并优先解析到原 WorldItem，复用高亮/拾取链。Tooltip 顶部名称固定白色，稀有度文字保留原色。
@@ -204,3 +226,6 @@ PlayerCharacter 观察 PlayerState ASC Health → 权威死亡状态复制 → �
 ### 敌人挥动音频资产接线（2026-10-27）
 
 已通过 UE 5.8.2 为敌人实际攻击蒙太奇 AM_Enemy_BasicAttack 配置0.339秒 AttackSwing Notify，走 AudioEvents 本地空间播放和默认库映射；服务端命中窗口不变。资产、时刻、备份和 PIE 验证边界见 [音频指南](Audio/AudioSetupGuide.md)。
+## 批量装备导入更新（2026-11-02）
+
+[批量入口](EquipmentBulkImport.md)由bulk_import编排固定选择、分进程导入与失败重试；matbin_rules负责源材质默认引用，flver_layout负责主顶点语义；玩法定义仍由现有C++拥有，导入只创建展示草稿。Special材质不做未知通道回退。

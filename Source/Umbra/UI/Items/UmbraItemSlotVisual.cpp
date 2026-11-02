@@ -31,13 +31,16 @@ void FUmbraItemSlotVisual::Apply(const FUmbraEquipmentItemDisplay& Item, UImage*
 	if (Background)
 	{
 		if (bHasItem && Item.SlotBackgroundTexture) ApplyArt(Background, Item.SlotBackgroundTexture);
-		else { Background->SetBrush(BackgroundBrush); Background->SetColorAndOpacity(BackgroundColor); }
+		else { Background->SetBrush(BackgroundBrush); Background->SetColorAndOpacity(
+			bHasItem && Item.bUseRarityBackgroundColor ? Item.RarityColor : BackgroundColor); }
 		Background->SetVisibility(ESlateVisibility::Visible);
+		if (bHasItem && Item.bUseRarityBackgroundColor) Background->SetColorAndOpacity(Item.RarityColor);
 	}
 	if (Frame)
 	{
 		if (bHasItem && Item.RarityFrameTexture) ApplyArt(Frame, Item.RarityFrameTexture);
 		else { Frame->SetBrush(FrameBrush); Frame->SetColorAndOpacity(bHasItem ? Item.RarityColor : FLinearColor::White); }
 		Frame->SetVisibility(bHasItem ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		// A configured frame is authored quality artwork; background tint must not recolor it.
 	}
 }

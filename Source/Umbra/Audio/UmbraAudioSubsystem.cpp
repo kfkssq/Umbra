@@ -1,4 +1,5 @@
 #include "Audio/UmbraAudioSubsystem.h"
+#include "Umbra.h"
 #include "Audio/UmbraAudioLibrary.h"
 #include "Audio/UmbraAudioSettings.h"
 #include "Kismet/GameplayStatics.h"
@@ -108,7 +109,9 @@ bool UUmbraAudioSubsystem::Play(UObject* Emitter, EUmbraAudioEvent Event, const 
 	// Event-driven pruning bounds lifetime without a housekeeping tick or retaining actors/widgets.
 	for (auto It = NextEmitterTimes.CreateIterator(); It; ++It) if (!It.Key().IsValid()) It.RemoveCurrent();
 	auto& Times = NextEmitterTimes.FindOrAdd(Emitter);
-	if (Now < Times.FindRef(Event) || Now < NextGlobalTimes.FindRef(Event)) return false;
+	const bool bRaritySpawn = Event == EUmbraAudioEvent::LootSpawn && Context.bHasRarity;
+	const double GlobalNext = bRaritySpawn ? NextLootSpawnTimes.FindRef(Context.Rarity) : NextGlobalTimes.FindRef(Event);
+	if (Now < Times.FindRef(Event) || Now < GlobalNext) return false;
 	const float Chance = Safe(Entry->Probability, 0.f, 0.f, 1.f);
 	if (Chance <= 0.f || (Chance < 1.f && AudioRandom.FRand() >= Chance)) return false;
 	const float* LibraryVolume = Library->CategoryVolumes.Find(Entry->Category);
@@ -118,7 +121,9 @@ bool UUmbraAudioSubsystem::Play(UObject* Emitter, EUmbraAudioEvent Event, const 
 		* (RuntimeVolume ? *RuntimeVolume : 1.f);
 	if (Volume <= 0.f) return false;
 	Times.Add(Event, Now + Safe(Entry->Cooldown, 0.08f, 0.f, 3600.f));
-	NextGlobalTimes.Add(Event, Now + Safe(Entry->GlobalCooldown, 0.015f, 0.f, 60.f));
+	const double Next = Now + Safe(Entry->GlobalCooldown, 0.015f, 0.f, 60.f);
+	if (bRaritySpawn) NextLootSpawnTimes.Add(Context.Rarity, Next);
+	else NextGlobalTimes.Add(Event, Next);
 	const float Low = Safe(Entry->PitchMin, 1.f, 0.25f, 4.f);
 	const float High = Safe(Entry->PitchMax, 1.f, 0.25f, 4.f);
 	const float Pitch = AudioRandom.FRandRange(FMath::Min(Low, High), FMath::Max(Low, High));
@@ -129,5 +134,10 @@ bool UUmbraAudioSubsystem::Play(UObject* Emitter, EUmbraAudioEvent Event, const 
 			Entry->Attenuation ? Entry->Attenuation.Get() : DefaultAttenuation.Get(), Concurrency, Cast<AActor>(Emitter));
 	else
 		UGameplayStatics::PlaySound2D(World, Sound, Volume, Pitch, 0.f, Concurrency, nullptr, true);
+	UE_LOG(LogUmbra, Verbose, TEXT("AudioDispatch event=%s rarity=%d sound=%s emitter=%s"),
+		*UEnum::GetValueAsString(Event), int32(Context.Rarity), *GetPathNameSafe(Sound), *GetNameSafe(Emitter));
+#if WITH_DEV_AUTOMATION_TESTS
+	OnDispatchedForTest.Broadcast(Emitter, Event, Context);
+#endif
 	return true;
 }

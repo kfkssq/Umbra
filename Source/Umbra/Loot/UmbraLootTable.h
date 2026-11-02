@@ -28,4 +28,5 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0")) float NoDropWeight = 0.f;
 	static constexpr int32 MaximumItems = 16;
 	void Select(const AActor* Authority, TArray<UUmbraItemDefinition*>& OutDefinitions) const;
+	void Select(const AActor* Authority, FRandomStream& Random, TArray<UUmbraItemDefinition*>& OutDefinitions) const;
 };

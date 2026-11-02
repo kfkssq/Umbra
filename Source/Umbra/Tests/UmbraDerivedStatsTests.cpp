@@ -80,6 +80,7 @@ bool FUmbraDerivedStatsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Invalid replacement leaves power intact"), Derived->GetSnapshot().AttackPower, 160.f);
 	Invalid->Damage.Channels = { Physical };
 	Invalid->Damage.Channels[0].BaseDamage = -1.f;
+	AddExpectedError(TEXT("invalid base damage range"), EAutomationExpectedErrorFlags::Contains, 1);
 	TestFalse(TEXT("Negative base rejected"), Derived->SetWeaponProfile(Invalid));
 	Invalid->Damage.Channels[0] = Physical;
 	Invalid->Damage.Channels[0].Scaling.Add(Str);

@@ -1,5 +1,20 @@
 # 武器区间与实例词缀（2026-10-09）
 
+2026-10-29 后续更新：M1–M3 已实施，新增实例版本/等级/品质/seed、公共 Primary/Attribute 池与独立测试资产，见 [实施契约](RandomEquipmentMVP.md) 与 [验证记录](Progress.md)。下面 M0 节记录的是迁移前基线，“尚未实施”仅适用于当时状态。
+
+## M0 基线契约（2026-10-29）
+
+新增 `Umbra.Items.RandomBaseline.Creation` 和 `Umbra.Items.RandomBaseline.TransferAndEffects`，源文件为 [UmbraRandomEquipmentBaselineTests.cpp](../Source/Umbra/Tests/UmbraRandomEquipmentBaselineTests.cpp)。执行结果与遗留问题见 [Progress](Progress.md) 的同日记录；此处不表示多人/PIE验收已完成。
+
+- 当前完整实例只有 Definition、InstanceId、RolledAffixes；测试使用反射比较整个结构（含词缀身份、条件、值、全部候选及选中下标），转移不能只比较 GUID。工厂从全局随机流抽取，基线不固定 seed，也不要求两次随机必然不同；效果期望取本次已生成的实际 Value。
+- 固定装备空随机数组仍合法；已配置的每条词缀都生成，显式候选覆盖均匀候选。整数取整产生重复候选、重复 AffixId、非法数值或非权威创建必须拒绝。失败不得发布半个实例。
+- `Create` 是创建边界；`AddInstance`/`EquipInstance`/卸下/回滚/重注册只传结果。组件生命周期内，同 GUID 的已知实例由 KnownInstances 恢复，不能用另一个合法掷值替换。
+- 普通属性和 A/X 共用一件装备的 GE；随机护甲不受固有防御需求惩罚，随机主属性不能满足自身需求。基线验证真实扣血、GE 数量及卸下恢复；不以 UI 文本代替玩法断言。
+- M1 迁移约束（尚未实施）：现有未版本化结构按旧版本0解释；新增等级/品质从旧模板默认值显式适配，已有 RolledAffixes 保留，禁止迁移重掷。SelectedTier 仍是数值候选下标；后续词缀内容档位另增字段。Definition 原字段/枚举含义保持，先加 opt-in，再决定资产迁移。
+- 后续 SchemaVersion、稳定 DefinitionId、生成规则版本/seed 与存档 DTO 仍是计划；本次不新增字段、不实现存档或公共池。MVP 只保证实例随机快照，固定基础值仍读取定义；旧 Damage 条件依赖原模板的边界未改变。
+
+手工验收待办：独立测试地图生成两件同模板实例，记录实际词缀；拾取、背包移动、穿脱、菜单重开后比较，检查完整 Tooltip 与真实属性。分别记录单机、远端客户端和视觉结果。本次原生测试模拟世界实例交给 PlayerState 的接收边界，不代替鼠标导航拾取、网络传输或实际 WBP 验收。
+
 本页是本轮新增契约；覆盖旧文档中“只有固定词缀”“所有属性使用 KeyValue/StatEntry”“特殊效果仅预留”的说明。未修改或保存 Content，实际资产内容与绑定均待编辑器确认。
 
 ## 武器与真实伤害

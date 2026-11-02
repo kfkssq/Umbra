@@ -62,6 +62,15 @@ bool FUmbraInventoryTransferTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Item returned to inventory"), Inventory->GetSnapshot().Items.ContainsByPredicate([SwordId](const FUmbraInventoryItem& I) { return I.InstanceId == SwordId; }));
 	TestEqual(TEXT("Stale unequip identity"), Owner->UnequipToInventory(EUmbraEquipmentSlot::MainHand, FGuid::NewGuid(), Returned), EUmbraTransferResult::NotFound);
 
+	TestEqual(TEXT("Move into empty cell"), Owner->MoveInventoryItem(SwordId, 12), EUmbraInventoryResult::Success);
+	TestEqual(TEXT("Out of range rejected"), Owner->MoveInventoryItem(SwordId, Inventory->GetSnapshot().Capacity), EUmbraInventoryResult::InvalidSlot);
+	TestEqual(TEXT("Negative slot rejected"), Owner->MoveInventoryItem(SwordId, -1), EUmbraInventoryResult::InvalidSlot);
+	TestEqual(TEXT("Unknown identity rejected"), Owner->MoveInventoryItem(FGuid::NewGuid(), 3), EUmbraInventoryResult::NotFound);
+	TestEqual(TEXT("Equip moved item"), Owner->EquipFromInventory(EUmbraEquipmentSlot::MainHand, SwordId), EUmbraTransferResult::Success);
+	TestEqual(TEXT("Return to exact empty cell"), Owner->UnequipToInventorySlot(EUmbraEquipmentSlot::MainHand, SwordId, 17, Returned), EUmbraTransferResult::Success);
+	TestEqual(TEXT("Exact returned slot"), Returned.SlotIndex, 17);
+	TestEqual(TEXT("Returned definition unchanged"), Returned.Definition.Get(), Sword);
+
 	// Duplicate: the identity already lives in the inventory while still equipped.
 	Equipment->Equip(EUmbraEquipmentSlot::MainHand, Sword, SwordId);
 	TestEqual(TEXT("Duplicate blocks return"), Owner->UnequipToInventory(EUmbraEquipmentSlot::MainHand, SwordId, Returned), EUmbraTransferResult::DuplicateInstance);

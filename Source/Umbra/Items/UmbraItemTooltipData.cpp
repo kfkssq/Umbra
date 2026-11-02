@@ -1,4 +1,5 @@
 #include "Items/UmbraItemTooltipData.h"
+#include "Items/UmbraItemGeneration.h"
 #include "Equipment/UmbraEquipmentEffect.h"
 #include "UI/Combat/UmbraCombatStatData.h"
 #include "UI/Equipment/UmbraEquipmentTypes.h"
@@ -144,6 +145,18 @@ namespace
 	bool ReadInstance(FUmbraItemTooltipData& Out, const FUmbraItemInstance& Instance)
 	{
 		if (!Instance.IsValid()) return false;
+		Out.ItemLevel = Instance.GetItemLevel();
+		Out.Rarity = Instance.GetRarity();
+		Out.RarityColor = Instance.GetRarityColor();
+		if (Instance.GenerationRulesVersion > 0 && Instance.Definition->GenerationProfile)
+			for (const auto& Row : Instance.Definition->GenerationProfile->Rarities)
+				if (Row.Rarity == Out.Rarity)
+				{
+					Out.TooltipTitleBackgroundTexture = Row.TooltipTitleBackgroundTexture;
+					Out.bTintRarityBackgrounds = Row.bTintBackgrounds;
+					Out.TooltipIconBackgroundTexture = Row.TooltipIconBackgroundTexture;
+					break;
+				}
 		Out.Stats.RemoveAll([](const auto& Line) { return Line.bConfigurationPreview; });
 		Out.SpecialEffectStats.RemoveAll([](const auto& Line) { return Line.bConfigurationPreview; });
 		for (const auto& Roll : Instance.RolledAffixes)
@@ -209,7 +222,13 @@ namespace
 	bool SetContext(FUmbraItemTooltipData& Out, const UUmbraEquipmentComponent* Equipment)
 	{
 		if (!Equipment) return true;
-		if (!IsValid(Equipment) || !Equipment->QueryRequirements(Out.ItemDefinition, Out.bHasTargetSlot, Out.TargetSlot, Out.Requirements)) return false;
+		if (!IsValid(Equipment) || !Equipment->IsRegistered()) return false;
+		// Client components receive snapshots but never initialize the authority-only GAS
+		// requirement evaluator. Keep detail status unknown instead of hiding the item;
+		// FromEquipment below still takes the worn aggregate status from the server.
+		if (Equipment->GetOwner() && !Equipment->GetOwner()->HasAuthority())
+			return Equipment->GetSnapshot().bValid;
+		if (!Equipment->QueryRequirements(Out.ItemDefinition, Out.bHasTargetSlot, Out.TargetSlot, Out.Requirements)) return false;
 		Out.bPrimaryStatusKnown = true;
 		Out.bRequirementsMet = Out.Requirements.bPrimariesMet;
 		Out.RequirementState = !Out.Requirements.bLevelMet ? EUmbraTooltipRequirementState::LevelTooLow
@@ -248,6 +267,7 @@ FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromDefinition(UUmbraItemDef
 	Out.Rarity = Definition->Rarity;
 	Out.ItemLevel = Definition->ItemLevel;
 	Out.RarityColor = Definition->RarityColor;
+	Out.bTintRarityBackgrounds = Definition->bTintRarityBackgrounds;
 	Out.TooltipTitleBackgroundTexture = Definition->TooltipTitleBackgroundTexture;
 	Out.TooltipIconBackgroundTexture = Definition->TooltipIconBackgroundTexture;
 	Out.RequiredLevel = Definition->RequiredLevel;
@@ -356,7 +376,7 @@ FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromEquipment(const FUmbraEq
 	Out.bPrimaryStatusKnown = true;
 	Out.bRequirementsMet = Entry->bRequirementsMet;
 	Out.bHasEquipmentPenalty = !Entry->bRequirementsMet;
-	if (!Equipment && Out.bHasEquipmentPenalty) Out.PenaltyText = LOCTEXT("UnknownPenalty", "主属性不足，存在装备惩罚；当前上下文无法读取惩罚倍率。");
+	if (!Out.Requirements.bKnown && Out.bHasEquipmentPenalty) Out.PenaltyText = LOCTEXT("UnknownPenalty", "主属性不足，存在装备惩罚；当前上下文无法读取惩罚倍率。");
 	UmbraTooltipFormatting::BuildDisplayText(Out);
 	return Out;
 }

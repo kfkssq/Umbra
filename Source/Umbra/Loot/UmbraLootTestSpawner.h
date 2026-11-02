@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Items/UmbraItemGeneration.h"
 #include "UmbraLootTestSpawner.generated.h"
 
 class UUmbraItemDefinition;
@@ -16,6 +17,8 @@ public:
 	AUmbraLootTestSpawner();
 	UPROPERTY(EditAnywhere, Category = "Loot Test") TArray<TObjectPtr<UUmbraItemDefinition>> Items;
 	UPROPERTY(EditAnywhere, Category = "Loot Test") TSubclassOf<AUmbraWorldItem> WorldItemClass;
+	UPROPERTY(EditAnywhere, Category = "Loot Test") FUmbraGenerationContext GenerationContext;
+	UPROPERTY(EditAnywhere, Category = "Loot Test") int32 GenerationSeed = 12345;
 protected:
 	virtual void BeginPlay() override;
 private:

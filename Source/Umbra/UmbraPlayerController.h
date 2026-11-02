@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Inventory/UmbraItemTransferRequest.h"
 #include "Audio/UmbraAudioTypes.h"
 #include "GameFramework/PlayerController.h"
 #include "GameplayEffectTypes.h"
@@ -47,6 +48,14 @@ class AUmbraPlayerController : public APlayerController
 
 public:
 	AUmbraPlayerController();
+	UFUNCTION(BlueprintCallable, Category="Inventory")
+	EUmbraTransferResult RequestItemTransfer(EUmbraItemTransferOperation Operation, FGuid InstanceId, EUmbraEquipmentSlot Slot, int32 TargetCell = -1);
+	EUmbraTransferResult SubmitItemTransfer(EUmbraItemTransferOperation Operation, FGuid InstanceId, EUmbraEquipmentSlot Slot, int32 TargetCell,
+		TFunction<void(const FUmbraItemTransferResponse&)> Completion);
+	UPROPERTY(BlueprintReadOnly, Category="Inventory") FUmbraItemTransferResponse LastItemTransferResponse;
+	UFUNCTION(BlueprintImplementableEvent, Category="Inventory") void BP_ItemTransferFinished(const FUmbraItemTransferResponse& Response);
+	/** Authority evaluator also used by protocol tests. Ownership is fixed to this controller. */
+	FUmbraItemTransferResponse ProcessItemTransfer(const FUmbraItemTransferRequest& Request);
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Audio") TObjectPtr<class UUmbraAudioComponent> AudioEvents;
 	/** Centimeters, checked again on the server; Blueprint defaults override native defaults. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "100", ClampMax = "500")) float PickupRange = 150.f;
@@ -238,6 +247,12 @@ protected:
 	bool ShouldUseTouchControls() const;
 
 private:
+	UFUNCTION(Server, Reliable) void ServerItemTransfer(FUmbraItemTransferRequest Request);
+	UFUNCTION(Client, Reliable) void ClientItemTransferResult(FUmbraItemTransferResponse Response);
+	int32 NextItemTransferRequest = 0;
+	int32 LastProcessedItemTransfer = 0;
+	int32 PendingItemTransfer = 0;
+	TFunction<void(const FUmbraItemTransferResponse&)> ItemTransferCompletion;
 	AUmbraWorldItem* GetWorldItemUnderCursor() const;
 	AUmbraWorldItem* GetWorldItemLabelUnderCursor() const;
 	AUmbraWorldItem* FindWorldItemLabelAt(const FVector2D& Position) const;

@@ -3,10 +3,12 @@
 #include "CoreMinimal.h"
 #include "Styling/SlateBrush.h"
 #include "Equipment/UmbraEquipmentSlot.h"
+#include "Audio/UmbraAudioTypes.h"
 #include "UmbraEquipmentTypes.generated.h"
 
 class UTexture2D;
 class UUmbraItemDefinition;
+struct FUmbraItemInstance;
 
 UENUM(BlueprintType)
 enum class EUmbraEquipmentSlotState : uint8
@@ -24,6 +26,7 @@ struct UMBRA_API FUmbraEquipmentItemDisplay
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment")
 	TObjectPtr<UObject> Item = nullptr;
 	UPROPERTY(BlueprintReadOnly, Category = "Equipment") FGuid InstanceId;
+	UPROPERTY(BlueprintReadOnly, Category = "Equipment") FUmbraAudioContext AudioContext;
 	UPROPERTY(BlueprintReadOnly, Category = "Equipment") bool bFromEquipmentSnapshot = false;
 	UPROPERTY(BlueprintReadOnly, Category = "Equipment") bool bRequirementsMet = false;
 
@@ -37,7 +40,9 @@ struct UMBRA_API FUmbraEquipmentItemDisplay
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment") TObjectPtr<UTexture2D> RarityFrameTexture;
 	/** Shared projection for both slot families; no gameplay calculation. */
 	static FUmbraEquipmentItemDisplay FromDefinition(UUmbraItemDefinition* Definition, FGuid Id = FGuid());
+	static FUmbraEquipmentItemDisplay FromInstance(const FUmbraItemInstance& Instance);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment")
 	FLinearColor RarityColor = FLinearColor::White;
+	UPROPERTY(BlueprintReadOnly, Category = "Equipment") bool bUseRarityBackgroundColor = false;
 };

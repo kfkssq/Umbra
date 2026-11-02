@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "source_root": "D:/EquipmentSource",
+  "output_root": "/Game/EquipmentImport/Staging/Batch01",
+  "items": [
+    {
+      "id": "Sword01",
+      "model": "Sword01/Sword01.fbx",
+      "kind": "static",
+      "usage": "WorldDrop",
+      "scale": 1.0,
+      "provenance": "Replace with source, author and permitted use record",
+      "materials": {
+        "Blade": {
+          "base_color": "Sword01/Blade_a.png",
+          "normal": "Sword01/Blade_n.png",
+          "normal_encoding": "standard_dx",
+          "surface": "Opaque",
+          "preset": "metal",
+          "alpha_policy": "ignore"
+        }
+      }
+    }
+  ]
+}

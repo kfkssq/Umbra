@@ -55,6 +55,11 @@ bool FUmbraItemPresentationTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Quality background comes from item"), Background->GetBrush().GetResourceObject(), static_cast<UObject*>(Definition->SlotBackgroundTexture));
 		TestEqual(TEXT("Quality frame comes from item"), Frame->GetBrush().GetResourceObject(), static_cast<UObject*>(Definition->RarityFrameTexture));
 		TestTrue(TEXT("Texture art is not multiplied by rarity color"), Frame->GetColorAndOpacity() == FLinearColor::White);
+		Definition->bTintRarityBackgrounds = true;
+		Set(Definition);
+		TestEqual(TEXT("Background tint remains enabled"), Background->GetColorAndOpacity(), Definition->RarityColor);
+		TestEqual(TEXT("Background tint never recolors authored frame"), Frame->GetColorAndOpacity(), FLinearColor::White);
+		Definition->bTintRarityBackgrounds = false;
 		Set(Plain);
 		TestEqual(TEXT("Replacement without quality art restores default background"), Background->GetBrush().GetResourceObject(), static_cast<UObject*>(EmptyTexture));
 		TestTrue(TEXT("Default background tint restored"), Background->GetColorAndOpacity() == FLinearColor::Gray);

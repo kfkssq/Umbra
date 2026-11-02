@@ -1,4 +1,5 @@
 #include "Items/UmbraItemInstance.h"
+#include "Items/UmbraItemGeneration.h"
 #include "Equipment/UmbraEquipmentEffect.h"
 #include "GameFramework/Actor.h"
 #include "Umbra.h"
@@ -48,7 +49,7 @@ bool FUmbraAffixRollConfig::BuildCandidates(TArray<float>& Out) const
 bool FUmbraItemInstance::Create(const AActor* Authority, UUmbraItemDefinition* Item, FGuid Id, FUmbraItemInstance& Out)
 {
 	Out = FUmbraItemInstance();
-	if (!Authority || !Authority->HasAuthority() || !::IsValid(Item) || !Id.IsValid()) return false;
+	if (!Authority || !Authority->HasAuthority() || !::IsValid(Item) || !Id.IsValid() || Item->GenerationProfile) return false;
 	FUmbraItemInstance Next;
 	Next.Definition = Item;
 	Next.InstanceId = Id;
@@ -68,6 +69,7 @@ bool FUmbraItemInstance::Create(const AActor* Authority, UUmbraItemDefinition* I
 		if (Roll.Kind == EUmbraAffixKind::Damage) Roll.DamageBonus.Magnitude = FScalableFloat(Roll.Value);
 		Next.RolledAffixes.Add(MoveTemp(Roll));
 	}
+	if (!Next.UpgradeLegacy()) return false;
 	Out = MoveTemp(Next);
 	return true;
 }
@@ -75,6 +77,10 @@ bool FUmbraItemInstance::Create(const AActor* Authority, UUmbraItemDefinition* I
 bool FUmbraItemInstance::IsValid() const
 {
 	if (!::IsValid(Definition) || !InstanceId.IsValid()) return false;
+	if (SchemaVersion < 0 || SchemaVersion > 1) return false;
+	if (Definition->GenerationProfile && (SchemaVersion != 1 || GenerationRulesVersion < 1)) return false;
+	if (SchemaVersion == 1 && (DefinitionId.IsNone() || ItemLevel < 1 || uint8(Rarity) > uint8(EUmbraItemRarity::Unique)
+		|| GenerationRulesVersion < 0)) return false;
 	TSet<FName> Seen;
 	for (const auto& Roll : RolledAffixes)
 	{
@@ -86,4 +92,50 @@ bool FUmbraItemInstance::IsValid() const
 				|| (Index && Roll.CandidateValues[Index] <= Roll.CandidateValues[Index - 1])) return false;
 	}
 	return true;
+}
+
+bool FUmbraItemInstance::UpgradeLegacy()
+{
+	if (!IsValid()) return false;
+	if (SchemaVersion == 1) return true;
+	if (Definition->GenerationProfile || Definition->ItemLevel < 1 || uint8(Definition->Rarity) > uint8(EUmbraItemRarity::Unique)) return false;
+	DefinitionId = Definition->DefinitionId.IsNone() ? FName(*Definition->GetPathName()) : Definition->DefinitionId;
+	ItemLevel = Definition->ItemLevel; Rarity = Definition->Rarity;
+	SchemaVersion = 1;
+	return true;
+}
+
+int32 FUmbraItemInstance::GetItemLevel() const { return SchemaVersion == 0 && Definition ? Definition->ItemLevel : ItemLevel; }
+EUmbraItemRarity FUmbraItemInstance::GetRarity() const { return SchemaVersion == 0 && Definition ? Definition->Rarity : Rarity; }
+FLinearColor FUmbraItemInstance::GetRarityColor() const
+{
+	if (!Definition) return FLinearColor::White;
+	if (GenerationRulesVersion > 0 && Definition->GenerationProfile)
+		for (const auto& Row : Definition->GenerationProfile->Rarities) if (Row.Rarity == GetRarity()) return Row.Color;
+	return Definition->RarityColor;
+}
+
+bool FUmbraItemInstanceRecord::Capture(FUmbraItemInstance Value, FUmbraItemInstanceRecord& Out)
+{
+	if (!Value.UpgradeLegacy()) return false;
+	Out.SchemaVersion = Value.SchemaVersion; Out.DefinitionId = Value.DefinitionId; Out.InstanceId = Value.InstanceId;
+	Out.ItemLevel = Value.ItemLevel; Out.Rarity = Value.Rarity; Out.GenerationSeed = Value.GenerationSeed;
+	Out.GenerationRulesVersion = Value.GenerationRulesVersion; Out.RolledAffixes = Value.RolledAffixes;
+	// Rolled damage stores a scalar; never persist its authoring curve reference.
+	for (auto& Roll : Out.RolledAffixes) if (Roll.Kind == EUmbraAffixKind::Damage) Roll.DamageBonus.Magnitude = FScalableFloat(Roll.Value);
+	return true;
+}
+
+bool FUmbraItemInstanceRecord::Restore(UUmbraItemDefinition* Resolved, FUmbraItemInstance& Out) const
+{
+	Out = {};
+	if (!::IsValid(Resolved) || SchemaVersion != 1) return false;
+	const FName Expected = Resolved->DefinitionId.IsNone() ? FName(*Resolved->GetPathName()) : Resolved->DefinitionId;
+	if (Expected != DefinitionId) return false;
+	FUmbraItemInstance Next;
+	Next.Definition = Resolved; Next.SchemaVersion = SchemaVersion; Next.DefinitionId = DefinitionId;
+	Next.InstanceId = InstanceId; Next.ItemLevel = ItemLevel; Next.Rarity = Rarity;
+	Next.GenerationSeed = GenerationSeed; Next.GenerationRulesVersion = GenerationRulesVersion; Next.RolledAffixes = RolledAffixes;
+	if (!Next.IsValid()) return false;
+	Out = MoveTemp(Next); return true;
 }

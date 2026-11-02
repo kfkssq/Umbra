@@ -1,4 +1,5 @@
 #include "UI/Equipment/UmbraEquipmentSlotWidget.h"
+#include "UI/Items/UmbraItemDragDropOperation.h"
 #include "InputCoreTypes.h"
 #include "Components/Image.h"
 #include "Engine/Texture2D.h"
@@ -119,7 +120,18 @@ FReply UUmbraEquipmentSlotWidget::NativeOnMouseButtonDown(const FGeometry& Geome
 	if (Event.GetEffectingButton() == EKeys::LeftMouseButton && !bLocked)
 	{
 		RequestSelection();
-		return FReply::Handled();
+		return HasItem() ? FReply::Handled().DetectDrag(TakeWidget(), EKeys::LeftMouseButton) : FReply::Handled();
 	}
 	return Super::NativeOnMouseButtonDown(Geometry, Event);
+}
+
+void UUmbraEquipmentSlotWidget::NativeOnDragDetected(const FGeometry& Geometry, const FPointerEvent& Event, UDragDropOperation*& Operation)
+{
+ Operation = UUmbraItemDragDropOperation::Begin(this);
+}
+
+bool UUmbraEquipmentSlotWidget::NativeOnDrop(const FGeometry& Geometry, const FDragDropEvent& Event, UDragDropOperation* Operation)
+{
+ if (auto* Drag = Cast<UUmbraItemDragDropOperation>(Operation)) return Drag->DropOn(this);
+ return Super::NativeOnDrop(Geometry, Event, Operation);
 }

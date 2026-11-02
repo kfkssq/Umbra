@@ -16,6 +16,10 @@ class UMBRA_API UUmbraAudioSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 public:
+#if WITH_DEV_AUTOMATION_TESTS
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FDispatched, UObject*, EUmbraAudioEvent, const FUmbraAudioContext&);
+	FDispatched OnDispatchedForTest;
+#endif
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual bool DoesSupportWorldType(EWorldType::Type WorldType) const override;
 	bool Play(UObject* Emitter, EUmbraAudioEvent Event, const FUmbraAudioContext& Context,
@@ -30,6 +34,8 @@ private:
 	UPROPERTY(Transient) TObjectPtr<USoundConcurrency> LootLoopConcurrency;
 	TMap<TWeakObjectPtr<UObject>, TMap<EUmbraAudioEvent, double>> NextEmitterTimes;
 	TMap<EUmbraAudioEvent, double> NextGlobalTimes;
+	/** Different rarity spawn cues in the same loot batch must not suppress each other. */
+	TMap<EUmbraItemRarity, double> NextLootSpawnTimes;
 	TMap<EUmbraAudioCategory, float> CategoryVolumes;
 	/** Cosmetic selection must not consume gameplay's global random sequence on a listen server. */
 	FRandomStream AudioRandom;

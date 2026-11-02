@@ -178,6 +178,19 @@ EUmbraTransferResult AUmbraPlayerState::EquipFromInventory(EUmbraEquipmentSlot S
 
 EUmbraTransferResult AUmbraPlayerState::UnequipToInventory(EUmbraEquipmentSlot Slot, FGuid ExpectedInstanceId, FUmbraInventoryItem& OutReturnedItem)
 {
+	return UnequipToInventorySlot(Slot, ExpectedInstanceId, INDEX_NONE, OutReturnedItem);
+}
+
+EUmbraInventoryResult AUmbraPlayerState::MoveInventoryItem(FGuid InstanceId, int32 TargetSlot)
+{
+	if (!HasAuthority()) return EUmbraInventoryResult::AuthorityRequired;
+	if (!InventoryComponent || bTransferInProgress) return EUmbraInventoryResult::NotReady;
+	TGuardValue<bool> Guard(bTransferInProgress, true);
+	return InventoryComponent->MoveItem(InstanceId, TargetSlot);
+}
+
+EUmbraTransferResult AUmbraPlayerState::UnequipToInventorySlot(EUmbraEquipmentSlot Slot, FGuid ExpectedInstanceId, int32 TargetSlot, FUmbraInventoryItem& OutReturnedItem)
+{
 	OutReturnedItem = FUmbraInventoryItem();
 	if (!HasAuthority()) return EUmbraTransferResult::AuthorityRequired;
 	if (!InventoryComponent || !EquipmentComponent) return EUmbraTransferResult::NotReady;
@@ -189,6 +202,9 @@ EUmbraTransferResult AUmbraPlayerState::UnequipToInventory(EUmbraEquipmentSlot S
 	const FUmbraInventorySnapshot InvSnap = InventoryComponent->GetSnapshot();
 	if (!InvSnap.bReady || !EquipmentComponent->IsReadyForCombat()) return EUmbraTransferResult::NotReady;
 	if (InvSnap.Items.Num() >= InvSnap.Capacity) return EUmbraTransferResult::InventoryFull;
+	if (TargetSlot < INDEX_NONE || TargetSlot >= InvSnap.Capacity) return EUmbraTransferResult::InvalidSlot;
+	if (TargetSlot != INDEX_NONE && InvSnap.Items.ContainsByPredicate([TargetSlot](const auto& Item) { return Item.SlotIndex == TargetSlot; }))
+		return EUmbraTransferResult::SlotOccupied;
 
 	const FUmbraEquipmentSnapshot EquipSnap = EquipmentComponent->GetSnapshot();
 	const FUmbraEquippedItem* Entry = EquipSnap.Items.FindByPredicate(
@@ -204,7 +220,7 @@ EUmbraTransferResult AUmbraPlayerState::UnequipToInventory(EUmbraEquipmentSlot S
 	const EUmbraTransferResult Mapped = MapUnequipResult(UnequipResult);
 	if (Mapped != EUmbraTransferResult::Success && Mapped != EUmbraTransferResult::AppliedInvalid) return Mapped;
 
-	if (InventoryComponent->AddInstance(RemovedEquip.GetInstance()) != EUmbraInventoryResult::Success)
+	if (InventoryComponent->AddInstance(RemovedEquip.GetInstance(), TargetSlot) != EUmbraInventoryResult::Success)
 	{
 		if (EquipmentComponent->EquipInstance(Slot, RemovedEquip.GetInstance()) != EUmbraEquipResult::Success)
 		{
@@ -218,6 +234,6 @@ EUmbraTransferResult AUmbraPlayerState::UnequipToInventory(EUmbraEquipmentSlot S
 	const FUmbraInventoryItem* Stored = ReturnedSnapshot.Items.FindByPredicate(
 		[&RemovedEquip](const FUmbraInventoryItem& Existing) { return Existing.InstanceId == RemovedEquip.InstanceId; });
 	if (Stored) OutReturnedItem = *Stored;
-	else { OutReturnedItem.Definition = RemovedEquip.Definition; OutReturnedItem.InstanceId = RemovedEquip.InstanceId; OutReturnedItem.RolledAffixes = RemovedEquip.RolledAffixes; }
+	else OutReturnedItem.SetInstance(RemovedEquip.GetInstance());
 	return Mapped;
 }

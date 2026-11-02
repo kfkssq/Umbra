@@ -62,7 +62,7 @@ EUmbraInventoryResult UUmbraInventoryComponent::AddItem(UUmbraItemDefinition* De
 	return AddInstance(Instance);
 }
 
-EUmbraInventoryResult UUmbraInventoryComponent::AddInstance(const FUmbraItemInstance& Instance)
+EUmbraInventoryResult UUmbraInventoryComponent::AddInstance(const FUmbraItemInstance& Instance, int32 TargetSlot)
 {
 	const auto InstanceId = Instance.InstanceId;
 	auto* Definition = Instance.Definition.Get();
@@ -75,13 +75,18 @@ EUmbraInventoryResult UUmbraInventoryComponent::AddInstance(const FUmbraItemInst
 		if (!FUmbraItemInstance::StaticStruct()->CompareScriptStruct(Known, &Instance, 0)) return EUmbraInventoryResult::InvalidIdentity;
 	if (Snapshot.Items.ContainsByPredicate([InstanceId](const auto& Item) { return Item.InstanceId == InstanceId; })) return EUmbraInventoryResult::DuplicateInstance;
 	if (Snapshot.Items.Num() >= Snapshot.Capacity) return EUmbraInventoryResult::Full;
-	int32 FreeIndex = 0;
-	while (Snapshot.Items.ContainsByPredicate([FreeIndex](const auto& Item) { return Item.SlotIndex == FreeIndex; })) ++FreeIndex;
+	if (TargetSlot < INDEX_NONE || TargetSlot >= Snapshot.Capacity) return EUmbraInventoryResult::InvalidSlot;
+	if (TargetSlot != INDEX_NONE && Snapshot.Items.ContainsByPredicate([TargetSlot](const auto& Item) { return Item.SlotIndex == TargetSlot; }))
+		return EUmbraInventoryResult::SlotOccupied;
+	int32 FreeIndex = TargetSlot;
+	if (FreeIndex == INDEX_NONE)
+	{
+		FreeIndex = 0;
+		while (Snapshot.Items.ContainsByPredicate([FreeIndex](const auto& Item) { return Item.SlotIndex == FreeIndex; })) ++FreeIndex;
+	}
 	auto& Entry = Snapshot.Items.AddDefaulted_GetRef();
 	Entry.SlotIndex = FreeIndex;
-	Entry.InstanceId = InstanceId;
-	Entry.Definition = Definition;
-	Entry.RolledAffixes = Instance.RolledAffixes;
+	Entry.SetInstance(Instance);
 	KnownInstances.Add(InstanceId, Instance);
 	Publish();
 	return EUmbraInventoryResult::Success;
@@ -101,8 +106,25 @@ EUmbraInventoryResult UUmbraInventoryComponent::RemoveItem(FGuid InstanceId, FUm
 	return EUmbraInventoryResult::Success;
 }
 
+EUmbraInventoryResult UUmbraInventoryComponent::MoveItem(FGuid InstanceId, int32 TargetSlot)
+{
+	const auto Check = CheckMutation();
+	if (Check != EUmbraInventoryResult::Success) return Check;
+	if (!InstanceId.IsValid()) return EUmbraInventoryResult::InvalidIdentity;
+	if (TargetSlot < 0 || TargetSlot >= Snapshot.Capacity) return EUmbraInventoryResult::InvalidSlot;
+	auto* Source = Snapshot.Items.FindByPredicate([InstanceId](const auto& Item) { return Item.InstanceId == InstanceId; });
+	if (!Source) return EUmbraInventoryResult::NotFound;
+	if (Source->SlotIndex == TargetSlot) return EUmbraInventoryResult::Success;
+	if (auto* Target = Snapshot.Items.FindByPredicate([TargetSlot](const auto& Item) { return Item.SlotIndex == TargetSlot; }))
+		Target->SlotIndex = Source->SlotIndex;
+	Source->SlotIndex = TargetSlot;
+	Publish();
+	return EUmbraInventoryResult::Success;
+}
+
 void UUmbraInventoryComponent::Publish()
 {
+	if (GetOwner() && GetOwner()->HasAuthority()) Snapshot.Revision = Snapshot.Revision == MAX_int32 ? 1 : Snapshot.Revision + 1;
 	TGuardValue<bool> Guard(bPublishing, true);
 	OnInventoryChanged.Broadcast(GetSnapshot());
 	if (GetOwner()) GetOwner()->ForceNetUpdate();

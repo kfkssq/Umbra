@@ -4,6 +4,7 @@
 
 #include "AbilitySystemInterface.h"
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "AbilitySystem/UmbraDebugInitialAttributes.h"
 #include "GameFramework/Character.h"
 #include "Interfaces/UmbraAttackable.h"
@@ -50,6 +51,9 @@ public:
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot") bool bEnableLoot = true;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot") TObjectPtr<UUmbraLootTable> LootTable;
+	/** Source level for opt-in generated gear; independent of equip requirements. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot", meta=(ClampMin="1")) int32 LootItemLevel = 1;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot") FGameplayTagContainer LootSourceTags;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot") TSubclassOf<AUmbraWorldItem> WorldItemClass;
 	/** Centimeters; runtime clamped to 0..1000. Only reachable navigation points are accepted. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "0", ClampMax = "1000")) float LootScatterRadius = 140.f;
