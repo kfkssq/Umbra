@@ -100,14 +100,18 @@ public:
 #endif
 	/** Stable content identity for generated items. Legacy definitions may leave this empty. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Generation") FName DefinitionId;
+	/** Opt-in for non-equippable materials; only smithing stone definitions enable this currently. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory") bool bStackableMaterial = false;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Generation") FGameplayTagContainer EquipmentTags;
 	/** Opt-in; cannot be combined with legacy AffixRollConfigs. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Generation") TObjectPtr<UUmbraItemGenerationProfile> GenerationProfile;
+	/** Imported ER rarity: -1 preserves legacy rules; 0 -> Common..Rare, 1 -> Common..Epic, 2 -> Epic/Legendary, 3 -> Legendary/Unique. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Generation", meta = (ClampMin = "-1", ClampMax = "3")) int32 SourceRarity = -1;
 	/** Editor-only authoring action. Fits the proxy to the transformed reference-pose bounds; does not save assets. */
 	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Presentation|Drop Physics") void FitWorldDropPhysics();
 	/** Automation variant: false leaves all proxy fields unchanged. Does not save the package. */
 	UFUNCTION(BlueprintCallable, Category = "Presentation|Drop Physics") bool TryFitWorldDropPhysics();
-	/** Presentation classification only; Unknown preserves legacy profile/slot fallback. */
+	/** Classification; Accessory also selects the shared four-relic-slot rule. Unknown keeps authored slots. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation|Classification") EUmbraItemCategory ItemCategory = EUmbraItemCategory::Unknown;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation|Classification") EUmbraWeaponType WeaponType = EUmbraWeaponType::Unknown;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation", meta = (ClampMin = "1")) int32 ItemLevel = 1;
@@ -142,8 +146,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") TObjectPtr<UTexture2D> TooltipTitleBackgroundTexture;
 	/** Tooltip icon cell background; null preserves the WBP designer brush. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Presentation") TObjectPtr<UTexture2D> TooltipIconBackgroundTexture;
+	/** Authored slots for other categories; Accessory always uses all four relic slots at runtime. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment") TArray<EUmbraEquipmentSlot> AllowedSlots;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (ClampMin = "1")) int32 RequiredLevel = 1;
+	/** Accessory is the relic category: all four right-side slots are interchangeable. */
+	UFUNCTION(BlueprintPure, Category = "Equipment") TArray<EUmbraEquipmentSlot> GetAllowedEquipmentSlots() const;
+	UFUNCTION(BlueprintPure, Category = "Equipment") bool CanEquipInSlot(EUmbraEquipmentSlot Slot) const;
+	/** Staged equipment may drop and retain rolled stats before its combat behavior is implemented. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment") bool bEquippingEnabled = true;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "!bEquippingEnabled")) FText EquippingUnavailableReason;
+	/** Legacy serialized value, ignored. Required level is the instance ItemLevel. */
+	UPROPERTY() int32 RequiredLevel = 1;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment") FUmbraPrimaryValues Requirements;
 	/** Always active, including when requirements fail. No conditional primary bonuses. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment") FUmbraPrimaryValues PrimaryBonuses;

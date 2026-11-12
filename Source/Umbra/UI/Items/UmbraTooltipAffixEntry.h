@@ -7,7 +7,7 @@
 
 class UTextBlock;
 
-/** WBP owns font, colors, spacing, alignment and line wrapping. No gameplay queries or Tick. */
+/** WBP owns typography and layout; display data supplies roll-rank color. No gameplay queries or Tick. */
 UCLASS(Abstract, Blueprintable, meta = (DisableNativeTick))
 class UMBRA_API UUmbraTooltipAffixEntry : public UUserWidget
 {

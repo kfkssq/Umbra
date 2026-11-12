@@ -1,3 +1,5 @@
+> 2026-11-04 栏位更新：Feet 停用，原鞋子位置改为 Amulet2；Legs 包含裤靴，仍为十个有效栏位。旧文中的 Feet 配置及独立腿鞋规划由 [双护符栏说明](AccessoriesAndConsumables.md) 覆盖。
+
 # 装备页 Blueprint 逐步操作指南
 
 2026-09-30：空EquipmentSlot的RarityFrame必须Collapsed；C++现在在BP刷新返回后以HasItem设置可见性。Designer默认和旧Graph清理步骤见 [Inventory指南第6节](InventoryPhase1.md#6-equipmentslot的rarityframe修复)。FullBody Preview与EmptySlotIcons保持原契约。

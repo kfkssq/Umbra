@@ -29,6 +29,10 @@ class UMBRA_API AUmbraEnemyCharacter : public ACharacter, public IUmbraAttackabl
 	GENERATED_BODY()
 
 public:
+	/** Presentation identity authored by the enemy Blueprint; independent of loot item level. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI|Identity") FText EnemyDisplayName = NSLOCTEXT("Umbra", "EnemyDefaultName", "Enemy");
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI|Identity", meta=(ClampMin="1")) int32 EnemyDisplayLevel = 1;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI|Identity") TObjectPtr<class UTexture2D> EnemyPortrait;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Audio") TObjectPtr<class UUmbraAudioComponent> AudioEvents;
 	AUmbraEnemyCharacter();
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;

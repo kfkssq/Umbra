@@ -1,4 +1,5 @@
 #include "Items/UmbraItemTooltipData.h"
+#include "Items/UmbraItemGeneration.h"
 #include "UI/Combat/UmbraCombatStatData.h"
 
 #define LOCTEXT_NAMESPACE "UmbraItemTooltipDisplay"
@@ -30,6 +31,8 @@ void UmbraTooltipFormatting::BuildDisplayText(FUmbraItemTooltipData& Data)
 	Data.RarityText = RarityName(Data.Rarity);
 	Data.RarityAndTypeText = FText::Format(LOCTEXT("RarityAndType", "{0} · {1}"), Data.RarityText, Data.ItemType);
 	Data.ItemLevelText = FText::Format(LOCTEXT("ItemLevel", "物品等级 {0}"), FText::AsNumber(Data.ItemLevel));
+	if (Data.Requirements.bLevelKnown && !Data.Requirements.bLevelMet)
+		Data.ItemLevelText = FText::Format(LOCTEXT("LevelUnmet", "{0} ×"), Data.ItemLevelText);
 	Data.TotalDamageText = Data.DamageChannels.IsEmpty() ? FText::GetEmpty() : DamageRange(Data.TotalMinBaseDamage, Data.TotalMaxBaseDamage);
 	Data.DamageEntries.Reset();
 	for (auto& Channel : Data.DamageChannels)
@@ -67,9 +70,19 @@ void UmbraTooltipFormatting::BuildDisplayText(FUmbraItemTooltipData& Data)
 	// The compatibility array remains empty: ordinary affixes have one dedicated rendering path.
 	Data.StatEntries.Reset();
 	Data.AffixEntries.Reset();
+	Data.DefenseEntries.Reset();
 	for (int32 Index = 0; Index < Data.Stats.Num(); ++Index)
 	{
 		const auto& Stat = Data.Stats[Index];
+		if (Stat.Source == EUmbraTooltipStatSource::Intrinsic && !Stat.bDamageBonus
+			&& (Stat.StatId == TEXT("Armor") || Stat.StatId == TEXT("MagicResistance")))
+		{
+			auto& Defense = Data.DefenseEntries.AddDefaulted_GetRef();
+			Defense.DisplayMode = EUmbraTooltipEntryDisplayMode::KeyValue;
+			Defense.LabelText = StatName(Stat.StatId);
+			Defense.ValueText = Number(Stat.RawValue);
+			continue;
+		}
 		auto& Entry = Data.AffixEntries.AddDefaulted_GetRef();
 		Entry.AffixId = Stat.AffixId.IsNone() ? FName(*FString::Printf(TEXT("Fixed.%d.%s"), Index, *Stat.StatId.ToString())) : Stat.AffixId;
 		Entry.AttributeId = Stat.StatId;
@@ -84,6 +97,17 @@ void UmbraTooltipFormatting::BuildDisplayText(FUmbraItemTooltipData& Data)
 		Entry.RolledValue = Stat.RawValue;
 		Entry.TierCount = Stat.CandidateValues.Num();
 		Entry.SelectedTier = Stat.SelectedTier;
+		if (Entry.bRolled && Entry.bHasActualValue && Entry.TierCount == 6
+			&& Stat.CandidateValues.IsValidIndex(Entry.SelectedTier))
+		{
+			// Match the existing six-rarity palette; legacy definitions may have no profile.
+			const FColor Defaults[] = { FColor(255,255,255), FColor(75,203,99), FColor(68,138,255),
+				FColor(176,112,255), FColor(232,62,140), FColor(255,211,77) };
+			Entry.RollColor = FLinearColor::FromSRGBColor(Defaults[Entry.SelectedTier]);
+			if (Data.ItemDefinition && Data.ItemDefinition->GenerationProfile)
+				for (const auto& Row : Data.ItemDefinition->GenerationProfile->Rarities)
+					if (int32(Row.Rarity) == Entry.SelectedTier) { Entry.RollColor = Row.Color; break; }
+		}
 		if (!Stat.CandidateValues.IsEmpty())
 		{
 			Entry.MinPossibleValue = Stat.CandidateValues[0];
@@ -93,7 +117,11 @@ void UmbraTooltipFormatting::BuildDisplayText(FUmbraItemTooltipData& Data)
 				UmbraCombatStats::FormatNumber(Entry.MaxPossibleValue, Stat.Unit == EUmbraTooltipUnit::Percent, 0, 4));
 		}
 	}
+	Data.bHasSpecialEffect = Data.ItemCategory != EUmbraItemCategory::Material && Data.Rarity >= EUmbraItemRarity::Legendary;
+	Data.bIsUnique = Data.Rarity == EUmbraItemRarity::Unique;
 	Data.SpecialEffects.Reset();
+	if (Data.bIsUnique) Data.SpecialEffects.Add(LOCTEXT("UniqueMarker", "独特物品"));
+	if (Data.bHasSpecialEffect) Data.SpecialEffects.Add(LOCTEXT("PendingSpecialEffect", "特殊效果待实现"));
 	for (const auto& Stat : Data.SpecialEffectStats)
 	{
 		FText Text = Stat.bConfigurationPreview ? DamageAffixName(Stat.DamageBonus) : Format(Stat);
@@ -109,15 +137,6 @@ void UmbraTooltipFormatting::BuildDisplayText(FUmbraItemTooltipData& Data)
 	{
 		return !bAvailable ? EUmbraTooltipRowStyle::Unknown : bMet ? EUmbraTooltipRowStyle::Met : EUmbraTooltipRowStyle::Unmet;
 	};
-	const auto StateText = [](EUmbraTooltipRowStyle State)
-	{
-		return State == EUmbraTooltipRowStyle::Unknown ? LOCTEXT("Unknown", "未知")
-			: State == EUmbraTooltipRowStyle::Met ? LOCTEXT("Met", "已满足") : LOCTEXT("Unmet", "未满足");
-	};
-	auto& Level = Data.RequirementRows.AddDefaulted_GetRef();
-	Level.Style = Style(bKnown, Data.Requirements.bLevelMet);
-	Level.Text = FText::Format(LOCTEXT("LevelRequirement", "需求等级 {0}（当前 {1}，{2}）"), FText::AsNumber(Data.RequiredLevel),
-		bKnown ? FText::AsNumber(Data.Requirements.CurrentLevel) : LOCTEXT("Unknown", "未知"), StateText(Level.Style));
 	const auto Required = Data.RequiredPrimaries.ToArray();
 	for (int32 Index = 0; Index < 4; ++Index)
 	{
@@ -125,18 +144,20 @@ void UmbraTooltipFormatting::BuildDisplayText(FUmbraItemTooltipData& Data)
 		const bool bAvailable = bKnown && Data.Requirements.CurrentPrimaries.IsValidIndex(Index) && Data.Requirements.PrimaryMet.IsValidIndex(Index);
 		auto& Row = Data.RequirementRows.AddDefaulted_GetRef();
 		Row.Style = Style(bAvailable, bAvailable && Data.Requirements.PrimaryMet[Index]);
-		Row.Text = FText::Format(LOCTEXT("PrimaryRequirement", "需求{0} {1}（当前 {2}，{3}）"),
+		Row.Text = FText::Format(LOCTEXT("CompactPrimaryRequirement", "{0} {1}{2}"),
 			StatName(FName(*StaticEnum<EUmbraPrimaryAttribute>()->GetNameStringByValue(Index))), Number(Required[Index]),
-			bAvailable ? Number(Data.Requirements.CurrentPrimaries[Index]) : LOCTEXT("Unknown", "未知"), StateText(Row.Style));
+			bAvailable && !Data.Requirements.PrimaryMet[Index] ? LOCTEXT("PrimaryUnmet", " 不满足") : FText::GetEmpty());
+		if (bAvailable && Data.Requirements.PrimaryMet[Index]) Row.Style = EUmbraTooltipRowStyle::Neutral;
 	}
-	switch (Data.RequirementState)
-	{
-	case EUmbraTooltipRequirementState::LevelTooLow: Data.RequirementStatusText = LOCTEXT("LevelTooLow", "等级不足，不可穿戴。"); break;
-	case EUmbraTooltipRequirementState::PrimaryPenalty: Data.RequirementStatusText = LOCTEXT("PrimaryPenalty", "主属性不足，允许穿戴但存在装备惩罚。"); break;
-	case EUmbraTooltipRequirementState::Met: Data.RequirementStatusText = LOCTEXT("AllMet", "装备要求已满足。"); break;
-	default: Data.RequirementStatusText = LOCTEXT("UnknownRequirements", "装备要求状态未知；尚不能确认可穿戴。"); break;
-	}
+	Data.RequirementStatusText = FText::GetEmpty();
 	Data.WeightText = FText::Format(LOCTEXT("Weight", "重量：{0}"), Number(Data.Weight));
+	if (!Data.bEquippingEnabled)
+	{
+		Data.RequirementStatusText = Data.EquippingUnavailableReason.IsEmpty()
+			? LOCTEXT("EquippingUnavailable", "该类装备暂未开放穿戴，可保留在背包中。") : Data.EquippingUnavailableReason;
+		Data.bHasEquipmentPenalty = false;
+		Data.PenaltyText = FText::GetEmpty();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

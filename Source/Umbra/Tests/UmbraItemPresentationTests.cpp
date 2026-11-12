@@ -3,6 +3,8 @@
 #include "Tests/UmbraStatWidgetTestTypes.h"
 #include "Tests/UmbraInventoryTestTypes.h"
 #include "Items/UmbraItemDefinition.h"
+#include "Items/UmbraItemGeneration.h"
+#include "Items/UmbraItemInstance.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Image.h"
 #include "Engine/Texture2D.h"
@@ -59,6 +61,23 @@ bool FUmbraItemPresentationTest::RunTest(const FString& Parameters)
 		Set(Definition);
 		TestEqual(TEXT("Background tint remains enabled"), Background->GetColorAndOpacity(), Definition->RarityColor);
 		TestEqual(TEXT("Background tint never recolors authored frame"), Frame->GetColorAndOpacity(), FLinearColor::White);
+		Definition->GenerationProfile = NewObject<UUmbraItemGenerationProfile>(Definition);
+		auto& Palette = Definition->GenerationProfile->Rarities.AddDefaulted_GetRef();
+		Palette.Rarity = EUmbraItemRarity::Magic;
+		Palette.Color = FLinearColor::Green;
+		Palette.bTintBackgrounds = true;
+		Palette.RarityFrameTexture = NewObject<UTexture2D>(Definition);
+		FUmbraItemInstance Generated;
+		Generated.Definition = Definition;
+		Generated.SchemaVersion = 1;
+		Generated.GenerationRulesVersion = 1;
+		Generated.Rarity = EUmbraItemRarity::Magic;
+		if (Index == 0) Equipment->SetItem(FUmbraEquipmentItemDisplay::FromInstance(Generated));
+		else Inventory->SetItemInstance(Generated);
+		TestEqual(TEXT("Generated frame uses configured rarity artwork"), Frame->GetBrush().GetResourceObject(), static_cast<UObject*>(Palette.RarityFrameTexture));
+		TestEqual(TEXT("Generated colored frame is not tinted"), Frame->GetColorAndOpacity(), FLinearColor::White);
+		Set(Definition);
+		TestEqual(TEXT("Legacy frame restores authored color"), Frame->GetColorAndOpacity(), FLinearColor::White);
 		Definition->bTintRarityBackgrounds = false;
 		Set(Plain);
 		TestEqual(TEXT("Replacement without quality art restores default background"), Background->GetBrush().GetResourceObject(), static_cast<UObject*>(EmptyTexture));

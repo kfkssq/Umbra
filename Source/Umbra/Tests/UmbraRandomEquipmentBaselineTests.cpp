@@ -198,9 +198,10 @@ bool FUmbraRandomLifecycleBaseline::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Presentation did not reroll"), Same(Instance, Stored(F.Inventory, Id)));
 	TestEqual(TEXT("Wrong slot preserves inventory"), F.Owner->EquipFromInventory(EUmbraEquipmentSlot::Head, Id), EUmbraTransferResult::InvalidSlot);
-	Item->RequiredLevel = F.Equipment->CharacterLevel + 1;
+	const int32 PreviousLevel = F.Equipment->CharacterLevel;
+	F.Equipment->CharacterLevel = Instance.GetItemLevel() - 1;
 	TestEqual(TEXT("Level rejection preserves inventory"), F.Owner->EquipFromInventory(Slot, Id), EUmbraTransferResult::LevelTooLow);
-	Item->RequiredLevel = 1;
+	F.Equipment->CharacterLevel = PreviousLevel;
 	TestTrue(TEXT("Rejected transfers preserve all rolls"), Same(Instance, Stored(F.Inventory, Id)));
 
 	FGameplayEffectApplicationQuery Reject;

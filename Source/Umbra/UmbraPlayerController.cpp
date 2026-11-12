@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UmbraPlayerController.h"
+#include "Skills/UmbraSkillTargetingComponent.h"
 #include "Audio/UmbraAudioComponent.h"
 #include "Audio/UmbraAudioFunctionLibrary.h"
 
@@ -36,6 +37,7 @@ namespace UmbraAttackHighlightDebug
 
 AUmbraPlayerController::AUmbraPlayerController()
 {
+	SkillTargeting = CreateDefaultSubobject<UUmbraSkillTargetingComponent>(TEXT("SkillTargeting"));
 	AudioEvents = CreateDefaultSubobject<UUmbraAudioComponent>(TEXT("AudioEvents"));
 }
 
@@ -67,6 +69,19 @@ void AUmbraPlayerController::BeginPlay()
 		}
 	}
 	CreateAttributeDebugPanel();
+	if (IsLocalPlayerController() && SkillBarClass)
+	{
+		SkillBar = CreateWidget<UUserWidget>(this, SkillBarClass);
+		if (SkillBar)
+		{
+			SkillBar->AddToViewport(5);
+			// SetPosition resets viewport anchors in UE; apply the anchor after the offset.
+			SkillBar->SetPositionInViewport(SkillBarOffset, false);
+			SkillBar->SetAnchorsInViewport(FAnchors(0.5f, 1.f));
+			SkillBar->SetAlignmentInViewport(FVector2D(0.5f, 1.f));
+			SkillBar->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+	}
 }
 
 void AUmbraPlayerController::SetPawn(APawn* InPawn)
@@ -182,7 +197,7 @@ void AUmbraPlayerController::ToggleCharacterMenu()
 	{
 		if (UUmbraAbilitySystemComponent* ASC = Cast<UUmbraAbilitySystemComponent>(UmbraCharacter->GetAbilitySystemComponent()))
 		{
-			// Discard only buffered/held ability input; do not cancel active abilities or alter attributes.
+			// Flush held input, ending held channels; one-shot skills and attributes are unchanged.
 			ASC->ClearAbilityInput();
 		}
 	}
@@ -201,7 +216,6 @@ void AUmbraPlayerController::Tick(float DeltaSeconds)
 	{
 		return;
 	}
-	LayoutWorldItemLabels(DeltaSeconds);
 	if (bCharacterMenuOpen)
 	{
 		return;
@@ -244,6 +258,7 @@ void AUmbraPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		CombatHUD = nullptr;
 	}
 	ClearDamageNumbers();
+	if (SkillBar) { SkillBar->RemoveFromParent(); SkillBar = nullptr; }
 	bEndingPlay = true;
 	RemoveQuickTestGameplayEffect();
 	RemoveQuickVulnerableGameplayEffect();
@@ -266,6 +281,12 @@ bool AUmbraPlayerController::GetCursorGroundHit(FHitResult& OutHitResult) const
 		&& !IsPointerOverAttributeDebugPanel()
 		&& GetHitResultUnderCursor(ECC_Visibility, false, OutHitResult)
 		&& OutHitResult.bBlockingHit;
+}
+
+bool AUmbraPlayerController::InputKey(const FInputKeyEventArgs& Params)
+{
+	if (SkillTargeting && SkillTargeting->HandlePointerKey(Params.Key, Params.Event)) return true;
+	return Super::InputKey(Params);
 }
 
 void AUmbraPlayerController::SetupInputComponent()
@@ -350,6 +371,7 @@ void AUmbraPlayerController::HandlePrimaryAbilityReleased()
 
 void AUmbraPlayerController::PrimaryActionStarted()
 {
+	if (SkillTargeting && SkillTargeting->IsTargeting()) return;
 	if (bCharacterMenuOpen)
 	{
 		return;
@@ -396,7 +418,7 @@ void AUmbraPlayerController::PrimaryActionStarted()
 	}
 
 	bPrimaryActionHeld = true;
-	if (!IsPrimaryAttackActive())
+	if (!IsAttackMovementLocked())
 	{
 		CancelPendingAttack();
 		CancelAutoMove();
@@ -405,6 +427,7 @@ void AUmbraPlayerController::PrimaryActionStarted()
 
 void AUmbraPlayerController::PrimaryAttackStarted()
 {
+	if (SkillTargeting && SkillTargeting->IsTargeting()) return;
 	if (bCharacterMenuOpen)
 	{
 		return;
@@ -422,6 +445,7 @@ void AUmbraPlayerController::PrimaryAttackStarted()
 
 void AUmbraPlayerController::PrimaryActionCompleted()
 {
+	if (SkillTargeting && SkillTargeting->IsTargeting()) { ResetPrimaryActionState(); return; }
 	if (bCharacterMenuOpen)
 	{
 		return;
@@ -437,7 +461,7 @@ void AUmbraPlayerController::PrimaryActionCompleted()
 	}
 	else if (bPrimaryActionHeld && !bPrimaryActionIsHold)
 	{
-		if (IsPrimaryAttackActive())
+		if (IsAttackMovementLocked())
 		{
 			QueueMoveCommand(PrimaryActionInitialHit.ImpactPoint);
 		}
@@ -462,7 +486,7 @@ void AUmbraPlayerController::UpdateHeldMovement(float DeltaSeconds)
 	FVector CursorLocation;
 	if (GetNavigableCursorLocation(CursorLocation))
 	{
-		if (IsPrimaryAttackActive())
+		if (IsAttackMovementLocked())
 		{
 			QueueMoveCommand(CursorLocation);
 		}
@@ -672,6 +696,7 @@ void AUmbraPlayerController::UpdateAttackHover()
 		}
 	}
 	HoveredAttackTarget = NewHoveredActor;
+	OnHighlightedTargetChanged.Broadcast();
 	if (IsValid(NewHoveredActor) && NewHoveredActor != HighlightedAutoAttackTarget.Get())
 	{
 		IUmbraAttackable::Execute_SetAttackHighlighted(NewHoveredActor, true);
@@ -701,6 +726,7 @@ void AUmbraPlayerController::UpdateAutoAttackHighlight()
 		IUmbraAttackable::Execute_SetAttackHighlighted(PreviousTarget, false);
 	}
 	HighlightedAutoAttackTarget = DesiredTarget;
+	OnHighlightedTargetChanged.Broadcast();
 	if (IsValid(DesiredTarget) && DesiredTarget != HoveredAttackTarget.Get())
 	{
 		IUmbraAttackable::Execute_SetAttackHighlighted(DesiredTarget, true);
@@ -805,6 +831,13 @@ bool AUmbraPlayerController::IsPrimaryAttackActive() const
 	const AUmbraPlayerCharacter* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn());
 	const UAbilitySystemComponent* ASC = UmbraCharacter ? UmbraCharacter->GetAbilitySystemComponent() : nullptr;
 	return ASC && ASC->HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking);
+}
+
+bool AUmbraPlayerController::IsAttackMovementLocked() const
+{
+	const auto* UmbraCharacter = Cast<AUmbraPlayerCharacter>(GetPawn());
+	const auto* ASC = UmbraCharacter ? UmbraCharacter->GetAbilitySystemComponent() : nullptr;
+	return IsPrimaryAttackActive() && !(ASC && ASC->HasMatchingGameplayTag(UmbraGameplayTags::State_SwordStorm));
 }
 
 void AUmbraPlayerController::QueueMoveCommand(const FVector& Destination)
@@ -1093,6 +1126,7 @@ void AUmbraPlayerController::CancelAutoMove()
 
 bool AUmbraPlayerController::TryBeginManualMovement(const FVector& WorldDirection)
 {
+	if (SkillTargeting && SkillTargeting->IsTargeting()) return false;
 	CancelPickupApproach();
 	if (bCharacterMenuOpen)
 	{
@@ -1102,7 +1136,7 @@ bool AUmbraPlayerController::TryBeginManualMovement(const FVector& WorldDirectio
 	{
 		return false;
 	}
-	if (IsPrimaryAttackActive())
+	if (IsAttackMovementLocked())
 	{
 		QueueDirectMoveCommand(WorldDirection);
 		return false;
@@ -1120,4 +1154,10 @@ void AUmbraPlayerController::ResetPrimaryActionState()
 	bPrimaryActionIsHold = false;
 	PrimaryActionHeldTime = 0.0f;
 	ActivePrimaryActionContext = EUmbraPrimaryActionContext::Ground;
+}
+
+AActor* AUmbraPlayerController::GetHighlightedEnemyForUI() const
+{
+ if (IsAttackableTarget(HoveredAttackTarget.Get())) return HoveredAttackTarget.Get();
+ return IsAttackableTarget(HighlightedAutoAttackTarget.Get()) ? HighlightedAutoAttackTarget.Get() : nullptr;
 }

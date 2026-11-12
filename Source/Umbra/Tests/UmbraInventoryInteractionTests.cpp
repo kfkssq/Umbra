@@ -87,7 +87,7 @@ bool FUmbraInventoryInteractionTest::RunTest(const FString& Parameters)
  Inventory->AddItem(Ring, Ring3);
  TestEqual(TEXT("All legal slots occupied"), Menu->RequestEquipItem(Ring3), EUmbraTransferResult::SlotOccupied);
  auto* HighLevel = NewObject<UUmbraItemDefinition>(State);
- HighLevel->AllowedSlots = {EUmbraEquipmentSlot::Head}; HighLevel->RequiredLevel = 99;
+ HighLevel->AllowedSlots = {EUmbraEquipmentSlot::Head}; HighLevel->ItemLevel = 99;
  const auto HighId = FGuid::NewGuid(); Inventory->AddItem(HighLevel, HighId);
  TestEqual(TEXT("Level failure preserves item"), Menu->RequestEquipItem(HighId), EUmbraTransferResult::LevelTooLow);
  TestTrue(TEXT("Failed item still owned"), Inventory->GetSnapshot().Items.ContainsByPredicate([HighId](const auto& I) { return I.InstanceId == HighId; }));
@@ -98,7 +98,7 @@ bool FUmbraInventoryInteractionTest::RunTest(const FString& Parameters)
  for (int32 Index = 0; Index < 10; ++Index)
  {
   auto* EquipmentCell = EquipmentMenu->WidgetTree->ConstructWidget<UUmbraEquipmentSlotTestWidget>();
-  EquipmentCell->SetSlotType(EUmbraEquipmentSlot(Index)); Root->AddChild(EquipmentCell);
+  EquipmentCell->SetSlotType((Index == 4 ? EUmbraEquipmentSlot::Amulet2 : EUmbraEquipmentSlot(Index))); Root->AddChild(EquipmentCell);
  }
  EquipmentMenu->ConstructForTest(); EquipmentMenu->SetPageActive(true);
  auto* MainHand = CastChecked<UUmbraEquipmentSlotTestWidget>(EquipmentMenu->GetEquipmentSlot(EUmbraEquipmentSlot::MainHand));

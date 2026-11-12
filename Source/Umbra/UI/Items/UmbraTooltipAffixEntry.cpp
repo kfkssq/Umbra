@@ -18,6 +18,8 @@ void UUmbraTooltipAffixEntry::RefreshDisplay()
 	SetIsFocusable(false);
 	SetVisibility(ESlateVisibility::HitTestInvisible);
 	if (IsDesignTime()) return;
+	for (UTextBlock* Text : { AffixName.Get(), AffixValue.Get(), AffixRange.Get() })
+		if (Text) Text->SetColorAndOpacity(FSlateColor(AffixData.RollColor));
 	if (AffixName) AffixName->SetText(AffixData.DisplayName);
 	if (AffixValue) AffixValue->SetText(!AffixRange && !AffixData.RangeText.IsEmpty()
 		? FText::Format(NSLOCTEXT("UmbraTooltipAffix", "InlineRange", "{0} {1}"), AffixData.ValueText, AffixData.RangeText) : AffixData.ValueText);

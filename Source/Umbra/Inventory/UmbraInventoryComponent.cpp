@@ -56,7 +56,6 @@ EUmbraInventoryResult UUmbraInventoryComponent::AddItem(UUmbraItemDefinition* De
 	if (!InstanceId.IsValid()) return EUmbraInventoryResult::InvalidIdentity;
 	if (const auto* Known = KnownInstances.Find(InstanceId))
 		return Known->Definition == Definition ? AddInstance(*Known) : EUmbraInventoryResult::InvalidIdentity;
-	if (Snapshot.Items.Num() >= Snapshot.Capacity) return EUmbraInventoryResult::Full;
 	FUmbraItemInstance Instance;
 	if (!FUmbraItemInstance::Create(GetOwner(), Definition, InstanceId, Instance)) return EUmbraInventoryResult::InvalidItem;
 	return AddInstance(Instance);
@@ -71,11 +70,24 @@ EUmbraInventoryResult UUmbraInventoryComponent::AddInstance(const FUmbraItemInst
 	if (!IsValid(Definition)) return EUmbraInventoryResult::InvalidItem;
 	if (!InstanceId.IsValid()) return EUmbraInventoryResult::InvalidIdentity;
 	if (!Instance.IsValid()) return EUmbraInventoryResult::InvalidItem;
+	if (AbsorbedInstances.Contains(InstanceId)) return EUmbraInventoryResult::DuplicateInstance;
 	if (const auto* Known = KnownInstances.Find(InstanceId))
 		if (!FUmbraItemInstance::StaticStruct()->CompareScriptStruct(Known, &Instance, 0)) return EUmbraInventoryResult::InvalidIdentity;
 	if (Snapshot.Items.ContainsByPredicate([InstanceId](const auto& Item) { return Item.InstanceId == InstanceId; })) return EUmbraInventoryResult::DuplicateInstance;
-	if (Snapshot.Items.Num() >= Snapshot.Capacity) return EUmbraInventoryResult::Full;
 	if (TargetSlot < INDEX_NONE || TargetSlot >= Snapshot.Capacity) return EUmbraInventoryResult::InvalidSlot;
+	// Merge before capacity checks: a full bag can still receive a matching stone.
+	for (auto& Entry : Snapshot.Items)
+	{
+		if ((TargetSlot != INDEX_NONE && Entry.SlotIndex != TargetSlot) || !Entry.Instance.CanStackWith(Instance)) continue;
+		if (int64(Entry.Instance.Quantity) + Instance.Quantity > MAX_int32) return EUmbraInventoryResult::Full;
+		Entry.Instance.Quantity += Instance.Quantity;
+		KnownInstances.Add(Entry.InstanceId, Entry.Instance);
+		KnownInstances.Add(InstanceId, Instance);
+		AbsorbedInstances.Add(InstanceId);
+		Publish();
+		return EUmbraInventoryResult::Success;
+	}
+	if (Snapshot.Items.Num() >= Snapshot.Capacity) return EUmbraInventoryResult::Full;
 	if (TargetSlot != INDEX_NONE && Snapshot.Items.ContainsByPredicate([TargetSlot](const auto& Item) { return Item.SlotIndex == TargetSlot; }))
 		return EUmbraInventoryResult::SlotOccupied;
 	int32 FreeIndex = TargetSlot;
@@ -116,7 +128,19 @@ EUmbraInventoryResult UUmbraInventoryComponent::MoveItem(FGuid InstanceId, int32
 	if (!Source) return EUmbraInventoryResult::NotFound;
 	if (Source->SlotIndex == TargetSlot) return EUmbraInventoryResult::Success;
 	if (auto* Target = Snapshot.Items.FindByPredicate([TargetSlot](const auto& Item) { return Item.SlotIndex == TargetSlot; }))
+	{
+		if (Target->Instance.CanStackWith(Source->Instance))
+		{
+			if (int64(Target->Instance.Quantity) + Source->Instance.Quantity > MAX_int32) return EUmbraInventoryResult::Full;
+			Target->Instance.Quantity += Source->Instance.Quantity;
+			KnownInstances.Add(Target->InstanceId, Target->Instance);
+			AbsorbedInstances.Add(Source->InstanceId);
+			Snapshot.Items.RemoveAll([InstanceId](const auto& Item) { return Item.InstanceId == InstanceId; });
+			Publish();
+			return EUmbraInventoryResult::Success;
+		}
 		Target->SlotIndex = Source->SlotIndex;
+	}
 	Source->SlotIndex = TargetSlot;
 	Publish();
 	return EUmbraInventoryResult::Success;

@@ -1,5 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
+#include "Audio/UmbraLootAudioPlayback.h"
 #include "Audio/UmbraAudioLibrary.h"
 #include "Audio/UmbraAudioSubsystem.h"
 #include "Audio/UmbraAudioComponent.h"
@@ -8,6 +9,18 @@
 #include "GameFramework/Actor.h"
 #include "Sound/SoundCue.h"
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUmbraLootLoopResumeTest, "Umbra.Audio.LootLoopResume",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FUmbraLootLoopResumeTest::RunTest(const FString&)
+{
+	using UmbraLootAudioPlayback::ResumeOffset;
+	TestEqual(TEXT("First playback starts at zero"), ResumeOffset(0, 1, 42), 0.f);
+	TestEqual(TEXT("Retry continues rather than restarts"), ResumeOffset(8, 1, 42), 8.f);
+	TestEqual(TEXT("Pitch applied to timeline"), ResumeOffset(8, 1.25f, 42), 10.f);
+	TestEqual(TEXT("Long absence wraps at the loop duration"), ResumeOffset(94, 1, 42), 10.f);
+	TestEqual(TEXT("Invalid duration cannot seek"), ResumeOffset(8, 1, 0), 0.f);
+	return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUmbraAudioSelectionTest, "Umbra.Audio.ContextSelection",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

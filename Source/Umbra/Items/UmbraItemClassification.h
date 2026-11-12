@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "UmbraItemClassification.generated.h"
 
-/** Display-only identities. Preserve explicit values when adding types. */
+/** Stable categories. Accessory denotes relics and enables their four interchangeable equip slots. */
 UENUM(BlueprintType)
 enum class EUmbraItemCategory : uint8
 {
@@ -15,7 +15,31 @@ enum class EUmbraWeaponType : uint8
 {
 	Unknown = 0, OneHandedSword = 1, TwoHandedSword = 2, Dagger = 3, Rapier = 4,
 	OneHandedAxe = 5, TwoHandedAxe = 6, OneHandedMace = 7, TwoHandedMace = 8,
-	Spear = 9, Halberd = 10, Staff = 11, Wand = 12, Bow = 13, Crossbow = 14
+	Spear = 9, Halberd = 10, Staff = 11, Wand = 12, Bow = 13, Crossbow = 14,
+	// Append-only presentation types; do not infer hand usage, damage or equip slots.
+	Katana = 15,
+	Twinblade = 16,
+	HeavyThrustingSword = 17,
+	Flail = 18,
+	Scythe = 19,
+	Fist = 20,
+	Claw = 21,
+	Whip = 22,
+	ColossalWeapon = 23,
+	Ballista = 24,
+	SacredSeal = 25,
+	SmallShield = 26,
+	MediumShield = 27,
+	Greatshield = 28,
+	Torch = 29,
+	HandToHand = 30,
+	PerfumeBottle = 31,
+	ThrustingShield = 32,
+	ThrowingBlade = 33,
+	BackhandBlade = 34,
+	LightGreatsword = 35,
+	GreatKatana = 36,
+	BeastClaw = 37
 };
 
 class UUmbraItemDefinition;

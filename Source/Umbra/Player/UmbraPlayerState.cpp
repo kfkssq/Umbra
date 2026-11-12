@@ -10,6 +10,7 @@
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "AbilitySystem/UmbraGameplayAbility.h"
 #include "AbilitySystem/Abilities/UmbraBasicAttackAbility.h"
+#include "Skills/UmbraSweepAbility.h"
 
 AUmbraPlayerState::AUmbraPlayerState()
 {
@@ -91,6 +92,23 @@ void AUmbraPlayerState::GrantInitialAbilities()
 		}
 	}
 
+	TSet<FGameplayTag> GrantedInputs;
+	TSet<FName> GrantedSkills;
+	for (const FUmbraSkillSlot& Slot : InitialSkillSlots)
+	{
+		FString Reason;
+		if (!Slot.Definition || !Slot.Definition->Validate(Reason) || !Slot.InputTag.IsValid()
+			|| GrantedInputs.Contains(Slot.InputTag) || GrantedSkills.Contains(Slot.Definition->SkillId))
+		{
+			UE_LOG(LogUmbra, Warning, TEXT("Skill slot rejected: %s %s"), *GetNameSafe(Slot.Definition), *Reason);
+			continue;
+		}
+		FGameplayAbilitySpec Spec(UUmbraSweepAbility::StaticClass(), 1, INDEX_NONE, Slot.Definition);
+		Spec.GetDynamicSpecSourceTags().AddTag(Slot.InputTag);
+		AbilitySystemComponent->GiveAbility(Spec);
+		GrantedInputs.Add(Slot.InputTag);
+		GrantedSkills.Add(Slot.Definition->SkillId);
+	}
 	bInitialAbilitiesGranted = true;
 }
 
@@ -111,6 +129,7 @@ namespace
 		case EUmbraEquipResult::AppliedInvalid: return EUmbraTransferResult::AppliedInvalid;
 		case EUmbraEquipResult::NotReady: return EUmbraTransferResult::NotReady;
 		case EUmbraEquipResult::InvalidItem: return EUmbraTransferResult::InvalidItem;
+		case EUmbraEquipResult::EquippingUnavailable: return EUmbraTransferResult::EquippingUnavailable;
 		case EUmbraEquipResult::WrongSlot: return EUmbraTransferResult::InvalidSlot;
 		case EUmbraEquipResult::LevelTooLow: return EUmbraTransferResult::LevelTooLow;
 		case EUmbraEquipResult::DuplicateInstance: return EUmbraTransferResult::DuplicateInstance;
@@ -143,7 +162,7 @@ EUmbraTransferResult AUmbraPlayerState::EquipFromInventory(EUmbraEquipmentSlot S
 	if (!InventoryComponent || !EquipmentComponent) return EUmbraTransferResult::NotReady;
 	if (bTransferInProgress || InventoryComponent->IsPublishing()) return EUmbraTransferResult::NotReady;
 	TGuardValue<bool> TransferGuard(bTransferInProgress, true);
-	if (uint8(Slot) > uint8(EUmbraEquipmentSlot::OffHand)) return EUmbraTransferResult::InvalidSlot;
+	if (!IsUmbraEquipmentSlotActive(Slot)) return EUmbraTransferResult::InvalidSlot;
 	if (!InstanceId.IsValid()) return EUmbraTransferResult::InvalidIdentity;
 
 	const FUmbraInventorySnapshot InvSnap = InventoryComponent->GetSnapshot();
@@ -196,7 +215,7 @@ EUmbraTransferResult AUmbraPlayerState::UnequipToInventorySlot(EUmbraEquipmentSl
 	if (!InventoryComponent || !EquipmentComponent) return EUmbraTransferResult::NotReady;
 	if (bTransferInProgress || InventoryComponent->IsPublishing()) return EUmbraTransferResult::NotReady;
 	TGuardValue<bool> TransferGuard(bTransferInProgress, true);
-	if (uint8(Slot) > uint8(EUmbraEquipmentSlot::OffHand)) return EUmbraTransferResult::InvalidSlot;
+	if (!IsUmbraEquipmentSlotActive(Slot)) return EUmbraTransferResult::InvalidSlot;
 	if (!ExpectedInstanceId.IsValid()) return EUmbraTransferResult::InvalidIdentity;
 
 	const FUmbraInventorySnapshot InvSnap = InventoryComponent->GetSnapshot();

@@ -101,3 +101,7 @@ AddInstance 成功才设置 bPickedUp、关闭显示/碰撞并 Destroy；失败�
 - 修正长武器（例如 mace 锤头）超出根部默认24cm球体后无法 Hover 的代码缺口：WorldItem.Mesh 改为 QueryOnly，仅阻挡 Visibility，仍无物理模拟/Overlap/导航影响，忽略 Pawn。Controller 的 GetWorldItemUnderCursor 优先复杂 Visibility 射线，未命中物品时保留原简单查询；Hover 和点击共享此入口，服务端拾取距离、RPC、库存转移不变。原文中的 Mesh NoCollision 契约由本节替代。
 - 沿用 StaticMesh 的碰撞数据，不改导入资产。精确轮廓要求 Mesh 提供复杂碰撞（通常为 Project Default / Simple And Complex）；Use Simple Collision As Complex 会继续使用简化碰撞。真实 mace 资产设置待编辑器确认。根球仍是宽容兜底，因此并非所有可点击区域都严格等于像素轮廓。
 - 待 PIE：分别悬停锤头/柄/根部、空白区域和被墙遮挡的物品；描边与标签同步，点击目标与 Hover 一致；无模型仍可拾取，角色通行/导航不变。动画中命中跟随 Mesh。未改材质、Stencil ID、VisualComponent 或 Content；未新增/运行自动化测试。
+
+## 六档 Niagara 光效（2026-11-04）
+
+掉落物新增原生 LootVFX 组件，由 BP_WorldItem 配置六档预设；通过实例刷新接入，与物理、模型加载及拾取清理协作。颜色来源、覆盖优先级和验收见 [LootVFX](LootVFX.md)。旧文档中模型动画/未来扩展的描述不代表已接入该光效，具体以本节及当前源码为准。

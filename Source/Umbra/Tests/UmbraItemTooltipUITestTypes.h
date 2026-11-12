@@ -93,6 +93,8 @@ public:
 		ItemLevelText = Text(Root, TEXT("ItemLevelText"));
 		auto* Damage = Section(TEXT("DamageSection")); DamageSection = Damage;
 		TotalDamageText = Text(Damage, TEXT("TotalDamageText")); DamageRows = Rows(Damage, TEXT("DamageRows"));
+		auto* Defense = Section(TEXT("DefenseSection")); DefenseSection = Defense;
+		DefenseRows = Rows(Defense, TEXT("DefenseRows"));
 		auto* Scaling = Section(TEXT("ScalingSection")); ScalingSection = Scaling;
 		ScalingRows = Grid(Scaling, TEXT("ScalingRows")); ScalingNote = Text(Scaling, TEXT("ScalingNote"));
 		StatsSection = Section(TEXT("StatsSection"));

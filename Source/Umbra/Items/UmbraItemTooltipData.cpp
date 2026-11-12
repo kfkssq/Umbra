@@ -109,7 +109,7 @@ namespace
 		return Out;
 	}
 	bool TooltipNonnegative(float Value) { return FMath::IsFinite(Value) && Value >= 0.f; }
-	bool TooltipValidSlot(EUmbraEquipmentSlot Slot) { return uint8(Slot) <= uint8(EUmbraEquipmentSlot::OffHand); }
+	bool TooltipValidSlot(EUmbraEquipmentSlot Slot) { return IsUmbraEquipmentSlotActive(Slot); }
 	void AddRolledLine(FUmbraItemTooltipData& Out, const FUmbraAffixIdentity& Identity,
 		const TArray<float>& Candidates, int32 Selected, float Value, bool bPreview)
 	{
@@ -146,6 +146,8 @@ namespace
 	{
 		if (!Instance.IsValid()) return false;
 		Out.ItemLevel = Instance.GetItemLevel();
+		Out.RequiredLevel = Out.ItemLevel;
+		Out.DisplayName = Instance.GetDisplayName();
 		Out.Rarity = Instance.GetRarity();
 		Out.RarityColor = Instance.GetRarityColor();
 		if (Instance.GenerationRulesVersion > 0 && Instance.Definition->GenerationProfile)
@@ -221,14 +223,22 @@ namespace
 	}
 	bool SetContext(FUmbraItemTooltipData& Out, const UUmbraEquipmentComponent* Equipment)
 	{
+		// Materials have no equip requirements, including when an equipment context is bound.
+		if (Out.ItemDefinition && Out.ItemDefinition->ItemCategory == EUmbraItemCategory::Material
+			&& Out.ItemDefinition->AllowedSlots.IsEmpty()) return !Out.bHasTargetSlot;
 		if (!Equipment) return true;
 		if (!IsValid(Equipment) || !Equipment->IsRegistered()) return false;
 		// Client components receive snapshots but never initialize the authority-only GAS
 		// requirement evaluator. Keep detail status unknown instead of hiding the item;
 		// FromEquipment below still takes the worn aggregate status from the server.
 		if (Equipment->GetOwner() && !Equipment->GetOwner()->HasAuthority())
-			return Equipment->GetSnapshot().bValid;
-		if (!Equipment->QueryRequirements(Out.ItemDefinition, Out.bHasTargetSlot, Out.TargetSlot, Out.Requirements)) return false;
+		{
+			Out.Requirements.bLevelKnown = Equipment->GetSnapshot().bValid;
+			Out.Requirements.CurrentLevel = Equipment->CharacterLevel;
+			Out.Requirements.bLevelMet = Equipment->CharacterLevel >= Out.ItemLevel;
+			return Out.Requirements.bLevelKnown;
+		}
+		if (!Equipment->QueryRequirements(Out.ItemDefinition, Out.bHasTargetSlot, Out.TargetSlot, Out.Requirements, Out.ItemLevel)) return false;
 		Out.bPrimaryStatusKnown = true;
 		Out.bRequirementsMet = Out.Requirements.bPrimariesMet;
 		Out.RequirementState = !Out.Requirements.bLevelMet ? EUmbraTooltipRequirementState::LevelTooLow
@@ -245,13 +255,13 @@ namespace
 
 FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromDefinition(UUmbraItemDefinition* Definition)
 {
-	if (!IsValid(Definition) || Definition->ItemLevel < 1 || Definition->RequiredLevel < 1
+	if (!IsValid(Definition) || Definition->ItemLevel < 1
 		|| uint8(Definition->Rarity) > uint8(EUmbraItemRarity::Unique)
 		|| !TooltipNonnegative(Definition->Armor) || !TooltipNonnegative(Definition->MagicResistance) || !TooltipNonnegative(Definition->Weight)
 		|| !UUmbraEquipmentEffect::ValidateBonuses(Definition)) return Failure(EUmbraTooltipResult::InvalidDefinition);
 	for (float Value : Definition->Requirements.ToArray()) if (!TooltipNonnegative(Value)) return Failure(EUmbraTooltipResult::InvalidDefinition);
 	for (float Value : Definition->PrimaryBonuses.ToArray()) if (!TooltipNonnegative(Value)) return Failure(EUmbraTooltipResult::InvalidDefinition);
-	for (auto Slot : Definition->AllowedSlots)
+	for (auto Slot : Definition->GetAllowedEquipmentSlots())
 		if (!TooltipValidSlot(Slot) || (Definition->Weapon && Slot != EUmbraEquipmentSlot::MainHand)) return Failure(EUmbraTooltipResult::InvalidDefinition);
 	if (!GetDefault<UUmbraTooltipSettings>()->IsValidThresholds()) return Failure(EUmbraTooltipResult::InvalidConfiguration);
 	FUmbraItemTooltipData Out;
@@ -270,8 +280,10 @@ FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromDefinition(UUmbraItemDef
 	Out.bTintRarityBackgrounds = Definition->bTintRarityBackgrounds;
 	Out.TooltipTitleBackgroundTexture = Definition->TooltipTitleBackgroundTexture;
 	Out.TooltipIconBackgroundTexture = Definition->TooltipIconBackgroundTexture;
-	Out.RequiredLevel = Definition->RequiredLevel;
+	Out.RequiredLevel = Definition->ItemLevel;
 	Out.RequiredPrimaries = Definition->Requirements;
+	Out.bEquippingEnabled = Definition->bEquippingEnabled;
+	Out.EquippingUnavailableReason = Definition->EquippingUnavailableReason;
 	Out.Weight = Definition->Weight;
 	Out.FlavorText = Definition->FlavorText;
 	if (!ReadWeapon(Definition->Weapon, Out)) return Failure(EUmbraTooltipResult::InvalidDefinition);
@@ -322,7 +334,7 @@ FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromInventory(const FUmbraIn
 	auto Out = FromDefinition(Entry->Definition);
 	if (!Out.bValid) return Out;
 	if (!ReadInstance(Out, Entry->GetInstance())) return Failure(EUmbraTooltipResult::InvalidSnapshot);
-	if (bHasTargetSlot && (!TooltipValidSlot(TargetSlot) || !Entry->Definition->AllowedSlots.Contains(TargetSlot))) return Failure(EUmbraTooltipResult::InvalidSlot);
+	if (bHasTargetSlot && (!TooltipValidSlot(TargetSlot) || !Entry->Definition->CanEquipInSlot(TargetSlot))) return Failure(EUmbraTooltipResult::InvalidSlot);
 	Out.Source = EUmbraTooltipSource::Inventory;
 	Out.InstanceId = Entry->InstanceId;
 	Out.InventorySlot = SlotIndex;
@@ -349,7 +361,7 @@ FUmbraItemTooltipData UUmbraItemTooltipDataBuilder::FromEquipment(const FUmbraEq
 	for (const auto& Entry : Snapshot.Items)
 	{
 		if (!IsValid(Entry.Definition) || !Entry.InstanceId.IsValid() || !TooltipValidSlot(Entry.Slot)
-			|| !Entry.Definition->AllowedSlots.Contains(Entry.Slot) || Ids.Contains(Entry.InstanceId) || Slots.Contains(Entry.Slot)) return Failure(EUmbraTooltipResult::InvalidSnapshot);
+			|| !Entry.Definition->CanEquipInSlot(Entry.Slot) || Ids.Contains(Entry.InstanceId) || Slots.Contains(Entry.Slot)) return Failure(EUmbraTooltipResult::InvalidSnapshot);
 		Ids.Add(Entry.InstanceId);
 		Slots.Add(Entry.Slot);
 	}

@@ -122,6 +122,7 @@ void UUmbraItemTooltip::HideTooltip()
 }
 void UUmbraItemTooltip::CaptureBackgrounds()
 {
+	if (ItemLevelText && !bItemLevelColorCaptured) { DefaultItemLevelColor = ItemLevelText->GetColorAndOpacity(); bItemLevelColorCaptured = true; }
 	if (quality_bg && !bQualityBackgroundCaptured) { QualityBackgroundBrush = quality_bg->GetBrush(); bQualityBackgroundCaptured = true; }
 	if (SlotBackground && !bSlotBackgroundCaptured) { SlotBackgroundBrush = SlotBackground->GetBrush(); bSlotBackgroundCaptured = true; }
 }
@@ -165,7 +166,7 @@ void UUmbraItemTooltip::ClearEntryWidget(UWidget* Child)
 
 void UUmbraItemTooltip::ClearRows()
 {
-	UPanelWidget* Rows[] = { DamageRows.Get(), ScalingRows.Get(), StatRows.Get(), RequirementRows.Get(), SpecialEffectRows.Get() };
+	UPanelWidget* Rows[] = { DamageRows.Get(), DefenseRows.Get(), ScalingRows.Get(), StatRows.Get(), RequirementRows.Get(), SpecialEffectRows.Get() };
 	for (UPanelWidget* Container : Rows)
 	{
 		if (!Container) continue;
@@ -178,9 +179,11 @@ void UUmbraItemTooltip::ClearRows()
 void UUmbraItemTooltip::AddKeyValueEntry(UVerticalBox* Container, const FText& Label, const FText& Value)
 {
 	if (!Container) return;
-	if (KeyValueEntryClass && !KeyValueEntryClass->HasAnyClassFlags(CLASS_Abstract))
+	const TSubclassOf<UUmbraTooltipKeyValueEntry> EntryClass = Container == DamageRows && DamageKeyValueEntryClass
+		? DamageKeyValueEntryClass : KeyValueEntryClass;
+	if (EntryClass && !EntryClass->HasAnyClassFlags(CLASS_Abstract))
 	{
-		if (auto* Entry = CreateWidget<UUmbraTooltipKeyValueEntry>(this, KeyValueEntryClass))
+		if (auto* Entry = CreateWidget<UUmbraTooltipKeyValueEntry>(this, EntryClass))
 		{
 			Entry->SetEntry(Label, Value);
 			Container->AddChildToVerticalBox(Entry);
@@ -210,6 +213,7 @@ void UUmbraItemTooltip::AddAffixEntry(const FUmbraTooltipAffixDisplayData& Data)
 	// Readable compatibility fallback until the user assigns the new WBP; never duplicate the row.
 	auto* Block = NewObject<UTextBlock>(this);
 	Block->SetText(FText::Format(LOCTEXT("AffixFallback", "{0} {1} {2}"), Data.DisplayName, Data.ValueText, Data.RangeText));
+	Block->SetColorAndOpacity(FSlateColor(Data.RollColor));
 	Block->SetAutoWrapText(true);
 	Block->SetVisibility(ESlateVisibility::HitTestInvisible);
 	StatRows->AddChildToVerticalBox(Block);
@@ -268,6 +272,8 @@ void UUmbraItemTooltip::RefreshDisplay(bool bNotify)
 		SetVisibility(ESlateVisibility::HitTestInvisible);
 		return;
 	}
+	// Data may arrive before NativePreConstruct; preserve authored level color before applying a warning.
+	CaptureBackgrounds();
 	ClearRows();
 	const bool bValid = TooltipData.bValid && TooltipData.Result == EUmbraTooltipResult::Success;
 	const auto& Data = TooltipData;
@@ -289,13 +295,19 @@ void UUmbraItemTooltip::RefreshDisplay(bool bNotify)
 	}
 
 	Text(ItemLevelText, Data.ItemLevelText, bValid);
+	if (ItemLevelText) ItemLevelText->SetColorAndOpacity(bValid && Data.Requirements.bLevelKnown && !Data.Requirements.bLevelMet
+		? FSlateColor(FLinearColor(0.95f, 0.3f, 0.25f)) : DefaultItemLevelColor);
 	Show(HeaderSection, bValid);
 
 	const bool bDamage = bValid && !Data.DamageChannels.IsEmpty();
+	const bool bDefense = bValid && !Data.DefenseEntries.IsEmpty();
 	Text(TotalDamageText, Data.TotalDamageText, bDamage);
 	if (bDamage) for (const auto& Entry : Data.DamageEntries) AddKeyValueEntry(DamageRows, Entry.LabelText, Entry.ValueText);
+	if (bDefense) for (const auto& Entry : Data.DefenseEntries) AddKeyValueEntry(DefenseRows, Entry.LabelText, Entry.ValueText);
 	Show(DamageRows, bDamage);
 	Show(DamageSection, bDamage);
+	Show(DefenseRows, bDefense);
+	Show(DefenseSection, bDefense);
 
 	bool bScaling = false;
 	if (bValid)
@@ -323,16 +335,10 @@ void UUmbraItemTooltip::RefreshDisplay(bool bNotify)
 	{
 		for (const auto& Requirement : Data.RequirementRows)
 			AddFullTextEntry(RequirementRows, Requirement.Text, Requirement.Style);
-		if (!Data.RequirementStatusText.IsEmpty())
-		{
-			const EUmbraTooltipRowStyle StatusStyle = Data.RequirementState == EUmbraTooltipRequirementState::Met ? EUmbraTooltipRowStyle::Met
-				: Data.RequirementState == EUmbraTooltipRequirementState::LevelTooLow ? EUmbraTooltipRowStyle::Unmet : EUmbraTooltipRowStyle::Unknown;
-			AddFullTextEntry(RequirementRows, Data.RequirementStatusText, StatusStyle);
-		}
 	}
-	const bool bRequirements = bValid && (!Data.RequirementRows.IsEmpty() || !Data.RequirementStatusText.IsEmpty() || !Data.PenaltyText.IsEmpty());
+	const bool bRequirements = bValid && !Data.RequirementRows.IsEmpty();
 	Show(RequirementRows, bRequirements);
-	Text(PenaltyText, Data.PenaltyText, bValid && !Data.PenaltyText.IsEmpty());
+	Text(PenaltyText, FText::GetEmpty(), false);
 	if (PenaltyText) PenaltyText->SetAutoWrapText(true);
 	Show(RequirementsSection, bRequirements);
 
@@ -341,6 +347,8 @@ void UUmbraItemTooltip::RefreshDisplay(bool bNotify)
 	Show(WeightSection, bValid);
 
 	if (bValid) for (const auto& Effect : Data.SpecialEffects) AddFullTextEntry(SpecialEffectRows, Effect, EUmbraTooltipRowStyle::Neutral);
+	// Requirement failures are represented by their attribute rows and item-level marker.
+	// This section is reserved for actual item effects, never equip eligibility or penalties.
 	Show(SpecialEffectRows, bValid && !Data.SpecialEffects.IsEmpty());
 	Show(SpecialEffectsSection, bValid && !Data.SpecialEffects.IsEmpty());
 

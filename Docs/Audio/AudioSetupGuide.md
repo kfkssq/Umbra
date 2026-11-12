@@ -79,7 +79,7 @@ LootSpawn 在本地首次收到年龄 0–1 秒的新实例时尝试一次，携
 
 - 在现有 Audio Library 中为 `LootSpawn` 添加 Common、Magic、Rare、Epic、Legendary、Unique 六行：每行启用 `Match.bHasRarity`、指定 `Match.Rarity`、Category=Loot、Spatial=true，并分配不同的短音素材。建议普通为轻响、魔法带微弱魔力音、稀有更清晰、史诗更厚、传奇/独特使用各自辨识度高的提示。没有指定品质行时使用通配行；指定品质的空行表示静音。源码已传入实际品质，不会自动加工素材或替你填入声音。
 - 为 `LootRarity` 单独添加六种品质行，Category=Ambience，普通品质可留空。它现在仅由掉落物管理，不再通过通用 PlayLocal/PlayUI/PlayAuthority 播放。物理掉落在复制的落稳状态到达后启动；关闭物理的旧动画模式在动画窗口结束后启动。旧物品首次进入网络相关范围也会启动环境音；没有安全地面而未启动物理的物品不启动。
-- Sounds 必须引用**已设置循环的音源**：SoundWave 打开 Looping，或 SoundCue 的 Wave Player 打开 Looping；MetaSound 使用循环 Wave Player 并正确设置无限时长。代码以 SoundBase.IsLooping 检查，不满足的条目静默跳过，不改共享音源。建议 Virtualization Mode=Restart，远离后再次靠近可恢复。不要直接使用旧的一次性稀有度提示音。尚未修改任何用户资产。
+- Sounds 必须引用**已设置循环的音源**：SoundWave 打开 Looping，或 SoundCue 的 Wave Player 打开 Looping；MetaSound 使用循环 Wave Player 并正确设置无限时长。代码以 SoundBase.IsLooping 检查，不满足的条目静默跳过，不改共享音源。当前三段品质 SoundWave 使用 Virtualization Mode=SeekRestart，远离时继续推进循环时间轴，再靠近从对应进度恢复。不要直接使用旧的一次性稀有度提示音。详见下方连续播放修正。
 - 空间播放强制开启，使用该行 Attenuation；推荐独立的短距离衰减并在俯视角镜头下试听。并发与短音分组隔离：默认最多4个循环，优先淘汰更远的声音、等距不抢占；可在该行设置独立 SoundConcurrency。被距离/并发停止的组件每秒尝试恢复一次，不重复创建组件或重抽概率，没有 Tick 音频判断。
 - Probability 在每件物品本地首次准备环境音时抽取一次，建议1；Cooldown/GlobalCooldown 不用于持续音，防止同帧落地永久丢失环境音。Volume/Pitch/CategoryVolumes 在创建时应用；实时调节已经播放的循环音请使用 SC_Ambience 的 SoundMix Class Override。拾取成功、Actor 销毁、客户端失去网络相关性或退出关卡时停止并销毁组件、清理重试定时器；拾取失败仍保留声音。
 - PIE 检查六种品质的生成提示、悬空无环境音、落稳持续循环、远近衰减、旧掉落重新可见、多件并发与靠近恢复、拾取失败继续/成功停止、退出关卡无残留。无资源时应静默；未循环的旧音源应静默。
@@ -133,3 +133,11 @@ LootSpawn 在本地首次收到年龄 0–1 秒的新实例时尝试一次，携
 - 使用默认库现有通配 AttackSwing：`/Game/Asset/Audio/Asset/Attack/swordswing_fast_01`，Spatial=true，Volume=0.85。未改库、蓝图或底层动画；可在蒙太奇 Audio 轨调整同步时刻。执行脚本 `Scripts/configure_enemy_swing.py`；原始资产备份 `Saved/EnemySwingBackup/20261027_104453/`。
 - 独立 UE 进程重载确认仅一个 Swing、命中窗口不变、底层动画无重复 Notify；`Scripts/smoke_enemy_swing_pie.py` 验证原型关卡敌人 AudioEvents 存在、1秒攻击蒙太奇成功启动、5秒 PIE 后正常退出。日志 `Saved/Logs/EnemySwingPIE.log`，报告 `Saved/EnemySwingPIE.json`。
 - 此次使用 -nullrhi -nosound，未验证真实听感、可见挥动帧同步、多人音频或自然 AI 攻击全过程。需实际 PIE 靠近敌人，检查每次挥动一声、空挥仍播、打断前未到 Notify 时不播。Output Log 仍有既有 Greystone 动画除零、输入轴及导航警告。
+## 品质环境音连续播放（2026-11-06）
+
+- 当前默认 Library 的 `Magic_env_epic / legendary / unique` 三段循环 SoundWave 经 UE 5.8.2 保存为 `SeekRestart`。离开听觉范围后时间轴继续推进，重新进入时恢复对应位置，不重播开头；循环末尾正常绕回。该枚举在本版引擎仍标为实验特性，升级引擎或换音源后应重跑下面的真实音频验证。
+- `AUmbraWorldItem.LootAmbienceFadeInDuration` 默认 0.5 秒，Blueprint 类默认值覆盖 C++ 默认值；运行时限制 0.01–5 秒，非有限值回退 0.5 秒。首次播放及并发中断后的重试使用 FadeIn；虚拟声音恢复后在同一声音上设置 0.001 增益起点，再渐入 1。距离衰减仍叠加在此增益上。
+- 显式停止/并发拒绝后仍每秒重试，按本地已经过的游戏时间、创建时确定的 Pitch 和 Wave 时长计算偏移。当前三段直接 SoundWave 支持这条恢复路径；未来若改为 SoundCue/MetaSound，需要单独实现其内部播放游标，不能直接声称同样支持。退出关卡/拾取会清理声音和时间轴；跨关卡不保存进度。
+- 虚拟化回调只安排下一帧的一次性处理，再向音频线程发送增益命令：编辑器单线程音频会在组件声音映射替换前同步触发回调，直接修改会落到旧声音上。虚拟阶段先预置低增益，恢复时渐入；拾取/销毁清理一次性处理，快速状态切换只接受最后状态。
+- `Scripts/check_loot_ambience_fader.py <PIE日志路径>` 对实际音频线程采样执行独立断言：首次、返回、重试均须出现中间增益，最终达到 1。输出 `Saved/LootAmbienceContinuity/fader.json`；播放进度报告通过不代表此渐入断言也通过。
+- 迁移与只读回查：`Scripts/configure_loot_ambience_continuity.py`（回查设置进程环境变量 `UMBRA_AUDIO_READBACK=1`）。实际音频 PIE：在 L_Prototype 运行 `Scripts/smoke_loot_ambience_continuity_pie.py`，不能带 `-nosound/-nullrhi`；检查 near/far/return/retry 游标，并检查日志 `LootLoopFader phase=return` 有中间增益且最终达到 1。音频线程采样入口只在编辑器构建有实现。测试临时隔离一颗史诗石，不保存关卡。

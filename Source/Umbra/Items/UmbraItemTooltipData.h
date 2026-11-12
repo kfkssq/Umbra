@@ -86,6 +86,8 @@ struct FUmbraTooltipAffixDisplayData
 	UPROPERTY(BlueprintReadOnly) int32 TierCount = 0;
 	UPROPERTY(BlueprintReadOnly) int32 SelectedTier = INDEX_NONE;
 	UPROPERTY(BlueprintReadOnly) FText RangeText;
+	/** Six-value roll rank, independent of item rarity; otherwise white. */
+	UPROPERTY(BlueprintReadOnly) FLinearColor RollColor = FLinearColor::White;
 	/** Ordinary attributes and additive damage always share the same visual style. */
 	UPROPERTY(BlueprintReadOnly) EUmbraTooltipEntryStyle Style = EUmbraTooltipEntryStyle::Neutral;
 };
@@ -148,6 +150,9 @@ struct FUmbraItemTooltipData
 	/** Localized specific type, explicit category, or reliable legacy fallback. */
 	UPROPERTY(BlueprintReadOnly) FText ItemType;
 	UPROPERTY(BlueprintReadOnly) TArray<FText> ClassificationWarnings;
+	/** Reserved quality markers, not evidence of an implemented gameplay effect. */
+	UPROPERTY(BlueprintReadOnly) bool bHasSpecialEffect = false;
+	UPROPERTY(BlueprintReadOnly) bool bIsUnique = false;
 	UPROPERTY(BlueprintReadOnly) FText RarityText;
 	UPROPERTY(BlueprintReadOnly) FText RarityAndTypeText;
 	UPROPERTY(BlueprintReadOnly) FText ItemLevelText;
@@ -168,6 +173,8 @@ struct FUmbraItemTooltipData
 	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipDamageChannel> DamageChannels;
 	/** Structured presentation rows projected from the raw channels/scaling/stats above. */
 	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipEntry> DamageEntries;
+	/** Intrinsic defenses only; affix contributions remain in AffixEntries. */
+	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipEntry> DefenseEntries;
 	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipEntry> ScalingEntries;
 	UPROPERTY(BlueprintReadOnly) TArray<FUmbraTooltipEntry> StatEntries;
 	/** Four entries in primary enum order. Hide None; coefficients are reference strength only. */
@@ -180,6 +187,8 @@ struct FUmbraItemTooltipData
 	UPROPERTY(BlueprintReadOnly) FUmbraPrimaryValues RequiredPrimaries;
 	UPROPERTY(BlueprintReadOnly) FUmbraEquipmentRequirementsPreview Requirements;
 	UPROPERTY(BlueprintReadOnly) EUmbraTooltipRequirementState RequirementState = EUmbraTooltipRequirementState::Unknown;
+	UPROPERTY(BlueprintReadOnly) bool bEquippingEnabled = true;
+	UPROPERTY(BlueprintReadOnly) FText EquippingUnavailableReason;
 	/** Equipment snapshots can establish aggregate primary status even without live GAS detail. */
 	UPROPERTY(BlueprintReadOnly) bool bPrimaryStatusKnown = false;
 	UPROPERTY(BlueprintReadOnly) bool bRequirementsMet = false;

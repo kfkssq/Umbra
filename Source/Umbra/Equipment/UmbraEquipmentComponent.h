@@ -11,7 +11,7 @@ class UUmbraAbilitySystemComponent;
 class UUmbraDerivedStatsComponent;
 
 UENUM(BlueprintType)
-enum class EUmbraEquipResult : uint8 { Success, NotReady, InvalidItem, WrongSlot, LevelTooLow, DuplicateInstance, EffectRejected, AppliedInvalid };
+enum class EUmbraEquipResult : uint8 { Success, NotReady, InvalidItem, WrongSlot, LevelTooLow, DuplicateInstance, EffectRejected, AppliedInvalid, EquippingUnavailable };
 UENUM(BlueprintType)
 enum class EUmbraLoadState : uint8 { Light, Medium, Heavy, Overweight };
 
@@ -51,6 +51,7 @@ struct FUmbraEquipmentRequirementsPreview
 	UPROPERTY(BlueprintReadOnly) bool bKnown = false;
 	UPROPERTY(BlueprintReadOnly) int32 CurrentLevel = 0;
 	UPROPERTY(BlueprintReadOnly) bool bLevelMet = false;
+	UPROPERTY(BlueprintReadOnly) bool bLevelKnown = false;
 	UPROPERTY(BlueprintReadOnly) TArray<float> CurrentPrimaries;
 	UPROPERTY(BlueprintReadOnly) TArray<bool> PrimaryMet;
 	UPROPERTY(BlueprintReadOnly) bool bPrimariesMet = false;
@@ -69,7 +70,7 @@ public:
 	/** Startup opt-in, requires weapon-derived mode. Disabled preserves InitialWeapon workflow. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment") bool bEnableEquipment = false;
 	/** Prototype progression input, fixed for this component's lifetime. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment", meta = (ClampMin = "1")) int32 CharacterLevel = 1;
+	UPROPERTY(Replicated, EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment", meta = (ClampMin = "1")) int32 CharacterLevel = 1;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment|Penalty", meta = (ClampMin = "0", ClampMax = "1")) float UnmetWeaponBaseMultiplier = 0.5f;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment|Penalty", meta = (ClampMin = "0", ClampMax = "1")) float UnmetWeaponScalingMultiplier = 0.f;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment|Penalty", meta = (ClampMin = "0", ClampMax = "1")) float UnmetDefenseMultiplier = 0.5f;
@@ -94,7 +95,7 @@ public:
 	/** Read-only. Excludes the existing target-slot GE, including self when inspecting worn gear.
 	 * No target means a generic preview with all currently worn items contributing. */
 	bool QueryRequirements(const UUmbraItemDefinition* Item, bool bHasTargetSlot, EUmbraEquipmentSlot TargetSlot,
-		FUmbraEquipmentRequirementsPreview& Out) const;
+		FUmbraEquipmentRequirementsPreview& Out, int32 InstanceLevel = INDEX_NONE) const;
 	/** Also called by the derived component, so requirement updates precede AD/AP publication. */
 	void Refresh();
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -104,7 +105,7 @@ protected:
 	virtual void OnUnregister() override;
 private:
 	bool ReadRequirements(const UUmbraItemDefinition* Item, FActiveGameplayEffectHandle Excluded,
-		FUmbraEquipmentRequirementsPreview& Out) const;
+		FUmbraEquipmentRequirementsPreview& Out, int32 InstanceLevel) const;
 	bool ValidateItem(const UUmbraItemDefinition* Item) const;
 	bool CanMutate() const;
 	void Shutdown();

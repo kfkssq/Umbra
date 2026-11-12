@@ -64,8 +64,11 @@ void UUmbraInventorySlot::RefreshVisual()
 		? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	BP_RefreshVisual(ShouldHighlight());
 	ItemVisual.Apply(CurrentItem, ItemIcon, SlotBackground, RarityFrame);
-	// Quantity and equipment ownership are not inferred from presentation data.
-	if (StackCountText) StackCountText->SetVisibility(ESlateVisibility::Collapsed);
+	if (StackCountText)
+	{
+		StackCountText->SetText(CurrentItem.bShowQuantity ? FText::AsNumber(CurrentItem.Quantity) : FText::GetEmpty());
+		StackCountText->SetVisibility(CurrentItem.bShowQuantity ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
 	if (EquippedMarker) EquippedMarker->SetVisibility(ESlateVisibility::Collapsed);
 }
 

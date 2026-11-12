@@ -3,6 +3,39 @@
 
 namespace
 {
+TArray<FUmbraGenerationRarity> RarityChoices(const UUmbraItemDefinition& Item)
+{
+	const auto& Profile = *Item.GenerationProfile;
+	auto Rows = Profile.Rarities;
+	if (Profile.bMaterialRarityOnly)
+	{
+		// Material grade is authored on the definition; source rarity and RNG only govern equipment.
+		Rows.RemoveAll([&](const auto& Row) { return Row.Rarity != Item.Rarity; });
+		for (auto& Row : Rows) { Row.Weight = 1.f; Row.AffixCount = 0; }
+		return Rows;
+	}
+	Rows.RemoveAll([&](const auto& Row)
+	{
+		if (Item.SourceRarity == 0) return Row.Rarity > EUmbraItemRarity::Rare;
+		if (Item.SourceRarity == 1) return Row.Rarity > EUmbraItemRarity::Epic;
+		if (Item.SourceRarity == 2) return Row.Rarity < EUmbraItemRarity::Epic || Row.Rarity > EUmbraItemRarity::Legendary;
+		if (Item.SourceRarity == 3) return Row.Rarity < EUmbraItemRarity::Legendary;
+		return Profile.bRarityFromAffixCount && Row.Rarity > EUmbraItemRarity::Epic;
+	});
+	Rows.Sort([](const auto& A, const auto& B) { return uint8(A.Rarity) < uint8(B.Rarity); });
+	if (Profile.bRarityFromAffixCount)
+		for (auto& Row : Rows)
+			if (Row.Rarity <= EUmbraItemRarity::Epic)
+			{
+				Row.AffixCount = int32(Row.Rarity) + 1;
+				Row.Weight = Profile.AffixCountWeights[int32(Row.Rarity)];
+			}
+	// Source 2 has its own promotion probability; the source 3 Legendary/Unique mix stays independent.
+	if (Item.SourceRarity == 2)
+		for (auto& Row : Rows)
+			Row.Weight = Row.Rarity == EUmbraItemRarity::Legendary ? Profile.SourceTwoLegendaryChance : 1.f - Profile.SourceTwoLegendaryChance;
+	return Rows;
+}
 bool SameTarget(const FUmbraAffixIdentity& A, const FUmbraAffixIdentity& B)
 {
 	if (A.Kind != B.Kind) return false;
@@ -28,11 +61,18 @@ bool UmbraItemGeneration::Validate(const UUmbraItemDefinition* Item, FString& Er
 	auto Fail = [&](const TCHAR* Reason) { Error = Reason; return false; };
 	if (!IsValid(Item) || !IsValid(Item->GenerationProfile)) return Fail(TEXT("Missing definition/profile"));
 	const auto& Profile = *Item->GenerationProfile;
-	if (Item->DefinitionId.IsNone() || Item->ItemCategory == EUmbraItemCategory::Unknown || Item->AllowedSlots.IsEmpty())
+	if (Item->DefinitionId.IsNone() || Item->ItemCategory == EUmbraItemCategory::Unknown
+		|| (!Profile.bMaterialRarityOnly && Item->GetAllowedEquipmentSlots().IsEmpty()))
 		return Fail(TEXT("Generated template needs DefinitionId, category and slots"));
+	if (Profile.bMaterialRarityOnly && (Item->ItemCategory != EUmbraItemCategory::Material
+		|| !Item->AllowedSlots.IsEmpty() || Item->bEquippingEnabled || Item->Weapon
+		|| !Item->AttributeBonuses.IsEmpty() || !Item->DamageBonuses.IsEmpty()
+		|| Item->PrimaryBonuses.ToArray().ContainsByPredicate([](float Value) { return Value != 0.f; })
+		|| Item->Armor != 0.f || Item->MagicResistance != 0.f))
+		return Fail(TEXT("Rarity-only materials must be non-equippable and have no combat bonuses"));
 	if (!Item->AffixRollConfigs.IsEmpty()) return Fail(TEXT("Pool and legacy AffixRollConfigs cannot coexist"));
 	if (Profile.RulesVersion < 1 || Profile.MinimumLevel < 1 || Profile.MaximumLevel < Profile.MinimumLevel
-		|| !IsValid(Profile.Pool) || Profile.Rarities.IsEmpty()) return Fail(TEXT("Invalid profile level/version/pool/rarities"));
+		|| (!Profile.bMaterialRarityOnly && !IsValid(Profile.Pool)) || Profile.Rarities.IsEmpty()) return Fail(TEXT("Invalid profile level/version/pool/rarities"));
 	TSet<EUmbraItemRarity> Rarities;
 	double Total = 0;
 	for (const auto& Rarity : Profile.Rarities)
@@ -43,7 +83,25 @@ bool UmbraItemGeneration::Validate(const UUmbraItemDefinition* Item, FString& Er
 			|| !FMath::IsFinite(Rarity.Color.A)) return Fail(TEXT("Invalid/duplicate rarity or count"));
 		Rarities.Add(Rarity.Rarity); Total += Rarity.Weight;
 	}
-	if (Total <= 0) return Fail(TEXT("No positive rarity weight"));
+	if (Profile.bRarityFromAffixCount)
+	{
+		if (Profile.AffixCountWeights.Num() != 4) return Fail(TEXT("Count-driven generation requires four weights"));
+		Total = 0;
+		for (int32 I = 0; I < 4; ++I)
+		{
+			const float Weight = Profile.AffixCountWeights[I];
+			if (!FMath::IsFinite(Weight) || Weight < 0 || !Rarities.Contains(EUmbraItemRarity(I)))
+				return Fail(TEXT("Invalid count weight or missing Common..Epic presentation"));
+			Total += Weight;
+		}
+	}
+	if (!FMath::IsFinite(Profile.SourceTwoLegendaryChance) || Profile.SourceTwoLegendaryChance < 0.f || Profile.SourceTwoLegendaryChance > 1.f)
+		return Fail(TEXT("Source 2 Legendary chance must be in [0,1]"));
+	if (Item->SourceRarity < -1 || Item->SourceRarity > 3) return Fail(TEXT("Invalid imported source rarity"));
+	Total = 0;
+	for (const auto& Row : RarityChoices(*Item)) Total += Row.Weight;
+	if (Total <= 0) return Fail(TEXT("No positive generation weight within source rarity restrictions"));
+	if (Profile.bMaterialRarityOnly) return true;
 	TSet<FName> Ids;
 	for (const auto& Entry : Profile.Pool->Entries)
 	{
@@ -82,14 +140,19 @@ bool UmbraItemGeneration::Generate(const AActor* Authority, UUmbraItemDefinition
 	Next.Definition = Item; Next.InstanceId = Id; Next.SchemaVersion = 1; Next.DefinitionId = Item->DefinitionId;
 	Next.ItemLevel = int32(FMath::Clamp(int64(Context.SourceLevel) + Profile.LevelOffset, int64(Profile.MinimumLevel), int64(Profile.MaximumLevel)));
 	Next.GenerationSeed = Seed; Next.GenerationRulesVersion = Profile.RulesVersion;
-	auto Rarities = Profile.Rarities;
-	Rarities.Sort([](const auto& A, const auto& B) { return uint8(A.Rarity) < uint8(B.Rarity); });
+	const auto Rarities = RarityChoices(*Item);
 	double Total = 0; for (const auto& Rarity : Rarities) Total += Rarity.Weight;
 	double Choice = Random.FRand() * Total;
 	const FUmbraGenerationRarity* Selected = nullptr;
 	for (const auto& Rarity : Rarities) { if (Rarity.Weight > 0 && Choice < Rarity.Weight) { Selected = &Rarity; break; } Choice -= Rarity.Weight; }
 	if (!Selected) { Error = TEXT("Rarity selection failed"); return false; }
 	Next.Rarity = Selected->Rarity;
+	if (Profile.bMaterialRarityOnly)
+	{
+		if (!Next.IsValid()) { Error = TEXT("Generated material payload invalid"); return false; }
+		Out = MoveTemp(Next);
+		return true;
+	}
 	struct FCandidate { const UUmbraAffixDefinition* Affix; const FUmbraAffixTier* Tier; double Weight; };
 	TArray<FCandidate> Candidates;
 	for (const auto& Entry : Profile.Pool->Entries)
@@ -99,7 +162,7 @@ bool UmbraItemGeneration::Generate(const AActor* Authority, UUmbraItemDefinition
 			|| (!Affix->Rarities.IsEmpty() && !Affix->Rarities.Contains(Next.Rarity))
 			|| (!Affix->Categories.IsEmpty() && !Affix->Categories.Contains(Item->ItemCategory))
 			|| (!Affix->WeaponTypes.IsEmpty() && !Affix->WeaponTypes.Contains(Item->WeaponType))
-			|| (!Affix->Slots.IsEmpty() && !Affix->Slots.ContainsByPredicate([&](auto Slot) { return Item->AllowedSlots.Contains(Slot); }))
+			|| (!Affix->Slots.IsEmpty() && !Affix->Slots.ContainsByPredicate([&](auto Slot) { return Item->CanEquipInSlot(Slot); }))
 			|| !Item->EquipmentTags.HasAll(Affix->RequiredEquipmentTags) || Item->EquipmentTags.HasAny(Affix->BlockedEquipmentTags)
 			|| !Context.SourceTags.HasAll(Affix->RequiredSourceTags)) continue;
 		const FUmbraAffixTier* Best = nullptr;
@@ -108,8 +171,38 @@ bool UmbraItemGeneration::Generate(const AActor* Authority, UUmbraItemDefinition
 		if (Best) Candidates.Add({Affix, Best, Entry.Weight});
 	}
 	Candidates.Sort([](const auto& A, const auto& B) { return A.Affix->AffixId.LexicalLess(B.Affix->AffixId); });
+	auto Compatible = [](const FCandidate& A, const FCandidate& B)
+	{
+		return A.Affix != B.Affix && !SameTarget(A.Tier->Values, B.Tier->Values)
+			&& (A.Affix->ExclusiveGroup.IsNone() || A.Affix->ExclusiveGroup != B.Affix->ExclusiveGroup);
+	};
+	// A greedy first pick can consume two otherwise compatible choices. Count-driven rules
+	// only pick candidates that still permit completion; never silently lower rarity.
+	auto CanComplete = [&](auto&& Self, const TArray<FCandidate>& Remaining, int32 Needed) -> bool
+	{
+		if (Needed <= 0) return true;
+		if (Remaining.Num() < Needed) return false;
+		for (int32 I = 0; I <= Remaining.Num() - Needed; ++I)
+		{
+			TArray<FCandidate> Rest;
+			for (int32 J = I + 1; J < Remaining.Num(); ++J)
+				if (Compatible(Remaining[I], Remaining[J])) Rest.Add(Remaining[J]);
+			if (Self(Self, Rest, Needed - 1)) return true;
+		}
+		return false;
+	};
 	for (int32 Index = 0; Index < Selected->AffixCount; ++Index)
 	{
+		if (Profile.bRarityFromAffixCount)
+		{
+			const auto Available = Candidates;
+			Candidates.RemoveAll([&](const FCandidate& Candidate)
+			{
+				TArray<FCandidate> Rest;
+				for (const auto& Other : Available) if (Compatible(Candidate, Other)) Rest.Add(Other);
+				return !CanComplete(CanComplete, Rest, Selected->AffixCount - Index - 1);
+			});
+		}
 		Total = 0; for (const auto& Candidate : Candidates) Total += Candidate.Weight;
 		if (Total <= 0) { Error = FString::Printf(TEXT("Insufficient legal affixes: %s level %d rarity %d missing %d"),
 			*Item->DefinitionId.ToString(), Next.ItemLevel, int32(Next.Rarity), Selected->AffixCount - Index); return false; }

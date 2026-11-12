@@ -8,7 +8,7 @@ import unreal as u
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pipeline import run as import_meshes, stable, sha
-from item_catalog import resource_gate
+from item_catalog import resource_gate, display_name
 
 TAG = 'UmbraItemImport.Recipe'
 lib = u.EditorAssetLibrary
@@ -131,7 +131,7 @@ def main():
                     dest, name = draft_path.rsplit('/', 1)
                     draft = tools.create_asset(name, dest, u.UmbraItemDefinition, factory)
                     draft.set_editor_property('definition_id', 'ER_' + identity)
-                    draft.set_editor_property('display_name', item['name']['value'])
+                    draft.set_editor_property('display_name', display_name(item['name']['value']))
                     draft.set_editor_property('flavor_text', item['description']['value'] or '')
                     draft.set_editor_property('icon', icon)
                     suggestion = item['umbra_suggestion']
@@ -139,6 +139,8 @@ def main():
                     if 'WeaponType' in suggestion:
                         draft.set_editor_property('weapon_type', getattr(u.UmbraWeaponType, enum_name(suggestion['WeaponType'])))
                     draft.set_editor_property('world_drop_skeletal_mesh' if isinstance(mesh, u.SkeletalMesh) else 'world_drop_mesh', mesh)
+                    from weapon_requirements import apply as apply_requirements
+                    apply_requirements(draft, item, lib)
                     # Source provenance travels with the draft; runtime combat fields stay at project defaults.
                     lib.set_metadata_tag(draft, 'UmbraItemImport.Source', stable({'item': item, 'provenance': plan['provenance'], 'source_version': plan['source_version']}))
                     lib.set_metadata_tag(draft, 'UmbraItemImport.State', 'Draft: presentation only; gameplay configuration and visual review required')
@@ -146,7 +148,7 @@ def main():
                 if not draft.get_editor_property('icon'):
                     raise ValueError('Draft icon reference missing')
                 if created:
-                    assert str(draft.get_editor_property('display_name')) == item['name']['value']
+                    assert str(draft.get_editor_property('display_name')) == display_name(item['name']['value'])
                     assert draft.get_editor_property('icon') == icon
                     assert not draft.get_editor_property('weapon')
                     assert not draft.get_editor_property('generation_profile')

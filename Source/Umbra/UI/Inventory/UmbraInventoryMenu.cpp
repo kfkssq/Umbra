@@ -318,9 +318,9 @@ EUmbraTransferResult UUmbraInventoryMenu::TryEquip(FGuid InstanceId, const EUmbr
 			});
 	};
 	TArray<EUmbraEquipmentSlot> Allowed;
-	for (const auto Candidate : Item->Definition->AllowedSlots)
+	for (const auto Candidate : Item->Definition->GetAllowedEquipmentSlots())
 	{
-		if (uint8(Candidate) > uint8(EUmbraEquipmentSlot::OffHand)) return EUmbraTransferResult::InvalidSlot;
+		if (!IsUmbraEquipmentSlotActive(Candidate)) return EUmbraTransferResult::InvalidSlot;
 		Allowed.AddUnique(Candidate);
 	}
 	if (Allowed.IsEmpty()) return EUmbraTransferResult::InvalidSlot;

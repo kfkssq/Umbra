@@ -62,7 +62,7 @@ bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 	for (int32 Index = 0; Index < 10; ++Index)
 	{
 		auto* Slot = EquipmentMenu->WidgetTree->ConstructWidget<UUmbraEquipmentSlotTestWidget>();
-		Slot->SetSlotType(EUmbraEquipmentSlot(Index)); Root->AddChild(Slot);
+		Slot->SetSlotType((Index == 4 ? EUmbraEquipmentSlot::Amulet2 : EUmbraEquipmentSlot(Index))); Root->AddChild(Slot);
 	}
 	EquipmentMenu->ItemTooltipClass = UUmbraHoverTooltipTestWidget::StaticClass();
 	TSharedPtr<SWidget> EquipmentSlate = EquipmentMenu->TakeWidget();
@@ -129,6 +129,7 @@ bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 	TestNull(TEXT("No RarityFrame required"), InitialTooltip->GetWidgetFromName(TEXT("RarityFrame")));
 	auto* TypeText = CastChecked<UTextBlock>(InitialTooltip->GetWidgetFromName(TEXT("ItemTypeText")));
 	auto* LevelText = CastChecked<UTextBlock>(InitialTooltip->GetWidgetFromName(TEXT("ItemLevelText")));
+	const FSlateColor OriginalLevelColor = LevelText->GetColorAndOpacity();
 	TypeText->SetColorAndOpacity(FLinearColor::Green); LevelText->SetColorAndOpacity(FLinearColor::Blue);
 	const auto OriginalData = Data(Cell);
 	auto* OtherDefinition = NewObject<UUmbraItemDefinition>(State);
@@ -137,7 +138,7 @@ bool FUmbraTooltipHoverTest::RunTest(const FString& Parameters)
 	TestNull(TEXT("Switching to unconfigured restores default title brush"), Quality->GetBrush().GetResourceObject());
 	TestNull(TEXT("Switching to unconfigured restores default icon brush"), Background->GetBrush().GetResourceObject());
 	TestEqual(TEXT("Type retains Designer color"), TypeText->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Green);
-	TestEqual(TEXT("Level retains Designer color"), LevelText->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Blue);
+	TestTrue(TEXT("Level restores captured Designer color"), LevelText->GetColorAndOpacity() == OriginalLevelColor);
 	InitialTooltip->ClearTooltipData();
 	TestNull(TEXT("Clear restores default title brush"), Quality->GetBrush().GetResourceObject());
 	TestNull(TEXT("Clear restores default icon brush"), Background->GetBrush().GetResourceObject());

@@ -45,6 +45,8 @@ public:
 
 	/** Optional WBP_TooltipKeyValueEntry; unset falls back to a native auto-wrapped TextBlock. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Tooltip") TSubclassOf<UUmbraTooltipKeyValueEntry> KeyValueEntryClass;
+	/** Optional damage-breakdown style; defense rows retain KeyValueEntryClass. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Tooltip") TSubclassOf<UUmbraTooltipKeyValueEntry> DamageKeyValueEntryClass;
 	/** Optional WBP_TooltipScalingEntry; unset falls back to a native TextBlock cell. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item Tooltip") TSubclassOf<UUmbraTooltipScalingEntry> ScalingEntryClass;
 	/** Optional WBP_TooltipStatEntry; unset uses plain native TextBlocks. */
@@ -73,11 +75,13 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> WeightText;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> FlavorTextBlock;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UVerticalBox> DamageRows;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UVerticalBox> DefenseRows;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UUniformGridPanel> ScalingRows;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UVerticalBox> RequirementRows;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UVerticalBox> SpecialEffectRows;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UWidget> HeaderSection;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UWidget> DamageSection;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UWidget> DefenseSection;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UWidget> ScalingSection;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UWidget> StatsSection;
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional)) TObjectPtr<UWidget> RequirementsSection;
@@ -106,6 +110,8 @@ private:
 	TWeakObjectPtr<UWidget> TrackedAnchor;
 	FVector2D LastAnchor = FVector2D::ZeroVector;
 	bool bPresented = false;
+	FSlateColor DefaultItemLevelColor;
+	bool bItemLevelColorCaptured = false;
 	FSlateBrush QualityBackgroundBrush;
 	FSlateBrush SlotBackgroundBrush;
 	bool bQualityBackgroundCaptured = false;

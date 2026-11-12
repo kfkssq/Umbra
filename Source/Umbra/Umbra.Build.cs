@@ -26,7 +26,9 @@ public class Umbra : ModuleRules
 			"Slate"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "SlateCore", "PhysicsCore" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "SlateCore", "PhysicsCore", "Niagara" });
+		// Preserve loop playback while atomically initializing its reentry volume fader.
+		PrivateDependencyModuleNames.Add("SignalProcessing");
 
 		PublicIncludePaths.Add("Umbra");
 

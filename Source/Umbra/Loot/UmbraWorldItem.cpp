@@ -15,6 +15,12 @@
 #include "Engine/StreamableManager.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
+#include "Sound/SoundWave.h"
+#include "Audio/UmbraLootAudioPlayback.h"
+#include "AudioDevice.h"
+#include "ActiveSound.h"
 #include "Player/UmbraPlayerState.h"
 #include "UI/Items/UmbraWorldItemLabel.h"
 #include "UmbraPlayerController.h"
@@ -59,6 +65,13 @@ AUmbraWorldItem::AUmbraWorldItem()
 	SkeletalMesh->SetVisibility(false);
 	SkeletalMesh->SetComponentTickEnabled(false);
 	VisualComponent = CreateDefaultSubobject<UUmbraWorldItemVisualComponent>(TEXT("VisualComponent"));
+	LootVFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("LootVFX"));
+	LootVFX->SetupAttachment(PhysicsBody);
+	// Follow position while keeping beams upright as the physics body tumbles.
+	LootVFX->SetAbsolute(false, true, true);
+	LootVFX->SetAutoActivate(false);
+	LootVFX->SetAutoDestroy(false);
+	LootVFX->SetCanEverAffectNavigation(false);
 	Label = CreateDefaultSubobject<UWidgetComponent>(TEXT("Label"));
 	Label->SetupAttachment(Collision);
 	Label->SetAbsolute(false, true, true);
@@ -125,12 +138,44 @@ void AUmbraWorldItem::PlaySpawnAudio()
 void AUmbraWorldItem::StopLootAmbience()
 {
 	GetWorldTimerManager().ClearTimer(LootAmbienceTimer);
+	GetWorldTimerManager().ClearTimer(LootAmbienceFadeTimer);
 	if (IsValid(LootAmbience))
 	{
+		LootAmbience->OnAudioVirtualizationChangedNative.RemoveAll(this);
 		LootAmbience->Stop();
 		LootAmbience->DestroyComponent();
 	}
 	LootAmbience = nullptr;
+	LootAmbienceStartedAt = -1;
+}
+
+float AUmbraWorldItem::GetLootAmbienceFadeDuration() const
+{
+	return FMath::IsFinite(LootAmbienceFadeInDuration) ? FMath::Clamp(LootAmbienceFadeInDuration, 0.01f, 5.f) : 0.5f;
+}
+
+void AUmbraWorldItem::OnLootAmbienceVirtualizationChanged(const UAudioComponent* Component, bool bVirtualized)
+{
+	if (Component != LootAmbience || bPickedUp || IsActorBeingDestroyed()) return;
+	// In single-threaded editor audio, the callback runs before the old voice is
+	// replaced in the component map. Defer to address the new voice, not its dying copy.
+	GetWorldTimerManager().ClearTimer(LootAmbienceFadeTimer);
+	LootAmbienceFadeTimer = GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this,
+		[this, bVirtualized]()
+		{
+			if (!IsValid(LootAmbience) || bPickedUp || IsActorBeingDestroyed()
+				|| !LootAmbience->IsPlaying() || LootAmbience->IsVirtualized() != bVirtualized) return;
+			if (auto* Device = LootAmbience->GetAudioDevice())
+			{
+				Device->SendCommandToActiveSounds(LootAmbience->GetAudioComponentID(),
+					[bVirtualized, Duration = GetLootAmbienceFadeDuration()](FActiveSound& Sound)
+					{
+						if (Sound.bIsStopping || Sound.FadeOut != FActiveSound::EFadeOut::None) return;
+						Sound.ComponentVolumeFader.SetVolume(0.001f);
+						if (!bVirtualized) Sound.ComponentVolumeFader.StartFade(1.f, Duration, Audio::EFaderCurve::Linear);
+					});
+			}
+		}));
 }
 
 void AUmbraWorldItem::RefreshLootAmbience()
@@ -146,9 +191,23 @@ void AUmbraWorldItem::RefreshLootAmbience()
 		if (auto* Audio = GetWorld()->GetSubsystem<UUmbraAudioSubsystem>())
 			LootAmbience = Audio->CreateLootLoop(this, FUmbraAudioContext::FromInstance(ItemInstance), AudioEvents->LibraryOverride);
 		// Retry only a configured loop rejected/stopped by distance or concurrency, never reroll probability.
-		if (LootAmbience) GetWorldTimerManager().SetTimer(LootAmbienceTimer, this, &ThisClass::RefreshLootAmbience, 1.f, true);
+		if (LootAmbience)
+		{
+			LootAmbience->OnAudioVirtualizationChangedNative.AddUObject(this, &ThisClass::OnLootAmbienceVirtualizationChanged);
+			GetWorldTimerManager().SetTimer(LootAmbienceTimer, this, &ThisClass::RefreshLootAmbience, 1.f, true);
+		}
 	}
-	if (IsValid(LootAmbience) && !LootAmbience->IsPlaying()) LootAmbience->Play();
+	if (IsValid(LootAmbience) && !LootAmbience->IsPlaying())
+	{
+		const double Now = GetWorld()->GetTimeSeconds();
+		if (LootAmbienceStartedAt < 0) LootAmbienceStartedAt = Now;
+		// Virtualization preserves progress itself. Explicit concurrency rejection/stops need
+		// the same continuous local timeline when retrying the configured Wave (never reroll).
+		const auto* Wave = Cast<USoundWave>(LootAmbience->Sound);
+		const float StartTime = Wave ? UmbraLootAudioPlayback::ResumeOffset(Now - LootAmbienceStartedAt,
+			LootAmbience->PitchMultiplier, Wave->Duration) : 0.f;
+		LootAmbience->FadeIn(GetLootAmbienceFadeDuration(), 1.f, StartTime);
+	}
 }
 
 void AUmbraWorldItem::ClearMeshLoad()
@@ -166,6 +225,7 @@ void AUmbraWorldItem::ClearMeshLoad()
 
 void AUmbraWorldItem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	LootVFX->DeactivateImmediate();
 	StopLootAmbience();
 	GetWorldTimerManager().ClearTimer(DropAnimationWindowTimer);
 	GetWorldTimerManager().ClearTimer(SpawnAudioRetryTimer);
@@ -179,6 +239,7 @@ void AUmbraWorldItem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void AUmbraWorldItem::RefreshPresentation()
 {
+	RefreshLootVFX();
 	PlaySpawnAudio();
 	RefreshLootAmbience();
 	if (bPickedUp || !ItemInstance.IsValid())
@@ -258,6 +319,7 @@ void AUmbraWorldItem::CloseDropAnimationWindow()
 
 void AUmbraWorldItem::RefreshVisual()
 {
+	RefreshLootVFX();
 	PlaySpawnAudio();
 	RefreshLootAmbience();
 	if (!HasActorBegunPlay() || GetNetMode() == NM_DedicatedServer) return;

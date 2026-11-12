@@ -48,7 +48,7 @@ bool FUmbraEquipmentLiveUITest::RunTest(const FString& Parameters)
  for (int32 Index = 0; Index < 10; ++Index)
  {
   auto* Slot = Menu->WidgetTree->ConstructWidget<UUmbraEquipmentSlotTestWidget>();
-  Slot->SetSlotType(EUmbraEquipmentSlot(Index)); Root->AddChild(Slot);
+  Slot->SetSlotType((Index == 4 ? EUmbraEquipmentSlot::Amulet2 : EUmbraEquipmentSlot(Index))); Root->AddChild(Slot);
  }
  Menu->ConstructForTest(); Menu->ConstructForTest();
  TestTrue(TEXT("Ready empty equipment distinct from unavailable"), Menu->bEquipmentDataReady);

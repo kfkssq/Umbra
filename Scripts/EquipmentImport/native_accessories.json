@@ -1,0 +1,13 @@
+{
+  "destination": "/Game/Items/NativeAccessoriesV1",
+  "loot_table_name": "DA_Loot_Prototype",
+  "report_directory": "NativeAccessories",
+  "source_directory": "C:/Users/kfkssq/Desktop/EldenRingAsset",
+  "icons": "C:/baidunetdiskdownload/艾尔登法环图标/艾尔登法环图标",
+  "source_version": "unverified: CSV and text versions are not embedded",
+  "stone_ids": [10100,10101,10102,10103,10104,10105,10106,10107,10140,10160,10161,10162,10163,10164,10165,10166,10167,10168,10200],
+  "placeholder_mesh": "/Engine/BasicShapes/Sphere.Sphere",
+  "placeholder_scale": [0.12,0.12,0.12],
+  "category_weights": {"Weapon":32,"Armor":48,"Accessory":10,"Material":10},
+  "note": "Prototype tuning; retains Weapon:Armor=2:3. Materials use fixed grade rarity and stacking, with no combat affixes or upgrade actions. Accessory source rarity probabilities are copied from the active V2 Armor profile."
+}

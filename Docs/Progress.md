@@ -1,4 +1,253 @@
+## 2026-11-12 可控制Manny与原生冲击弹实验场
+
+- 已保存`/Game/SkillLab/Maps/L_MannySkillLab`，地图级GameMode绑定独立BP_MannyLab/PlayerState；WASD/方向键移动、鼠标方向+数字5释放第一格技能，三个静止Quinn靶子和阻挡墙供PIE操作。新增原生动画实例提供移动状态，编辑器创建可编辑ABP的待机/跑步混合及全身Slot，原生MM_ChargedAttack制作Montage。正式Greystone、项目默认GameMode及辉石魔砾配置未替换。入口与参数见[路线图](SkillImportRoadmap.md)。
+- DA_MannyArcBolt连接四阶段Niagara：右手施法、0.55秒释放、飞行、命中；7资源、1.8秒冷却、24点Cold伤害沿用GAS。实验PlayerState资源回复10/秒，伤害无暴击/AP系数；当前使用引擎测试模板，无配置音效，是可玩技术样本，非最终法术动作/特效美术。
+- 本轮UE5.8.2 UmbraEditor Win64 Development构建成功，Rider工程文件刷新成功，Umbra.Skills六项Automation成功（`NativeBaseline/PlayableAutomation/index.json`）。最终带渲染PIE通过真实Enhanced Input注入移动与技能：移动约276.5cm、回到待机、头脚垂直差151.9cm；六条命中/撞墙/前后取消/空放/资源不足路径成功，观察实际Montage、施法Niagara、飞行启停、一次24伤害/一次7费用与短效清理。报告`Saved/SkillImport/NativeBaseline/manny-pie.json`。
+- 独立编辑器回读地图、角色/动画/技能引用、三个靶子、WASD/数字5映射与正式资产隔离成功（`manny-audit.json`）。慢速带渲染PIE及三阶段截图通过（`manny-visual.json`、`manny-*.png`）；发现并修正Python位置式Rotator参数造成的初始朝向问题，新增明确Pitch/Yaw/Roll与站立高度检查，已查看修正后角色和施法画面。
+- 未进行实体键盘/鼠标人工操作、完整动作美术验收、多人、Cook或性能压测；无NavMesh场景的左键寻路不在验收范围。存在历史启动Condition failed，不声明整份日志零错误。相关资产LFS属性与文本空白检查通过；未提交/推送，保留其他工作区改动。
+
+## 2026-11-12 UE原生角色与Niagara工程基准（前一阶段）
+
+- 用户选择Manny／Quinn兼容角色、免费素材优先。通过匹配UE5.8.2编辑器导入128份Characters模板资产（97段动画序列，不是97段施法动作），建立隔离检查地图和两份引擎Niagara测试系统。来源、分工、入口及后续八类样本见 [路线图](SkillImportRoadmap.md)。用户报告Niagara Examples Pack与5.8兼容提示，该外部包尚未导入/验证，改为可选项。
+- C++增加施法/释放/飞行/命中四阶段Niagara配置，禁止同阶段与Cascade双配；沿用GAS伤害/资源/冷却，补齐取消、命中和结束清理。释放与命中资产必须自行有限结束；不自动判定任意Niagara图的生命周期。
+- 本轮UmbraEditor Win64 Development构建成功；Umbra.Skills六项Automation成功。带渲染PIE在Niagara测试配置与原有正式配置下各六条路径成功：命中、墙阻挡、释放前/后取消、空放、资源不足。Niagara另采样飞行启停、施法组件清理和短效系统8秒内结束；测试通过真实Enhanced Input注入，不是实体键盘操作。报告分别为 `Saved/SkillImport/NativeBaseline/niagara-pie.json` 与 `Saved/SkillImport/GlintstonePebble/skill-pie.json`。
+- 独立编辑器回读确认两个人体共享骨架/所需骨骼存在、十段原生动作结构有效；渲染三组姿态截图，已查看蓄力姿态的双角色正面斜视截图。这是基础结构与静帧检查，未验收完整动作自然度。回读确认正式Player仍为Greystone，辉石魔砾四个新增Niagara引用均为空，临时测试未保存到正式定义。
+- 尚未制作正式Manny玩家动画蓝图、施法动作库、八个完整技能或最终美术；未完成法环FXR复现。未验证多人、Cook、性能预算或原版逐帧对比。日志仍有既有启动Condition failed，不声明全日志零错误。新资产LFS属性通过；保留原脏工作区，未提交推送。
+
+## 2026-11-07 辉石魔砾FXR审计（完整视觉与姿态修复未完成）
+
+- 固定官方@cccode/fxr32.1.3，解析510010/523000–3及嵌套430/440；七份语义往返比较通过，源资源依赖齐全，报告 `Saved/SkillImport/GlintstonePebble/FxrAudit/manifest.json`。法阵位于510010，两层引用s60130纹章；430/440为风场。飞行19节点配置、施法17、命中11，不等价于之前的少量Cascade发射器。
+- 源523001仅有声音而无appearance，已通过UE编辑器移除DA的自制释放闪光并保留原声；bootstrap同步修正。其他旧视觉仍待替换，未把审计结果冒充已还原特效。UE原生材质/渲染基元映射、TAE37/行为切换、法杖挂点、多帧原版对照尚未验收。
+- 独立UE动作诊断完成，保存参考姿态offset及源/目标七个时间点变换。旧测试只检查高度/时长，不覆盖歪头或左右协调；当前未修复姿态，也未新增法阵。详细证据、局限和UE原生素材发展路线见 [导入记录](GlintstonePebbleImport.md)。
+- 提取器.NET构建与补提取通过；FXR语义检查通过；实际编辑器资产保存/回读通过；UmbraEditor Win64 Development构建检查通过（0编译动作，`fxr-audit-build.log`）；本轮带渲染和音频的六路径PIE通过（`fxr-verified-pie.log`、`skill-pie.json`）。未重新跑Automation、未进行原版视觉/音频A/B、多人/Cook验证。未删除旧资产、未提交或推送。
+
+## 2026-11-07 辉石魔砾原版三阶段音效
+
+- 从本机游戏 `sd/sd.bdt` 的 `/enus/cs_main.bnk` 提取原媒体；FXR action75 → Wwise事件/容器 → WEM对应已核实。发射524617251、飞行1040010023、命中82601330/164447618/123415567。正式DA已换原声，移除合成施法音；旧合成资产保留但不被技能引用。
+- 飞行音按原44100Hz的[0,18687)采样区间循环，AudioComponent附着弹体，命中停止，EndPlay停止。命中Cue接三种原变体；事件默认音量保留，UE空间衰减/随机袋/混音属于适配，未移植原Wwise全部RTPC及环境总线。
+- 本轮UE5.8.2 Win64 Development构建通过；Umbra.Skills五项Automation全部通过，新增PebbleOriginalAudio验证来源、循环、音量、三变体。带音频PIE六路径全部通过，观察到飞行播放及命中停止。报告 `Saved/SkillImport/GlintstonePebble/OriginalAudioAutomation/index.json`、`skill-pie.json`、`OriginalAudio/configuration.json`。常规生命周期测试关闭耗时截图，避免短飞行阶段被截图卡帧跳过。
+- 未做人工试听、原游戏同步A/B、多人/Cook/全套Automation。本轮没有修复VFX保真：现有Cascade仅复用两张原贴图，其发射器、曲线、时序是人工搭建，不能称原FXR复现。细节见 [导入记录](GlintstonePebbleImport.md)。未提交/推送，保留其他工作区变更。
+
+## 2026-11-06 辉石魔砾可释放适配版（历史记录，音效已被上文替换）
+
+- 已接入第七技能格/数字5，鼠标方向施法；7资源，0.35秒释放，1.8秒冷却（服从既有全局开关）。原动画V4制作正式Montage，原图标与两张原DDS贴图导入，重建施法/释放/飞行/命中Cascade，自制三段声音。不是FXR无损导入或原声还原，保留当前武器、无新增法杖要求；参数、来源及差异见 [完整记录](GlintstonePebbleImport.md)。
+- C++新增服务器单次命中投射物，扫掠阻挡、有限追踪、寿命清理；伤害走既有GAS ExplicitChannels（Cold 24＋0.7 AP）。沿用既有技能执行器与UI状态，不新增独立伤害计算或技能系统。
+- UE5.8.2 UmbraEditor Win64 Development构建通过；Umbra.Skills四项Automation通过。真实Enhanced Input注入的6条PIE路径通过：命中、墙阻挡、释放前取消、释放后取消、空放、资源不足；正常命中仅一次24伤害，消耗7且不重复扣费，冷却/状态/粒子/弹体清理通过。慢速视觉PIE另通过，已查看飞行拖尾、命中闪光及第七格HUD截图。
+- 未测试实体键盘、人工声音试听、多人/丢包、移动目标追踪、Cook或全套Automation；原版视觉/音频保真未验收。启动日志仍有既有Condition failed，不声明整份日志零错误。新资产LFS已确认，测试地图未保存，未提交推送。
+
+## 2026-11-06 辉石魔砾首段动画导入与重定向
+
+- UE 5.8.2 已保存候选 a401_045010（1.5秒）及 Greystone 重定向输出；当前候选为 `/Game/Skills/Staging/GlintstonePebble/SourceV4`、`RetargetV4`。使用厘米数据和动画首帧参考姿态解决早期倍率/整体翻转，20条重定向链。源 c0000 FLVER 无网格，诊断代理不是角色美术。脚本、旧候选状态与后续步骤见 [导入记录](GlintstonePebbleImport.md)。
+- 源/目标骨架、时长、动作变化及四采样时刻的站立高度检查通过；独立带渲染PIE四样本/四截图通过，已查看整体站立、抬手和收手变化。保留现有剑盾；法杖对位、手指、脚底贴地及原游戏逐帧一致性未验收，不能称辉石魔砾已完整复现。
+- 未接入正式技能/地图/角色配置，没有本任务C++改动或构建/Automation；尚未实现释放事件、投射物、Niagara、原声音，未测伤害、多人或Cook。资产通过编辑器生成，LFS属性已检查，原工作区变更保留，未提交或推送。
+
+## 2026-11-06 辉石魔砾源资源提取与动画转换
+
+- 用户选择辉石魔砾并补齐 sfx/sound 导出。已读取实际源包，提取150骨玩家骨架、a401事件、a9x包内12段候选动作及 compendium、5组 FXR/资源表、25贴图与3模型；缺少的 s00002_m 从 DLC02 公共包补齐。脚本、来源、报告和下一步见 [辉石魔砾导入记录](GlintstonePebbleImport.md)。
+- 隔离使用官方 Soulstruct 3.2.1 与 Blender 5.2.3，12段动作转换到原骨架 FBX；逐帧矩阵检查通过，独立进程重导12份FBX的骨数/Action/时长检查通过。尚未做源动作视觉比较或 UE 重定向，不能称技能已复现。
+- TAE bank37 尚缺适配模板，事件保留原始数据；实际音频主体仍在独立 sd 档案中，sound 目录的7个文件不足以证明音效已齐备。未执行 UE 构建、Automation、导入、PIE、试听、多人或Cook，未修改Content及玩法。原有工作区变更保留。
+
+## 2026-11-06 技能导入、自定义与变异规划
+
+- 新增 [技能导入路线图](SkillImportRoadmap.md)：单个法环参考投射物技能盘点与复现 → 动画/逻辑/表现解耦 → 原创“幽焰裂矢” → 多弹、穿透、墙反射及敌间跳弹组合。明确清单管线、强化来源/覆盖顺序、服务器权威、去重、取消清理和分阶段验收。
+- 状态为规划，下一步从 M0 单技能源资源与依赖盘点开始。现有图标导入不代表动画/VFX/SFX已经可用；原始技能资源与转换工具未核实，资产内部待编辑器确认。
+- 本轮对照源码与现有文档，检查文档链接/空白；没有编译、Automation、导入、PIE、试听、多人或 Cook。未修改 C++ 或 Content，保留已有工作区改动。
+
+## 2026-11-06 法环图标导入与技能UI接入
+
+- 检查本地战技联系表和两张原PNG，选择08314近身剑姿给Q横扫、08309宽挥斩轨迹给E广域横扫。UE编辑器导入为 `/Game/UI/Icons/EldenRing/T_Skill_Sweep_ER08314`、`T_Skill_WideSweep_ER08309`，1024×1024，UI/EditorIcon/sRGB/NoMipmaps/NeverStream。来源、SHA256、选择依据与未核实的版本/许可见 [HUD图标说明](SkillHUDLayout.md)。
+- 替换DA_Sweep/DA_WideSweep.Icon及技能栏前两格、技能格默认Designer PreviewIcon。编辑前后布局参数比较通过，技能半径/角度/伤害/费用/冷却/动画/VFX快照一致。经验条、血蓝条、两侧框和其他资产未写入；原PNG未修改。工具为Scripts/import_skill_icons_er.py，报告Saved/SkillHUD/er-icon-import.json。
+- 独立编辑器重新加载后，数据定义、WBP预览引用和纹理设置回读通过。带渲染PIE确认Q/E实际材质IconTexture分别引用两张新纹理；真实ASC横扫激活、资源100→85、目标10000→9985、冷却文本出现与结束隐藏通过（er-icons-pie.json）。已查看ScreenShot00022/00023.png，图标在既有边框内，冷却与经验条正常显示。
+- 本轮只改资产引用、导入与报告脚本、文档，无C++改动，因此未重编译C++或运行全套Automation。技能通过ASC测试，未重新执行实体键盘Q/E输入；未验证多人或Cook。导入命令let零错误、两条既有Python命名告警；新uasset的LFS属性和文本空白检查通过，未提交推送。
+
+## 2026-11-06 紫色经验条显示占位
+
+- 新增普通UserWidget `WBP_PlayerExperienceBar`，复制现有资源条的控件树和进度条子WBP；高度14、无数值文字，材质使用Violet的项目子实例 `MI_ExperienceBar_Preview`，固定50%填充。放在蓝条下方，Vitals容器高80→84；保留用户最新1332总宽、800中列宽及201.33中列高度、两侧框、技能栏与原条Slot配置。没有经验/等级/GAS绑定。配置入口见 [HUD布局](SkillHUDLayout.md)。
+- UE5.8.2 UmbraEditor Win64 Development构建成功（Saved/SkillHUD/experience-build.log）。创建与回读完成（experience-created.json），事件图只有未连接的默认事件。最初材质设置的断言依赖UE5.8.2始终返回false的setter，已改为实际参数回读验证；最终保存成功。
+- 带渲染PIE脚本通过：唯一经验条实例、位置层级正确、实际动态材质Value持续0.5、ValueText折叠（experience-pie.json）。已查看ScreenShot00021.png：紫色细条位于蓝条下方，半满显示，两侧框及现有布局保留。没有执行技能按键、经验增减、升级、多人或Cook测试，也未运行全套Automation。日志启动阶段存在LogAutomationTest Condition failed信息（脚本执行前），不宣称整份日志零错误；经验条脚本及运行阶段没有发现新增蓝图报错。
+- 新增uasset的LFS属性已确认，未提交或推送。修改仅涉及经验条相关资产、HUD挂载、编辑器创建工具、脚本和文档。
+
+## 2026-11-05 ActionbarDemo 技能格与键位
+
+- 检查样品W_Window_ActionbarDemo / W_Window_Actionbar / W_Actionbar_Item_Slot实际层级与画刷，技能格使用fg4_slotBrown，键位底框fg4_slotTooltip1；沿用现有同系列石纹连续背景。WBP_SkillBar左对齐，子格间距0；WBP_SkillSlot布局宽64、画框宽72，以透明边重叠实现可见边缘贴合，Q/E位于图框下方。保留现有图标、成本、冷却及用户此前移除的名称/状态控件。
+- UE5.8.2编辑器保存成功；带渲染PIE通过ASC激活横扫、单次命中、资源扣15、冷却文字显示及结束隐藏（Saved/SkillHUD/pie.json）。截图ScreenShot00015.png已查看，框从左紧密排列、键位底框可见。离屏几何返回零、未做运行时坐标断言；本轮未验证按键输入、多人、打包或声音。未修改C++，未提交推送。
+
+## 2026-11-05 Fantasy GUI 4 技能栏风格
+
+- 按用户参考图通过UE编辑器将WBP_SkillBar的连续框改为 fantasy_gui_4/textures/borders/fg4_borders_stone，Box画刷Margin 0.04；WBP_SkillSlot的底框改为 fantasy_gui_4/textures/quality/fg4_slotGreyLight，原Img_Frame折叠避免遮挡图标。保留血条上方原位置、两技能格、图标、按键与GAS冷却连接。素材和人工调整入口见 [连续框技能栏](SkillHUDLayout.md)。
+- UE5.8.2保存成功，数据记录Saved/SkillHUD/fantasy-style.json。带渲染PIE验证单个嵌入栏、一次横扫与冷却文字出现/结束隐藏，资源100→85、目标生命10000→9985；通过ASC接口激活，不是键盘输入。已人工查看Saved/Screenshots/WindowsEditor/ScreenShot00011.png：石纹连续底框、方形技能框和冷却可见。离屏缓存几何仍为零，未做坐标断言；未验证多人、Cook或声音。仅编辑WBP画刷及文档，没有新增C++编译需求。
+
+## 2026-11-05 连续框技能栏与本地图标盘点
+
+- 用户要求由我们先制作UI再自行修正：UE编辑器保存WBP_PlayerHUDGroup、WBP_SkillBar、WBP_SkillSlot与控制器配置。连续skill_bar现有纹理作为500×112整框，两个92×96技能格居中在框内；嵌于原500宽生命/资源条列上方，独立SkillBarClass清空。现有头像、生命条、资源条、右侧属性面板及其内部布局保留。结构、参数、人工调整入口见 [连续框技能栏](SkillHUDLayout.md)。
+- 本地只读盘点173张6000段魔法/祷告与91张8300–8499动作候选；08309为横挥候选，08303更接近旋转斩；Goods CSV+中文文本可核实6000辉石魔砾、6014辉石弯弧、6050卡利亚大剑、6052卡利亚贯刺。缺少Gem/SwordArts参数表，动作图标不猜正式名称；源版本与许可未核实。没有导入或切换法环图标，继续使用现有warrior_12/48。来源、SHA256及联系表见Saved/SkillHUD。
+- 本轮UE5.8.2 UmbraEditor Win64 Development构建通过；编辑器回读确认完整树与独立挂载关闭（Saved/SkillHUD/configuration.json）。首次保存出现新增控件缺少GUID的编辑器ensure，已补注册并重编译重保存，最终migration-final.log无该错误。两项Umbra.Skills自动化通过（Saved/SkillHUD/Automation/index.json）。
+- 带渲染PIE通过单实例、所属玩家、ASC真实激活、资源100→85、目标10000→9985、真实冷却数字出现并结束隐藏（Saved/SkillHUD/pie.json）。截图ScreenShot00009.png已人工查看：连续框位于血条上方，两格在框内，显示3.3秒冷却。离屏CachedGeometry返回零值，未通过程序化坐标断言；实际对齐以截图观察及Designer配置为准。本轮通过ASC接口激活，不冒充键盘验证；此前键盘测试见上一条记录。未验证多人、Cook打包和声音听感。
+- 保留现有图标及相关项目改动，未提交或推送；用户可按指南调整位置、框体和图标。
+
+## 2026-11-05 横扫技能管线与技能栏接口
+
+- 用户最终明确：WBP配置/接线由用户完成，视觉以用户HUD为准。已提供 [完整手工接线指南](SkillBarBlueprintGuide.md)：HUD → WBP_SkillBar → WBP_SkillIcon，自定义控件名、OnSkillViewUpdated各引脚、冷却遮罩/数字/状态、输入和排错。未替用户创建新命名WBP_SkillIcon或完成其最终HUD。此前演示WBP_SkillSlot/WBP_SkillBar保留；用户接入HUD前需把BP_UmbraPlayerController.SkillBarClass清空，防止独立演示栏重复挂载。
+- 新增UUmbraSweepDefinition和一个UUmbraSweepAbility模板。DA_Sweep/DA_WideSweep共享独立AM_Sweep；Q/E，消耗15/25，冷却4/6秒，250cm/120°与350cm/170°，武器通道倍率1.5/1.0。服务器GAS扣费/冷却与现有伤害链、单次扇形/高度/遮挡、动作完成/移动与死亡眩晕中断；未接法环技能资产。
+- Greystone动画和Cascade资产通过编辑器加载确认，同骨架PrimaryB序列1.4秒；技能Montage从PrimaryB_Montage复制并去除原Notify。初期独立AnimationEditor打开曾触发访问冲突，后续使用PIE观察角色动作。现有warrior_12/48与ClassicUI灰框用于演示，不更改第三方原资产。
+- UUmbraSkillSlotWidget提供ReadViewState/OnSkillViewUpdated，每0.05秒读取当前玩家ASC真实Active GE冷却，没有UI独立倒计时。可选BindWidgetOptional自动表现与用户自定义蓝图表现两种接法详见指南；新增UmbraEditorTools仅供编辑器创建演示资产/临时测试，不属于游戏运行模块。
+- 本轮UE5.8.2 UmbraEditor Win64 Development最终构建成功（Saved/SkillPrototype/build-final.log）；项目文件已刷新。实际PIE发现SetPositionInViewport重置Anchor，已修正顺序并再次构建。Independent readback通过：Q/E唯一正确映射、技能定义费用/冷却/icon、角色输入引用和已保存WBP层级；Saved/SkillPrototype/readback.json。5.8读取DefaultKeyMappings而非弃用Mappings，FKey使用自定义token导入，已修正配置脚本并通过回读。
+- 自动化：Umbra.Combat.Maintenance、Umbra.Damage.EntryCompatibility、Umbra.Damage.TypedChannels在本轮automation.log中通过；初次CooldownView测试错误尝试实例化abstract控制器导致测试崩溃，修为普通APlayerController后，Umbra.Skills.CooldownView和SweepSector重跑2/2无警告通过（Saved/SkillPrototype/SkillRetest/index.json）。这是本轮执行结果，非引用历史通过。
+- 实际键盘PIE记录：首个Q资源100→85、目标生命10000→9985；首个E资源85→60、生命9985→9975，每次Start后约0.4秒各一次Strike且targets=1。真实控件读回冷却3.9、3.8…及另一格约6秒递减；观察到演示栏在现有生命/资源条上方。保存Saved/SkillPrototype/keyboard-first-pass.json与keyboard-first-pass.log。随后还有额外空挥测试，不能把最终资源5当作第一次施放成本。首两次冷却结束/动作非Active状态在连续记录中可见。
+- 截图HighresScreenshot00001/00002包含动作场景但不包含UMG，不能作为冷却UI视觉截图。已经查看初始技能栏画面，冷却文字通过真实控件读回；连续特效表现/声音听感、多人、Cook打包和用户最终手工接线的HUD未验收。用户提出自行接WBP后停止代改UI；配置脚本已移除UI创建与控制器挂载写入，该脚本调整后未再执行资产写入。
+- 免费icon推荐已核对CraftPix两款官方页面/Freebie许可与Game-icons的CC BY页面，见指南；未下载导入。文本空白与新资产LFS属性检查通过，未提交或推送，保留其他已有改动。
+
+## 2026-11-04 左侧防具与右侧四遗物栏
+
+- 按用户新要求直接修正WBP_Equipment布局：左侧头/胸/手/腿，右侧护符/护符/戒指/戒指，主副手仍在两列底部。通过UE重排现有VerticalBox子控件，保留名称/引用和原有间距；SlotType及空栏背景逐格核对。新要求覆盖此前保留用户自行排版的安排。规则与脚本见 [四遗物栏与布局](RelicSlots.md)。
+- Accessory类别统一显示为“遗物”，运行时GetAllowedEquipmentSlots/CanEquipInSlot允许全部四个右侧栏；服务器装备、背包指定格/空位选择、Tooltip和词条槽位过滤同步。116件护符及导入配方同步四栏。类别以外的装备仍用原AllowedSlots；同实例不能占多格，品质、词条、等级要求和堆叠规则不变。
+- 本轮UE5.8.2 UmbraEditor Win64 Development构建通过。通过UE保存WBP与116件定义，独立回读布局/背景/116件配置通过，Saved/RelicSlots/configuration.json与readback.json；完整135件导入readback零保存通过，Saved/RelicSlotsImportReadback.log。
+- 本轮27项自动化全部通过（24无警告、3带警告），包括Equipment、UI.Equipment、Inventory、UI.Inventory、Items.Generation、Items.Tooltip.Classification；新增FourRelicSlots验证旧护符/戒指配置均映射四格、四件同时装备及防具/武器槽拒绝，NativeAccessoryAssets逐件覆盖四栏。报告Saved/RelicSlots/Automation/index.json、日志RelicSlotsAutomation.log。
+- 真实PIE通过：加载保存布局、核对两列子控件顺序和实际空栏画刷；四件敌人掉落护符经背包UI分别装备四个遗物栏，目标Tooltip有效且类型为遗物；四件同时生效，全部卸下保持实例快照。报告Saved/RelicSlots/pie.json，最终日志Saved/RelicSlotsPIE-final.log。已查看穿戴截图ScreenShot00003.png及布局稳定后的空栏截图ScreenShot00006.png（均在Saved/Screenshots/WindowsEditor），确认左侧头胸手腿、右侧双护符双戒指。
+- Python语法、文本diff空白和资产LFS属性检查通过。首次配置脚本调用模板运行时视觉事件产生未构建HighlightFrame警告，后改为直接设置编辑器属性避免后续重跑触发；真实PIE未见此绑定问题。保留既有启动Condition failed、Paragon输入/动画及导航告警；未验证多人、声音、Cook打包。未提交或推送，保留已有改动。
+
+## 2026-11-04 锻造石同种同品质堆叠
+
+- 19种原生锻造石启用显式bStackableMaterial，服务器按物品定义+实例品质合并；不同种/品质分格。Quantity默认1，随实例记录和OwnerOnly背包快照保留；满包先尝试合并，合并退休源GUID以拒绝重复提交。拖动整堆保留数量，拖入兼容堆合并，其他格继续交换。规则、int32上限、配置与接口边界见 [锻造石堆叠](SmithingStoneStacks.md)。
+- WBP_InventorySlot使用已有StackCountText显示数量，包括单件1；空格/非堆叠物品清空隐藏。仅C++投影实例数量，无蓝图合并逻辑。通过UE5.8.2保存19件定义及配方/说明迁移，更新可重复导入脚本；完整135件独立readback通过且零保存，Saved/SmithingStacks/migration.json、Saved/SmithingStacksReadback.log。
+- 本轮UmbraEditor Win64 Development最终编译通过。18项相关自动化最终全部通过：首轮17通过（15无警告、2带警告），RequestProtocol因旧测试用1级角色装备10级物品失败；仅补齐该测试的CharacterLevel前置条件并重新编译，单独重跑1/1通过，不改变生产等级规则。报告Saved/SmithingStacks/Automation/index.json及ProtocolRetest/index.json。覆盖Inventory/Inventory UI、Generation、Presentation；新增SmithingStacks含满包合并、类别/品质隔离、不同等级合并、重复GUID、移除返回、移动合并/交换、溢出拒绝、记录恢复及真实WBP数量显示/清理。
+- 真实PIE最终通过：实际敌人生成4颗测试石头，经拾取成为3格（2+1+1）；已打开菜单即时显示数量；整堆移动后数量2保留、源格数字清除，正常EndPIE。Saved/SmithingStacks/pie.json与SmithingStacksPIE-final.log；首轮玩法检查已通过，仅截图接口名错误，修正后完整重跑成功。离屏渲染截图Saved/Screenshots/WindowsEditor/ScreenShot00001.png已查看，当前可见的单件数量显示；数量2移动到第90格，文字由真实控件读回验证。
+- Python语法、文本diff空白、文档链接和uasset LFS属性检查通过。日志保留既有启动Condition failed、Paragon输入/动画等信息；未验证双人网络、声音或Cook打包，也未实现拆堆/消耗/强化/磁盘存档。未提交或推送，保留先前用户改动。
+
+## 2026-11-04 开局额外随机护符与锻造石
+
+- L_Prototype出生点附近新增BP_StartupAmulet和BP_StartupSmithingStone，每次开始各等概率选一件，再沿用SourceRarity品质限制和晋升规则；物品等级1，可拾取。保留原六品质测试装备。配置入口、实例覆盖顺序及开发构建边界见 [开局试玩掉落](NativeAccessoriesImport.md#开局试玩掉落)。
+- AUmbraLootTestSpawner新增bRandomSingleItem，默认false，不改变原批量或六品质模式；六品质模式优先。Blueprint和地图由UE5.8.2编辑器保存，脚本configure_native_startup.py可重复配置而不增加重复Actor。记录Saved/NativeStartup/configuration.json。
+- 本轮UmbraEditor Win64 Development构建通过；真实两次PIE离屏渲染通过：每次各一件、种子/身份刷新、等级1、品质限制、正确词条数、Niagara激活和拾取快照，原六件仍存在。两次抽到不同护符及锻造石，重复种类本身也属于合法随机结果。报告Saved/NativeStartup/pie.json、日志Saved/NativeStartupPIE-render.log。
+- 首轮NullRHI模式的VFX激活断言失败，改用RenderOffscreen后完整重跑通过。检查脚本语法、C++文本diff空白、资产LFS属性；日志仍有既有Paragon/启动警告。未运行完整Automation、多人、Cook打包或人工视觉/声音验收；未提交或推送。
+
+## 2026-11-04 原生护符与锻造石导入
+
+- 用户补齐Accessory/Goods两表后，按本地CSV的iconId精确匹配图标：导入116护符、19种锻造石及135独立图标；39件缺图护符与2件无名占位排除。独立目录NativeAccessoriesV1共280个资产，保留源行、中文文本、原始rarity、源文件/图标哈希及版本未确认信息。流程与调参入口见 [原生护符与锻造石](NativeAccessoriesImport.md)。
+- 两类均沿用现有SourceRarity品质限制/晋升规则；护符使用独立复制的公共/防御词条池，可装备Amulet/Amulet2；材料复用品质抽取但无词条、无装备槽、无战斗特效预留文案。共用Engine Sphere缩放0.12作掉落占位。未实现原作护符专属效果、同族互斥、材料堆叠/消耗/强化，未引进其他消耗品或戒指/遗物。
+- DA_Loot_Prototype引用原V2的580模板，加135件新物品。分类权重暂设武器32/防具48/护符10/材料10，保留旧武器防具2:3比例，不宣称是法环掉率。通过UE保存BP_Enemy_Melee_01的新默认表；关卡7个同类敌人检查继承新表，无需重存地图，未移动任何UI栏位。
+- 本轮UE5.8.2 UmbraEditor Win64 Development构建通过（包含新增测试）。小批量12件导入、全量导入和独立进程135件回读均通过，回读零保存；报告 `Saved/NativeAccessories/import_smoke.json`、`import.json`、`readback.json`，激活记录 `activation.json`。所有二进制由匹配编辑器保存。
+- 本轮自动化9/9通过（7无警告、2带警告）：DamageSnapshot、Lifecycle、MaterialRarity、NativeAccessoryAssets、ProductionAssets、ProductionLoot、Rules、SixRarities、StagedEquipment。新增测试覆盖源0..3各1000种子的品质限制/记录恢复、135件各24种子的生成、物品背包Tooltip、双护符槽装备和2000次分类抽取；原V2生成测试同时回归。报告 `Saved/NativeAccessories/Automation/index.json`，日志 `Saved/NativeAccessoriesAutomation.log`。
+- 真实单机PIE最终通过：原型敌人/新生成敌人的已保存掉落表引用；两护符和两锻造石经实际死亡掉落/拾取/Tooltip/实例快照检查；双护符同时穿戴再卸下；材料空栏装备拒绝且背包不变；打开/关闭菜单并EndPIE。记录 `Saved/NativeAccessories/pie.json`、`Saved/NativeAccessoriesPIE-final.log`。首轮测试在已占用护符栏请求装备材料，返回SlotOccupied导致断言失败；修正为先测试空栏，未改变生产拒绝规则，重跑通过。
+- 检查135张源图联系表、脚本语法、文本diff空白和新增uasset的LFS属性。日志仍含原有Paragon输入轴/动画除零、GameplayCue路径、启动Condition failed等警告/错误文本；测试报告中的警告为无上下文测试World销毁和HTTP探测超时，不声称日志完全干净。PIE使用NullRHI/nosound，未人工验收渲染/声音、多人、Cook打包；未提交或推送，保留原工作区改动。
+
+## 2026-11-04 鞋子栏替换为第二护符栏
+
+- 用户确认保持十栏：Legs 覆盖裤靴，Feet 隐藏停用，新增 Amulet2；保留旧序列化编号，防止旧鞋子自动变成护符。有效槽位检查同步装备、背包转移、Tooltip、防具掉落类型与菜单。
+- UE 编辑器已保存 WBP_Equipment 和 WBP_EquipmentSlot，原鞋子控件 SlotType 映射到 Amulet2，使用已有 neck_background 图标；未移动控件或修改布局坐标，最终位置由用户在 Designer 配置。回读十个唯一槽位通过，记录 `Saved/SecondAmulet/assets.json`，迁移日志 `Saved/SecondAmuletMigration.log`。隐藏旧枚举的迁移由编辑器专用桥处理。
+- 本轮 UmbraEditor Win64 Development 最终构建通过；10项自动化全部通过（9项无警告、1项带警告），覆盖 RequirementsAndLifecycle 中双护符独立穿脱/同实例拒绝重复占槽/Feet拒绝，以及 FixedAffixesAndDamage、EmptySlotIcons、LiveSnapshot、PageVisibility、PreviewLifecycle、SlotBindings、SlotContract、EquipInteraction、TooltipHover。报告 `Saved/SecondAmulet/Automation/index.json`，日志 `Saved/SecondAmuletAutomation.log`。不是仅引用历史验证。
+- 本轮未导入护符、戒指/遗物、消耗品或配置其公共占位模型：本机缺少 EquipParamAccessory.csv 与 EquipParamGoods.csv，用户确认暂无；现有文本不能替代 iconId 映射。外部图标仅核查产品资料，未购买、未逐图验收。素材比较、消耗品优先级与导入边界见 [双护符与素材计划](AccessoriesAndConsumables.md)。
+- 真实 L_Prototype PIE 通过：独立进程加载保存后的 WBP，打开角色菜单，回读十个唯一有效槽位及两护符空栏图标，关闭菜单并正常 EndPIE。记录 `Saved/SecondAmulet/pie.json`、`Saved/SecondAmuletPIE.log`。脚本初次两轮因 Python 接口差异失败，修正为 GameplayStatics/ObjectIterator 后重跑通过；不视为玩法失败。
+- 已检查日志：PageVisibility 测试的空测试菜单有0/10槽位警告；编辑器启动阶段仍有 LogAutomationTest 的 Condition failed 文本及 Paragon 旧输入轴警告，不能称全日志零警告/零错误。指定十项测试报告均通过，真实菜单未出现缺槽警告。未进行双人网络或人工视觉验收。
+
+## 2026-11-03 高品质统一红框
+
+- 按用户要求，五套V2 Profile的Legendary/Unique边框统一为ClassicRPGUI/SpecialFrames/Frame_red；通过UE5.8.2编辑器保存，同步rarity_palette.py六档映射和生产配方。颜色、背景和概率不变。
+- 独立编辑器进程回读全部5套×2档引用通过：Saved/HighRarityFrames/verified.json，保存明细assets.json。diff空白检查与既有LFS规则通过。
+- 仅资产配置/脚本调整，无C++修改，未重新编译、运行自动化或PIE，未人工确认渲染；无提交或推送，保留既有改动。
+## 2026-11-03 紫色与金色品质明度
+
+- 史诗紫6B30B7→B070FF，独特金A88732→FFD34D（sRGB）；五套V2 Profile的Color、生产配色脚本及无Profile词条默认色同步。品质标签与对应梯度词条共用新色；背景、边框、掉落概率不改，已有物品可读取新色。Scripts/brighten_rarity_colors.py通过编辑器保存五个资产并同步配方。
+- UE5.8.2 UmbraEditor Win64 Development构建通过（Saved/RarityBrightness/build.log）；独立进程回读五套两档颜色通过（verified.json），真实WBP AffixRollColor自动化1/1通过（Automation/index.json）。diff空白检查通过。
+- 未人工检查游戏内渲染效果，未重跑战斗PIE、多人或打包；本轮使用nullrhi/nosound。保留既有修改，无提交或推送。
+## 2026-11-03 品质晋升概率与高品质预留标记
+
+- 规则版本6：源0仍普通/魔法/稀有；源1普通/魔法/稀有/史诗权重50/30/15/5；源2按用户最终指定为史诗75%、传奇25%；源3传奇/独特各50%。SourceTwoLegendaryChance独立配置源2概率，五套Profile均保存0.25；未将源3的1:1权重误用为源2概率。高档仍4条普通词条。
+- 实例通过HasSpecialEffect()/IsUnique()从持久化品质派生预留身份，Tooltip公开bHasSpecialEffect/bIsUnique；传奇显示“特殊效果待实现”，独特另显示“独特物品”。不新增GE、传奇威能或独特技能；切回低品质清除标记。已有实例保留原品质，高品质已有实例也能显示标记。
+- UE5.8.2 UmbraEditor Win64 Development最终构建通过：Saved/SourceRarityPromotion/build-final.log。用户在初次编译期间调整为25%，已重新完成最终编译。Python修改脚本语法和diff空白检查通过。
+- 自动化12/12通过（10成功、2带警告）：Saved/SourceRarityPromotion/Automation/index.json。580模板×各允许品质×4等级×8种子，共60736次正式生成；另验证源1/2各2000种子的5%/25%概率、0/1边界、非法概率、品质标记记录恢复与UI重用清除。原有标题颜色测试不在本次范围，不宣称已修复。
+- 真实单机PIE40/40通过：Saved/SourceRarityPromotion/pie.json、pie.log。含14件传奇、4件独特，已检查死亡/掉落/拾取/Tooltip标记、可用装备穿脱和等级/未开放类型拒绝。源3/2/1分别14/19/7件。未人工验证渲染/声音、多人或Cook打包，本轮使用nullrhi/nosound；保留既有启动警告。
+- 独立进程回读580件来源及五套Profile的25%概率通过：Saved/SourceRarityPromotion/verified.json；完整生产管线重复执行580件、零保存、无冲突：Saved/RandomEquipmentV2/source-rarity-promotion-repeat.json。
+- 通过匹配编辑器保存V2配置/配方版本，未修改Library；不重掷已有实例，不提交或推送，保留先前未提交改动。配置来源和覆盖顺序见RandomEquipmentExpansion.md、EditorSetup.md。
+## 2026-11-03 原始稀有度约束正式随机掉落
+
+- V2 580 件定义导入 SourceRarity：369件原始1、190件原始2、21件原始3，无原始0模板。源0/1仅普通/魔法/稀有，源2固定史诗，源3仅传奇/独特；服务器在抽品质前过滤，零合法权重拒绝生成，不降级。-1保留旧规则。来源逐件来自 Library 的 UmbraItemImport.Source.item.raw_params.rarity，未修改 Library。
+- 低档权重50:30:15在合法集合内归一化，传奇/独特默认1:1，两者各4条普通随机词条；史诗4条，普通至稀有1/2/3条。未新增传奇威能/独特效果，也不改类型和模板选择概率。V2规则版本5，来源与覆盖顺序见 RandomEquipmentExpansion.md。已有实例保持生成快照，新掉落生效。
+- UE5.8.2 UmbraEditor Win64 Development最终构建通过：Saved/SourceRarity/build-final.log。编辑器保存625个V2包的规则/配方版本，后续清理580个配方中的已废弃required_level引用；独立回读580件源值与5个高档配置通过（verified.json）。物品等级继续采用既有实例等级。
+- 自动化8/8通过（7成功、1带警告）：Saved/SourceRarity/AutomationFinal/index.json。ProductionAssets覆盖580个模板、1339个允许品质组合，每组合4等级×8种子，共42848次生成；ProductionLoot另覆盖源0..3、禁止品质、全零合法权重、完整词条与旧规则。首轮两项生命周期/GAS测试被角色默认等级1拦截，已将测试角色等级设置为生成物品等级后重跑通过，未放宽生产等级门槛或原有断言。
+- 生产管线重复执行通过：Saved/RandomEquipmentV2/source-rarity-repeat.json，580件符合条件、零保存，verify-final.log无Python错误。首次重复执行暴露旧required_level导入引用，移除过时字段并迁移配方后完整重跑通过。
+- 真实单机PIE 40/40通过：Saved/SourceRarity/pie.json、pie.log，32类型定向+8正常表掉落，源3/2/1分别14/20/6件。覆盖死亡/掉落/拾取/Tooltip、可用装备穿脱和等级/未开放类型拒绝，全部满足源品质限制。
+- 未验证人工视觉/声音、多人或Cook打包；本次PIE与自动化为nullrhi/nosound，仍有既有启动警告，不宣称全项目日志无错误。diff空白检查及uasset LFS规则通过；保留先前改动，无提交或推送。
+## 2026-11-03 词条六档稀有度着色
+
+- 六候选值词条的 SelectedTier 0..5 映射白/绿/蓝/紫/粉/金，词条名、数值、区间同时着色，独立于物品品质。优先使用物品 GenerationProfile.Rarities.Color，缺项回退既有六色。固定词条、预览、无效索引及非六候选区间为白色；生成和 GAS 规则不变。已有实例直接读取保存的梯度，无需重新掉落。
+- 新增 RollColor 展示字段，真实 WBP 与原生回退行统一使用；复用时清除旧色。配置来源与覆盖顺序见 ItemTooltipUI.md；无需改 WBP 资产。
+- UE5.8.2 UmbraEditor Win64 Development 构建通过：Saved/AffixRollColor/build-final.log。首次测试代码使用了不存在的 Cyan 常量，已改用显式颜色并重新构建通过。
+- 自动化 8/8 通过（7 成功、1 带警告）：Saved/AffixRollColor/Automation/index.json。新增 AffixRollColor 验证六档、独立于物品品质、不等距数值、配置覆盖、真实 WBP 三文本控件及复用清色；同时运行全部 Items.Tooltip、TooltipLifecycle 和 TooltipLayoutStability。
+- diff 空白检查通过，保留既有未提交改动。未运行人工渲染/交互 PIE、多人、全量测试或打包；本轮自动化使用 nullrhi/nosound。既有 TooltipTitleColor 测试不在本轮范围，不宣称该问题已修复。无提交或推送。
+## 2026-11-03 武器伤害明细恢复原字号
+
+- 新增可选 DamageKeyValueEntryClass，仅武器 DamageRows 使用；未配置则回退 KeyValueEntryClass。UE 编辑器创建 WBP_TooltipDamageEntry 并将词条名、数值恢复 24；基础伤害汇总行与防具主要属性保留 30。脚本 Scripts/configure_damage_row_font.py 可重复应用，字体仍由 WBP Designer 配置。
+- UE5.8.2 UmbraEditor Win64 Development 构建通过（Saved/DamageRowFont/build.log）。首次编译发现重复属性声明，修正后重建通过。独立编辑器回读验证伤害明细 24/24、防具 30/30、汇总 30/30（verified.json）。
+- TooltipLayoutStability、TooltipLifecycle、TooltipViewportFit 自动化 3/3 通过（2 成功、1 带警告），Saved/DamageRowFont/Automation/index.json。未再次运行战斗 PIE、全量测试或人工渲染检查；本次使用 nullrhi/nosound。原有标题颜色测试不在本次范围，不能据此宣称已修复。
+- diff 空白检查通过，新 WBP 符合 LFS 规则；保留既有改动，无提交或推送。
+## 2026-11-03 物理词缀、初始背景与主属性字号
+
+- V2 斩击/打击/穿刺三个增伤资产全部层级改为 AttackSource=Any，生成脚本同步；按伤害类型匹配普攻和技能。已有实例保留生成时快照，新生成物品使用新配置。
+- 初始 DA_Item_TestSword、DA_Item_TestMace 补齐三种背景引用，普通品质使用 fg4_glowGreyLight，关闭二次染色。WBP_ItemTooltip 的基础伤害标题/总值和 WBP_TooltipKeyValueEntry 的词条名/数值字号从 24 增至 30；后者共同服务武器分项和防具主属性。
+- 特殊效果栏不再插入需求失败或惩罚提示；需求行与等级标记继续反馈不足，实际惩罚规则不变。脚本 Scripts/fix_item_presentation.py 通过 UE 编辑器保存资产，未手改二进制。
+- **UE5.8.2 UmbraEditor Win64 Development 构建通过**：Saved/ItemPresentationFix/build.log。独立编辑器进程回读 3 个物理词缀资产、2 件初始装备、4 个字号通过：verified.json；资产保存明细 assets.json、assets-final.log。
+- **自动化 10/11 通过**（9 成功、1 带警告、1 失败）：Saved/ItemPresentationFix/Automation/index.json。包含 Damage.BucketsAndMigration、TypedChannels 和全部 UI.Items；唯一失败仍为已知 TooltipTitleColor（白色实现与品质色断言不一致），未放宽断言。初次将回读脚本与自动化合跑时脚本结束使编辑器提前退出，已单独重跑并取得上述完整报告。
+- **真实单机 PIE 40/40 通过**：Saved/ItemPresentationFix/pie.json、pie.log；32 类型定向 + 8 次普通掉落，死亡/拾取/Tooltip/可用装备穿脱，以及等级或未开放类型拒绝穿戴；本次生成的 5 条物理增伤全部验证来源 Any。
+- Source/Scripts/Docs diff 空白检查通过，所改二进制沿用 LFS。未验证人工渲染效果、声音、多人或打包；本轮 PIE 使用 nullrhi/nosound，启动仍有既有警告/条件错误，不宣称项目全日志无错误。保留既有改动，无提交或推送。
+## Tooltip WBP 配套 C++、需求等级与强化名称（2026-11-03）
+
+- 接入用户新增 DefenseSection / DefenseRows，防御值与基础伤害区彻底分离。要求栏只显示非零属性需求，不足追加红色“不满足”，无需求整栏折叠；等级不足改为上方红色“物品等级 N ×”，复用时恢复原始颜色。未开放穿戴/惩罚说明转入特殊说明区。风味隔断由用户 WBP 控制，本轮未保存/修改 WBP 二进制。
+- 需求等级统一为实例 GetItemLevel：实际 EquipInstance、需求查询、快照刷新与Tooltip一致。旧 Definition.RequiredLevel 仅保留序列化兼容，停止编辑和运行判定；不会将旧值写入物品等级。CharacterLevel仍是原型固定配置，新增所属客户端复制。新增非负实例 UpgradeLevel，默认0，只用于名称 +N，记录往返保留；Tooltip、装备显示和地面标签共用 GetDisplayName。未实现强化玩法/数值加成。
+- **构建通过**：UE5.8.2 UmbraEditor Win64 Development，Saved/TooltipCompactFix/build-final.log。**自动化19/20通过**（18成功、1带警告），AutomationFinal/index.json；真实用户 WBP 的 TooltipCompactContract、防御分栏、精简行、红色/×恢复、实例等级拒绝/允许穿戴、记录强化字段往返、背包转移均通过。唯一失败为既有 TooltipTitleColor（测试期望品质色，现有标题白色），未放宽该断言。
+- **真实单机 PIE 两组各40/40通过**：原型等级组 pie.json（24等级不足拒绝、9未开放类型拒绝、7穿脱成功），临时高等级默认值组 pie-high.json（达标装备穿脱、未开放类型拒绝）。均验证死亡/掉落/拾取/需求文本/实例等级一致/基础防御行及实例保留。脚本不保存地图或角色资产，高等级测试结束恢复默认值。首次旧脚本假定全可穿戴失败，第二次尝试编辑实例 EditDefaultsOnly 属性被编辑器拒绝；最终脚本按实际等级分支，另用临时CDO默认值验证达标组，没有放宽游戏规则。
+- **未验证**：nullrhi/nosound，无人工渲染/声音验收、多人等级复制实测、Cook/打包；启动日志保留已有条件错误/第三方警告，退出有编辑器服务通信错误，不宣称全日志无错误。源文件/文档/脚本 diff 空白检查通过。用户 WBP SHA256 保持 BCBF72F29A829A0B5F54CCAEBA0D2E7D2FA648703CE4B31764B8A631383B7EB8。无提交/推送，保留原有工作区修改。
+## 六档品质 icon 背景配置（2026-11-03）
+
+- 已按用户所示素材，将 V2 Armor/Weapon/Shield/Ranged/Catalyst 五个生成配置的全部六档背景保存为 fg4_glowGreyLight/Green/Blue/Violet/Pink/Yellow；共30行、90个背景引用。背包格、Tooltip icon、Tooltip标题背景同步使用原色光晕，TintBackgrounds=false。边框引用不变；本节覆盖此前“背景留给用户配置”的待办。
+- 已验证：UE5.8.2 编辑器脚本保存成功，并在独立进程回读全部30行、90个引用与关闭染色状态；Saved/TooltipDefenseFix/backgrounds.json、backgrounds-verified.json、backgrounds.log、backgrounds-verify.log。命令0错误，2条既有Python暴露字段同名警告。脚本/文档 diff 空白检查通过，.uasset沿用Git LFS。
+- 未验证：本次没有重新构建C++、运行自动化或PIE人工视觉检查；这是贴图引用配置修改，先前测试结果不算本轮验证。未提交/推送，保留原有工作区修改。
+## Tooltip 基础防御与品质素材修正（2026-11-03）
+
+- 基础护甲/魔抗单独投影至 DefenseEntries，显示在独立“主要属性”区；固定/随机防御词缀仍在物品属性，保留实际值与范围。原始 Stats 与 GAS 数值未改变，复用现有 WBP 主数值区，无 WBP 二进制修改。
+- UE5.8.2 编辑器 Python 修正 V2 五个 DA_Generation_* 的魔法/稀有/史诗边框引用，使用 Frame_green/blue/purple 原色；普通保留 Frame_grey。脚本仅修复灰色默认引用，保留其他手工配置；后续新建默认配置也使用对应贴图。证据 Saved/TooltipDefenseFix/frames.json、frames.log。
+- 用户要求**全部六档**均配置：五个 Profile 已各有完整六行。传奇粉色与独特金色的同系列透明边框尚未找到，待用户指定资产；不以带不透明底板的 fg4_slotPink/Yellow 覆盖图标。没有改动掉落品质概率。
+- 已核对：所有六档当前 SlotBackgroundTexture=Background_grey，TooltipIconBackgroundTexture/TooltipTitleBackgroundTexture=fg4_glowGreyLight，TintBackgrounds=true。按用户要求留给用户手动配置彩色背景，不宣称背景配置完成。路径与开关见 [ItemTooltipUI](ItemTooltipUI.md)。
+- **最终 UmbraEditor Win64 Development 构建通过**：Saved/TooltipDefenseFix/build-final.log。**自动化 12/13 通过**：AutomationFinal/index.json，DefenseSeparation、TooltipLifecycle、Presentation、Hover、LayoutStability 等通过；唯一失败为已有 TooltipTitleColor（期望品质色，现有标题固定白色），未放宽该断言。保留工具链非首选版本与引擎弃用警告。
+- **真实单机 PIE 40/40 通过**：Saved/TooltipDefenseFix/pie.json、pie.log。32 类型定向 + 8 正常掉落，检查死亡/掉落/拾取/Tooltip、基础防御行数量与不混入词缀、可用装备穿脱、未开放类型拒绝穿戴及实例保留。nullrhi/nosound，未验证人工视觉、悬停高亮遮挡、声音、多人或打包；日志仍有已知启动 AutomationTest 条件错误，不能称全日志无错误。
+- Source/Docs/Scripts 的 diff 空白检查通过；所改 Profile 沿用 .uasset LFS 规则。保留先前未提交代码/资产，无提交/推送。
 # Umbra 进度与验证状态
+
+## 剩余150件接入与特殊装备规则 V2（2026-11-03）
+
+- [全类型掉率、词条与盾/远程/施法规则](RandomEquipmentExpansion.md)：580件全部投放（204近战、62盾、24远程、6施法器、284防具）。新增150件中58件近战可走现有穿脱/GAS，另外92件可掉落拾取且显示词条，按“先规划战斗规则”暂不开放穿戴；服务端门禁在库存/GE修改前拒绝并返回明确反馈。
+- 武器40%/防具60%不变。武器内部近战70%、盾15%、远程10%、施法器5%，28个具体武器类型逐项设计权重，4防具部位各占总装备15%；不从资产数量推导类型概率。名称、分类、Requirements/RequiredLevel原样保留。纠正此前V1汇总笔误：430件实际146武器+284防具，而非153+277。
+- UE5.8.2创建V2独立625包（580定义及规则/战斗配置），位于`/Game/Items/GeneratedEquipment/V2`；首次清单`Saved/RandomEquipmentV2/initial-apply.json`。新进程回读580件及重复生产零保存，`apply.json`。近战敌人BP已改用V2，L_Prototype四个敌人均继承正确表，本轮激活仅保存BP，没有再次保存地图。
+- **UmbraEditor Win64 Development构建通过**，`Saved/RandomEquipmentV2/build.log`。**自动化27/28通过**（25成功、2带警告、1失败），`Automation/index.json`；ProductionAssets验证580模板每件128次，共74240次生成；ProductionLoot验证资产数量不影响类型选择；新增StagedEquipment验证拒绝穿戴不创建GE、不改变背包Revision及明确Tooltip状态。唯一失败仍是原有TooltipTitleColor白色实现与品质色断言不一致，未放宽断言。
+- **单机PIE 40/40通过**：32类型定向覆盖+8次正常随机，真实Health归零/死亡/掉落/拾取；可用装备穿脱、完整实例和Tooltip保持，特殊类型穿戴拒绝且物品留包。证据`Saved/RandomEquipmentV2/pie.json`、`pie.log`。测试夹具使用临时400cm散落区域，不保存地图，不改变正式落点参数。
+- 生产脚本默认V2，显式`-Config`可选择V1；原Library与V1共9900个包SHA256保持不变，`preservation.json`。新资产符合既有LFS规则，原有未提交修改保留，没有提交/推送。
+- **未验证/未实现**：格挡、远程投射物/装填、施法器技能行为仍仅为文档规则，专属动作/攻击距离/双手占用未实现；本轮未做人工渲染/声音、多人PIE、Cook/打包或大规模加载性能验证。PIE使用nullrhi/nosound，启动日志既有AutomationTest条件错误/第三方蓝图输入警告仍存在，不宣称整个项目日志无错误。
+
+## 导入资产随机装备 V1（2026-11-03）
+
+- [规则、配置与工具](RandomEquipmentProduction.md)：新模式按 1/2/3/4 条词条确定普通/魔法/稀有/史诗；默认数量权重 50/30/15/5。保留旧品质先行算法，传奇威能和独特专用生成尚未实现，正式表不投放这两类。
+- 分层掉落：武器40%/防具60%，10种近战武器各占总装备4%，头/胸/手/腿各15%；类型内模板等权，新增模型不增加类型总概率。当前原型每次死亡尝试掉1件，落点失败仍可能没有实物。数量、权重和基础战斗值均有独立配置来源。
+- UE5.8.2实际创建430件独立玩法定义（153武器、277防具），总计455个新资产包，位于`/Game/Items/GeneratedEquipment/V1`。读取现有名称/分类/图标/模型，四维Requirements与RequiredLevel原样保留；原型基础伤害/防御另配，不导入原游戏攻击数值或补正系数。150件尚无V1玩法调参的草稿明确排除。
+- 已将`BP_Enemy_Melee_01`及L_Prototype里两个原先显式使用Armor1730表的敌人接入新表；通过编辑器保存BP和地图，其他测试夹具不改。写入前引用见`Saved/RandomEquipment/initial-activation.json`。
+- **构建通过**：UmbraEditor Win64 Development，`Saved/RandomEquipmentBuild.log`；VS工具链非首选版本警告仍存在。初次受限运行因本机构建/缓存权限退出，使用允许访问引擎缓存的执行方式后完成构建及编辑器验证。
+- **相关自动化26/27通过**（24成功、2带警告、1失败）：`Saved/RandomEquipment/Automation/index.json`。范围Umbra.Items、Inventory、Equipment、UI.Items、Loot.DropPhysics。新ProductionLoot与ProductionAssets均通过，430模板每件128次，共55040次生成；29:1模板数量下2000次类型选择序列不变。旧TooltipTitleColor仍失败：现有代码固定白色，而断言期待品质色；本轮未修改该UI代码或放宽断言。
+- **真实单机PIE 22/22通过**：14类型定向覆盖+8次正常表选择，Health归零→死亡→分层掉落→拾取→穿戴→卸下，完整实例与Tooltip品质校验通过。`Saved/RandomEquipment/pie.json`、`pie-final.log`。首次同位置/原半径22次中1次无合法落点，测试改用分散位置/400cm临时散落半径后通过；正式落点算法与半径未改。
+- **独立进程回读及重复执行零保存**：`Saved/RandomEquipment/repeat.json`；正式`PrepareRandomEquipment.ps1 -Apply -Activate`入口再次完成，创建/激活均零保存（最新apply.json/activation.json），首次455包清单保留于initial-apply.json。原有9445个Library包SHA256全不变，`library-preservation.json`；新资产使用既有Git LFS规则。本轮文档本地链接及diff空白检查通过。原先未提交的分类、属性需求脚本/代码/资产修改全部保留，没有提交或推送。
+- **未验证**：430件逐项人工材质/图标/落地外观、鼠标交互和耳听、角色穿戴外观、对应武器动作/投射物、多人PIE/独立客户端、Cook/打包与大规模加载性能。本轮PIE为nullrhi/nosound；启动日志仍有既有AutomationTest条件错误、第三方蓝图输入警告，不能称整个项目日志无错误。传奇/独特、连续数值采样、技能/存档不在本轮实现范围。
+
+## 导入武器正式属性需求及补正来源（2026-11-03）
+
+- 296份Library武器定义采用源力量/敏捷/智力/信仰需求作为正式Requirements；不引入感应属性，不配置伤害系数或曲线。完整补正原值和相关参数引用另存SourceScaling元数据，供未来曲线制作。新导入与分类补建入口同步采用规则。
+- 预检无手工冲突，295份数值更新、1份数值一致，296份保存需求基线和来源元数据。已有手工需求与基线不一致时保留并报冲突；等级、模型、材质、战斗配置、装备槽不改。
+- 55项Python测试通过，包含需求与补正字段区分、弹药排除、手工保护和补正原值/引用保真。实际UE执行报告在`Saved/EquipmentImport/WeaponRequirements/`。本次没有C++更改，未重编译或运行PIE；不宣称新增玩法链路完成验收。
+- 独立UE进程回读296份全部通过，重复执行零保存。打刀实测Requirements为力量11/敏捷15/智力0/信仰0，SourceScaling保留力量36/敏捷55及引用编号，未赋Umbra伤害曲线。
+
+## 装备分类补齐与弹药排除（2026-11-03）
+
+- 追加23种展示武器类型及中文名，旧枚举0–14不变；补齐对应法环类别映射。箭/大箭/弩箭/弩炮箭不属于本项目装备定义范围，显式排除，12件已有弹药模型/icon保留。详见[批量导入分类说明](EquipmentBulkImport.md)。
+- 通过UE补建127份缺失分类草稿，复用已有模型/icon，不设置战斗、穿戴槽或生成配置。新进程127件回读与复跑通过、零保存；正式库现有580份展示草稿。报告`Saved/EquipmentImport/ClassificationBackfill/`。
+- UmbraEditor Win64 Development（UE5.8.2）构建成功；52项Python回归通过。构建暴露既有Unity文件内Nonnegative辅助函数重名，将装备模块局部函数改为IsEquipmentNonnegative，逻辑不变。保留编译器非首选版本及引擎弃用警告。未做PIE、掉落物理或穿戴测试。
+- 最终UE自动化`Umbra.Items.ImportedClassification`和`Umbra.Items.Tooltip.Classification`均通过（2成功、0失败），报告`Saved/Automation/ImportedClassificationFinal/index.json`；覆盖新增中文类型、旧数值兼容、无效类型回退及分类不生成战斗配置。
 
 ## 装备全量队列入口（2026-11-02）
 
@@ -743,3 +992,243 @@ Session Frontend → Automation 可运行下列现有测试：
 - 本轮编译首次发现局部变量遮蔽错误，已修正；再次完整构建被正在运行的编辑器 Live Coding 阻止（`Saved/Logs/DeathBuild.log`）。尚无本轮成功构建、自动化或 PIE 结果。配置脚本尚未执行，动画/音效资产引用待编辑器确认；未完成有声试听和多人验证。
 
 - 静态验证：`git diff --check -- Source Docs Scripts` 通过（仅换行提示），配置脚本 Python AST 语法通过，新增文档入口链接检查通过。全仓 diff 检查遇到沙箱 Git LFS 进程权限错误，因此不声称二进制资产检查通过。
+
+## 2026-11-04 六档掉落 Niagara 接入
+
+- 已将用户导入的 `/Game/LootDropVFX/Systems/Rarity` 六档预设通过 UE 5.8 编辑器保存到 `/Game/Items/Loot/BP_WorldItem` 的 LootVFXStyles。普通/魔法/稀有/史诗使用实例品质色；传说覆盖原 Mythic 红色、独特覆盖原 Legendary 金色。保持系统原顺序和形态，保留每层 HDR 亮度、Alpha、尺寸及速度，未修改供应商特效资产。
+- 新增原生 LootVFX 组件及实例刷新接入；绝对旋转/缩放保持竖直，拾取、无效实例和 EndPlay 清理，专用服务器不激活。配置与来源详见 [LootVFX](LootVFX.md)。
+- **本轮已验证**：UmbraEditor Win64 Development 构建成功（含最终分层亮度逻辑）；Rider 工程文件刷新成功；`Umbra.Loot.VFXAssetAudit`、`Umbra.Loot.VFXLifecycle`、`Umbra.Loot.DropPhysics` 三项通过。生命周期/物理报告为 `Saved/Automation/LootVFX/index.json`（2 成功、0 失败），原包参数见 `Saved/LootVFX/parameters.txt`。
+- **真实渲染 PIE 已通过**：`Scripts/smoke_loot_vfx_pie.py` 使用六次敌人死亡走正式掉落路径，逐档核对 Niagara 系统、持续激活、世界旋转竖直、拾取成功且立即停用。报告 `Saved/LootVFX/pie.json`；人工查看 `Saved/Screenshots/WindowsEditor/HighresScreenshot00000.png`，确认白/绿/蓝/紫/红/金六种效果。测试临时排列掉落用于截图，没有保存关卡。
+- 已查看 Output Log：新增逻辑没有测试失败或 Niagara/Python 执行错误；启动阶段仍有引擎 UnifiedError 自检输出、既有第三方蓝图输入轴警告及既有 Python 字段重名警告，不能将整个日志称为零警告。
+- **未验证**：多人 Listen Server/客户端迟加入、打包、批量掉落 GPU 性能、专用服务器实机。单机 PIE 和自动化通过不代表这些场景已通过。
+- Git LFS 属性确认 `.uasset` 使用 lfs，并执行 LFS 状态检查。没有提交、推送或改动现有无关资产。
+
+## 2026-11-04 开局六品质随机测试器
+
+- 已扩展 AUmbraLootTestSpawner，并通过 UE 5.8 编辑器创建 `/Game/Items/Tests/BP_SixRarityStartup`，保存到 `L_Prototype` 出生点附近（250,-375,92），标签 `Six Rarity Startup - Random Test Loot`。模板来自正式 V2 掉落表，共580个；SourceLevel=10、间距150cm，沿局部右方向排列。
+- 每次关卡 BeginPlay 使用新随机种子，只在权威且非客户端执行一次；通过正式 Generate 抽样，集齐普通/魔法/稀有/史诗/传说/独特各一件。最多4096次，失败不输出部分批次；合法性、源稀有度及词条规则不变。已有固定 Items 测试模式保持默认行为。Shipping/Test 构建禁用。
+- 关闭入口：地图 Actor 的 Loot Test → Enabled。等级、位置和间距均可配置；完整来源/覆盖顺序见 [SixRarityStartup](SixRarityStartup.md)。
+- **已验证**：UmbraEditor Win64 Development 构建；`Umbra.Loot.SixRarityStartup` 通过（24个种子及重复种子、空池拒绝，报告 `Saved/Automation/StartupLoot/index.json`）。实际连续两次渲染 PIE 均自动生成六档各一件，模板和种子不同，12件均有激活光效且可成功拾取，报告 `Saved/SixRarityStartup/pie.json`。查看 Output Log，无本功能运行错误；引擎启动自检和既有警告不作为零警告承诺。
+- **未验证**：多人客户端/迟加入实机、Shipping/Test 打包、修改模板池后的全品质可达性。生成点无地面时按既有逻辑跳过，需要移动 Actor 至有效静态地面。
+- 新蓝图和地图的 Git LFS 属性已确认。未提交或推送；没有修改正式掉落概率、物品定义或 Profile。
+# 2026-11-06：物品错误名称与失色石光效核查
+
+- 已经匹配 UE 5.8.2 编辑器保存13份名称修正；独立进程检查1835份 ItemDefinition，无含 error 的显示名称，来源记录保留。导入入口增加显示名清理；catalog测试6项、清理检查5项通过。
+- 失色石白光报告正在核查：六档系统与运行时颜色参数检查符合现有品质映射，未修改品质概率或 VFX规则，不能宣称现场问题已修复。回归入口、证据和边界见 [专项记录](ItemNameAndSomberVFX.md)。
+
+## 2026-11-06：石头按等级固定品质，开局展示19种
+
+- 用户随后明确材料品质应随石头等级固定，并确认1–2普通、3–4魔法、5–6稀有、7–8史诗、9传奇、古龙岩独特。此前随机品质诊断已被这项规则替代。生成器的材料分支读取Definition.Rarity；19份定义与Material Profile版本8已由UE保存，配方同步且保留原始来源。装备/护符随机生成不变。详见 [配置、覆盖顺序与恢复入口](StoneGradesAndStartup.md)。
+- L_Prototype原六件装备及单件随机石生成器关闭，两排新生成器每次生成普通9种、失色10种各一件；原护符生成器保留。没有新增强化/消耗系统。
+- **已验证**：UE 5.8.2 UmbraEditor Win64 Development构建成功；Generation自动化9/9、SmithingStacks 1/1通过。Generation有两条警告（测试World销毁缺少context、外网连通性探测超时），0失败；堆叠测试0警告。报告为 `Saved/Automation/StoneGrades`、`Saved/Automation/StoneGradesStacks`。
+- 独立UE进程回读19份定义/配方通过（`Saved/StoneGrades/readback.json`）；等级映射与脚本语法检查通过。最终连续两次渲染PIE各生成准确19种，固定品质、Niagara系统/六个颜色参数、拾取后品质保留/特效清理、旧生成器停用均通过（`Saved/StoneRarityStartup/pie.json`）。已查看 `Saved/Screenshots/WindowsEditor/StoneStartup.png` 的两排等级光效。首轮PIE脚本在播放中加载Blueprint导致类查询失败，改为开始前预加载后完整重跑通过。
+- 新BP/地图LFS属性已确认，diff空白检查通过。未验证多人、Cook/打包、声音或用户旧运行实例；未提交/推送。无模块/Target改动，本轮未重新生成Rider工程文件。
+## 2026-11-06：移动时掉落标签抖动修正
+
+- 标签排布移至UpdateCameraManager的Super调用之后，使用当帧相机视图；显示历史随锚点同步平移，只对避让偏移做缓动，扫掠检查也使用平移后的历史。悬停保留相对避让位置，随相机移动，不再锁住旧屏幕坐标。规则/配置边界见 [标签移动修正](WorldItemLabels.md)。没有改动Content资产或拾取/物理规则。
+- **已验证**：UE 5.8.2 UmbraEditor Win64 Development构建成功；`Umbra.Loot.HoverAndLabelLayout`通过，0错误、3条测试控制器未配置输入Action的警告（报告`Saved/Automation/LootLabelMotion`）。覆盖密集静止/移动、悬停跟随、视口边缘与尺寸变化、避让插值、命中和销毁清理。
+- 实际渲染PIE通过：临时六石密集组，玩家带动相机往返360帧；所有标签可见，相机最大移动83.484cm，标签避让偏移最大逐帧变化0 Slate单位。报告`Saved/LootLabelMotion/pie.json`，日志`Saved/Logs/LootLabelMotionPIE.log`；测试不保存地图。
+- 未做人工连续动画观感验收、真实DPI切换、多人/分屏、Cook打包；没有将数值采样当成人工视觉验收。未提交或推送。
+## 2026-11-06：Loot标签初始锚点与归位
+
+- 标签先预留每件物品正上方的自然位置，再处理真正重叠的标签，避免前面的避让候选抢占后面物品的锚点。非悬停标签在自身位置有足够净空后收回临时偏移，解决初始聚集/落地散开后的旧偏移残留。
+- NativeConstruct清除旧平移并隐藏，控制器完成测量与排布后显示；Slate视口Host几何未就绪时不显示、不缓存角落锚点。世界锚点仍为模型包围盒顶部中心加LabelOffset，没有改物品位置、资产或拾取规则。参数边界见 [标签初始锚点](WorldItemLabels.md)。
+- **已验证**：UE 5.8.2 UmbraEditor Win64 Development最终构建成功；`Umbra.Loot.HoverAndLabelLayout`通过（0错误，3条测试控制器缺输入Action警告，报告`Saved/Automation/LootLabelSpawn`），含初始锚点预留、邻居不可抢占、空间释放后归位与既有移动/命中回归。
+- 首轮首次可见帧检查捕获约99.79 Slate单位偏移；补充视口Host就绪检查，并排除未构建、尺寸为0的控件统计后，最终两次渲染PIE各观察180个有效可见帧至落稳，最大额外平移0，锚点距石头Actor最低41cm（`Saved/LootLabelSpawn/pie.json`）。测试只修改临时关卡实例，不保存地图。
+- 最终构建下另行重跑密集移动PIE：6个标签360帧全部可见，避让偏移最大逐帧变化0，相机移动82.265cm（`Saved/LootLabelMotion/pie.json`）；上一轮移动稳定性未回退。
+- 未进行人工连续视觉验收、多人/分屏、真实DPI切换或Cook打包。未提交或推送。
+
+## 2026-11-06：Greystone 四种主动技能
+
+- 新增 1 剑刃风暴、2 跃击震地、3 坚盾防御、4 石化复苏，保留 Q/E。四个 DA、四个 AM、四个输入 Action 和四个法环本地图标通过 UE 保存并接入原技能栏第3–6格；未重建 HUD 布局或改动 Paragon 原包资产。配置、时点、调参入口、来源与机制边界见 [Greystone 技能](GreystoneSkills.md)。
+- C++ 执行器扩展风暴多脉冲、CharacterMovement 根运动跃击和真实落地伤害、临时护甲/抗性 GE、按最大生命回血 GE。所有伤害仍走 UmbraDamage/GAS；结束或中断清理定时器、根运动任务、防御增益与技能附着粒子。复苏是主动蓄力回血，不包含死亡复活或无敌。
+- 视觉检查发现并修正两项素材适配问题：新建 AM 的 DefaultSlot 改为当前角色使用的 UpperBody；源 Ultimate 中段约4099.7cm的根位移用独立 `A_StoneRecovery_InPlace` 副本 Force Root Lock 消除，原动画保留。补上骨骼粒子声明的 Actor 参数，并让跃击保留动画收招。
+- **已验证**：UE 5.8.2 的 UmbraEditor Win64 Development 最终构建成功，Rider 工程元数据刷新成功。`Umbra.Skills` 3/3 通过：SweepSector、CooldownView、GreystoneExpansion；包含四个定义校验、非法参数拒绝、环形/高度范围、独立冷却、正确 Slot/锁根、防御实际减伤及移除恢复、治疗上限。证据 `Saved/SkillPrototype/expansion-build-final.log`、`expansion-rider-project.log`、`expansion-automation-final.log`。
+- 最终渲染 PIE **11/11 场景通过**，通过真实 Enhanced Input Action 绑定触发（不是 OS 实键）：Q/E完整释放、新四技完整释放、新四技起手/跃击中移动打断、跃击撞墙。Fixture武器通道10：横扫15、广扫10、风暴6×4.5=27、跃击20、复苏12.5；防御无伤害且属性恢复；复苏生命60→90。未受墙阻挡的跃击因目标胶囊在末端相撞实际前进约354.85cm、腾空约160cm；墙体测试前进约175.42cm，未穿墙，墙后目标伤害0。四项打断均无后续伤害/回血，费用只扣一次，六槽图标材质、键位、冷却数字/进度与四个空槽显示正确。复苏模型根骨相对角色保持在画面内，最终样本高度-90cm。报告 `Saved/SkillPrototype/expansion-pie.json`，日志 `expansion-pie-final.log`，最终截图 `Saved/Screenshots/WindowsEditor/ScreenShot00036–00042.png`。
+- 已检查日志与截图；保留现有 Greystone AnimBP 初始 Divide by zero、样板旧输入、GameplayCue搜索路径、NavMesh 等警告，不承诺零警告。原包资产 Git 状态未变，新增 uasset 匹配 Git LFS。未提交/推送。
+- **未验证/未覆盖**：OS 实键、联机/迟加入、死亡/眩晕逐项 PIE、切图压力、Cook/Shipping、真实DPI切换、音效试听。新四技尚未专项配置独立技能声音；本轮重点为动画/VFX、玩法与 UI。连续动作手感、粒子大小/偏移和数值平衡仍可在新 DA/AM 上人工微调。
+
+## 2026-11-06：技能免冷却、时钟遮罩与风暴/下砸动作修正
+
+- `DefaultEngine.ini` 设置 `umbra.Skills.IgnoreCooldowns=1`，能力跳过冷却检查和施加，技能栏同步不显示CD；保留DA原冷却、资源费用与动作锁。控制台设为0即可临时恢复，永久恢复需修改该配置。规则/配置见 [Greystone技能](GreystoneSkills.md)。
+- 技能格新增 `Img_Cooldown` 与 `M_UI_SkillCooldownClock`：12点起始顺时针消退扇形遮罩，金色指针边缘；读取原GAS剩余比例，保留倒计时数字。旧进度条保留为兼容后备。未改变用户HUD框架、尺寸、间距和图标。
+- 剑刃风暴使用Greystone Ability_E三段连续循环，3.8秒蒙太奇以1.2速播放约3.17秒，末段保持动作到收招。修正嵌套AnimSegments修改后缓存蒙太奇长度未刷新的问题。
+- 4石化复苏改用独立 `A_StoneRecovery_Slam`，仅将源Ultimate根骨骼竖直位移等比限高到220cm，保留腾空/翻转/下降；约3.33秒触地才回血和伤害。胶囊不升空、不新增无敌。原包、旧锁根副本保留。
+- **本轮已验证**：UE5.8.2 UmbraEditor Win64 Development构建成功（`Saved/SkillPrototype/refinement-build.log`）；`Umbra.Skills` 三项SweepSector/CooldownView/GreystoneExpansion全部Success，进程退出0（`refinement-automation.log`）。编辑器资产保存/回读通过（`refinement-assets.json`），新动画及材质LFS属性确认。
+- **渲染PIE通过**：`Scripts/smoke_skill_refinement.py` 经Enhanced Input连续两次风暴，费用和六次伤害正确、全程CD为0、2.5秒后蒙太奇和手部姿势仍运动；复苏根骨骼先升后降、提前不结算、落地回血30与伤害12.5；临时恢复CD后检查6秒CD的三个指针进度、材质参数跟随GAS、最终隐藏，再恢复免CD。最终报告 `Saved/SkillPrototype/refinement-pie.json` 为passed，日志 `refinement-pie-final.log`，进程退出0。已人工查看渲染截图的风暴末段、复苏下降/落地和半圈遮罩。
+- 首轮PIE在全部行为检查后，报告清理访问已销毁World失败；修复测试清理后完整重跑通过。Output Log启动阶段仍有既有引擎UnifiedError自检Condition failed及已有资产警告，不将整份日志描述为零错误。
+- **本轮未验证**：实体键盘、多人网络、音频试听、Cook/打包；此前11场景全量PIE为历史验证。本轮将该旧回归脚本改为显式启用并恢复CD，做语法检查，未重新执行11场景。没有下载、购买或导入新声音；补库来源、许可入口与逐技能声音层见 [音效采购与分层](Audio/AudioAssetRequirements.md)。无模块/Target变更，未重新生成Rider文件；未提交或推送。
+## 2026-11-06：品质环境音渐入与连续播放
+
+- 三段现用品质环境音 `Magic_env_epic / legendary / unique` 经 UE 保存为 SeekRestart，离开范围时继续推进循环时间轴，再靠近恢复对应进度；没有替换音频内容。首次/中断重试默认渐入 0.5 秒，显式重试按固定 Pitch 与 Wave 时长计算循环偏移。
+- 虚拟化切换延后一帧处理声音映射，再在音频线程设置低增益及渐入；解决编辑器单线程音频回调提前触发、指令落到旧声音实例的问题。拾取/销毁同时清理延后处理与重试定时器。配置覆盖顺序、引擎实验特性和非 SoundWave 边界见 [音频配置](Audio/AudioSetupGuide.md)。
+- **已验证**：UE 5.8.2 UmbraEditor Win64 Development 构建成功，Rider 项目刷新成功；三个资产独立进程重新加载均为 SeekRestart，仍使用 Git LFS。
+- 最终构建下 `Umbra.Audio` 4 项及 `Umbra.Loot.DropPhysics` 1 项共 5/5 通过，0 错误、0 测试警告，报告 `Saved/LootAmbienceContinuity/FinalAutomation/index.json`；覆盖上下文选择、循环偏移/绕回/Pitch、生成音生命周期、静音限流、落稳及拾取清理。
+- 启用真实音频的 L_Prototype PIE 通过：一颗固定史诗石，靠近→远离虚拟化→靠近恢复→显式 Stop 后重试→拾取→退出。实际播放位置误差均小于 0.04 秒。音频线程实际增益的独立断言通过：首次 48 个样本、返回 32 个样本、重试 33 个样本均出现中间增益并到达 1；返回增益依次约 0.12、0.24、0.36、0.50、0.63、0.74、0.89、1。证据 `Saved/LootAmbienceContinuity/{pie,fader,readback}.json`、`Saved/LootAmbienceContinuityPassed.log`，脚本不保存关卡。
+- **未验证**：人工听感、多人/分屏、Cook/Shipping、多物品并发压力、动态 Pitch/时间膨胀。当前真实音频用史诗音源验证共用路径，传奇与独特本轮做资产回查；不将数值采样当作人工试听。未提交或推送。
+## 2026-11-06：暂时关闭开局锻造石
+
+- 按用户要求关闭 `BP_StartupAllSmithingStones`、`BP_StartupAllSomberStones` 和旧 `BP_StartupSmithingStone` 的 Enabled（Blueprint 默认及 L_Prototype 实例）；通过 UE 5.8.2 保存，保留物品列表、位置和品质规则。恢复方式见 [石头开局配置](StoneGradesAndStartup.md)。
+- 已验证：独立编辑器重载默认值及地图，最小 PIE 运行5秒，三个生成器均停用且没有生成掉落物；其他生成器保留1件掉落。报告 `Saved/StartupStonesDisabled/pie.json`，日志 `Saved/StartupStonesDisabledPIE.log`。
+- 本轮仅改资产开关和文档，未改 C++、未重新编译或运行完整自动化；未验证联机或打包。首次保存受已打开编辑器的文件锁阻止，编辑器关闭后重试保存成功。未提交/推送。
+
+## 2026-11-12：Greystone 六技能图标与原生动画盘点
+
+- 通过 UE 5.8.2 保存六项战士图标（12/48/11/08/13/26），移除辉石魔砾的技能授予、输入绑定和 IMC 映射，清空非现役槽位预览。保留十格布局及辉石素材，未改技能机制、数值、地图或属性图标。当前映射、历史脚本覆盖边界及配置入口见 [Greystone 方向与素材](GreystoneDirection.md)。
+- 匹配编辑器回读170个原生动画目录资产：154条序列、6个蒙太奇、10个混合/瞄准资产。查看26条关键序列共78个采样姿态，整理普攻、重斩、旋转、跃击、格挡、复苏、施法、挑衅等候选；估计合理目标为一套3–4段普攻加6–8个主动技能。属于后续设计建议，不表示本轮实现新技能。
+- **本轮已验证**：现有六技能渲染PIE回归11/11通过；独立新进程验证图标材质、六项授予、后四格为空、辉石绑定和映射清除、第七槽不能触发，并查看HUD截图。证据 `Saved/GreystoneDirection/{smoke,preview,audit}.json` 及对应日志、`hud.png`、`Poses/`。图标资产来源/属性图标外部推荐见专项文档，推荐尚未导入。
+- **未验证**：没有C++/模块改动，未重新构建、刷新工程或执行Session Frontend自动化；未做实体键盘、联机、音频试听、打包或全部154序列连续手感验收。日志有既有引擎启动自检、动画除零和资产警告，不称零错误。未提交或推送，保留已有无关修改。
+## 2026-11-12：暂时关闭全部开局物品
+
+- L_Prototype 全部5个 `UmbraLootTestSpawner` 地图实例的 Enabled 设为 false；本轮实际新增关闭的是 `BP_StartupAmulet_C_0`。保留生成器、物品列表、位置及 Blueprint 默认配置，恢复时在地图对应实例开启 Enabled。执行 `Scripts/disable_startup_loot.py` 可重新应用关闭配置；不影响击杀掉落。
+- 已通过 UE 5.8.2 保存地图，独立进程重新加载并运行最小 PIE：游戏时间5秒后5个生成器均停用、WorldItem 数量为0。报告 `Saved/StartupLootDisabled/pie.json`，日志 `Saved/StartupLootDisabledPIE.log`，未发现 Python 错误或 Fatal error。
+- 本轮仅修改地图开关及辅助脚本/文档，未改 C++、未重新编译、未运行完整自动化或打包验证。未提交或推送。
+
+## 2026-11-12：原生六技能与数字键
+
+- 按已确认方案改为1破阵斩、2剑刃风暴、3跃击震地、4坚盾防御、5石化复苏、6战意。新破阵斩使用Ability_Q，战意使用Cast；现役六技能均不再引用Attack_*普攻序列。旧横扫、广域横扫和辉石保留资产但不授予；数字键与输入标签、Designer预览同步，六张图标来自现有warrior无色目录。完整素材归属/备用登记、调参来源、覆盖规则见 [原生六技能](GreystoneNativeKit.md)。
+- 防御改成正常速度举盾/收盾和中间延长姿态，总长2.5秒，未改供应商序列。战意0.55秒成功后通过GAS增加20个百分点暴击率6秒，受100%上限约束，重复施放刷新不叠加；成功前打断无增益，成功后移动保留，到期/死亡清理。没有实现元素附魔或修改已有战斗公式。
+- **本轮已验证**：UE5.8.2 UmbraEditor Win64 Development最终构建成功（native-build-final.log）；Umbra.Skills六项自动化成功（CooldownView、GreystoneExpansion、NativePresentation、PebbleDefinition、PebbleOriginalAudio、SweepSector；Saved/GreystoneDirection/Automation）。保留旧资产的自动化并不代表它们仍在技能栏。
+- 新渲染PIE **15/15通过**：六技完整释放、六技起手打断、跃击撞墙、战意重复刷新和死亡清理；核对One–Six映射、现役定义顺序、不含Attack_*动画、无色图标实际材质、后四格为空、扣费、六脉冲、护甲还原、复苏治疗以及战意增益与到期。证据Saved/GreystoneDirection/native-pie.json、native-pie.log、native-hud.png与native-skill-1至6截图；已查看HUD、防御和战意截图。测试不保存地图。
+- 测试迭代：首轮启动观察窗口过窄且旧测试接口没有暴击率，补充接口/断言并重新构建；第二轮跃击测试靶沿用180cm近战位置，按既有跃击回归改到450cm落地区域后完整重跑通过。没有将失败轮次计为通过。
+- **未验证**：实体键盘、联机/迟加入、Cook/打包、有声试听、所有备用动画连续手感；没有完成独立战意音效/VFX或持续增益图标。现有特效/声音配置沿用，当前免CD调试开关保留。日志有既有启动自检、AnimBP及资产警告，不称零警告。未改模块/Target、未刷新Rider工程；Git LFS状态/属性、diff空白与文档链接检查完成；未提交或推送，保留已有无关改动。
+
+## 2026-11-12：暂不接入技能资源消耗
+
+- 通过UE5.8.2将现役六个技能Definition.ResourceCost与Designer预览设为0，主配置脚本同步覆盖为0；不改角色资源属性、动画、伤害或冷却开关。UI费用显示0。定向脚本Scripts/disable_greystone_resource_costs.py，配置与原版视频对照见[原生六技能](GreystoneNativeKit.md)。
+- 已验证：独立渲染PIE零资源施放检查6/6通过，六技均可激活、UI affordable为真、资源始终0；Saved/GreystoneDirection/no-cost-pie.json。测试每技激活后主动取消，不宣称本轮重验完整技能生命周期。未改C++，未重新编译或跑自动化；实体按键、音频、多人、打包未验证。
+- 首轮复用完整流程受风暴时序检查失败影响，且空AssertionError被旧报告函数错误记录为passed；已修正异常报告为repr(error)，最终报告要求六项均明确passed。最终采用本次变更所需的零资源激活专项检查，前轮完整15场景结果为历史验证。
+- 官方Greystone Overview和Epic创意总监发布页已核对来源，未声明逐帧观看/试听。未提交或推送。
+## 2026-11-12：目标信息卡与整窗技能页
+
+- 新增左上角敌人目标信息卡：名称、展示等级、头像、当前/最大生命；观察现有GAS血量，优先鼠标高亮敌人，其次自动攻击目标。当前近战敌人配置为“近战守卫”、展示等级1，头像暂用现有Fantasy通用人物图标；展示等级不参与战斗计算。
+- 角色窗口顶部新增头盔/技能图标切页，沿用Fantasy按钮样式。按用户选择切换整个三栏窗口；技能页为空，共享原深蓝透明底板。进入技能页暂停装备预览，返回恢复，关闭清理。资产通过UE5.8.2编辑器保存。
+- 已验证：UmbraEditor Win64 Development构建成功（Saved/UIExpansion/build-final.log）；UI自动化Equipment.EmptySlotIcons、CharacterStats.PrimaryRows、Equipment.LiveSnapshot共3/3通过（Saved/UIExpansion/Automation）。渲染PIE验证鼠标目标、生命10000→5000及数值/比例更新、无目标隐藏、整窗切页和预览启停；报告Saved/UIExpansion/pie.json。已查看enemy-target.png、character-page.png、skills-page.png最终截图。
+- 验证边界：切页测试调用按钮对应函数，未做实体鼠标按钮点击；未验证多人、打包、不同分辨率/DPI矩阵，以及独立的死亡/目标替换/自动攻击回退场景。早期测试脚本的镜头跟随、Python属性访问和截图时序问题修正后重跑通过。未提交或推送，保留原有改动。
+- 八项属性图标仅推荐下载，未替换；素材出处、配置入口、复验脚本及后续UI规划见[UI扩展](UIExpansion.md)。
+
+## 2026-11-12 Greystone 音频素材接入
+
+- 完成实际编辑器音频审计（525个声音资产，Greystone 140 Cue/337 Wave），六技能起手/生效语音、短剑风及默认库实际 SkillHit 声音配置；仍为数字1–6、资源消耗0。
+- ASC 添加受技能管理的附着循环音和语音清理，取消/死亡/角色切换/注销停止；未找到合适循环、盾金属、落地重击、岩石碎裂等资源，正式配置留空并列于 [GreystoneAudio](GreystoneAudio.md)。
+- 本轮编译通过；Umbra.Skills 6/6；带音频 PIE 15/15（六完整、六取消、循环正常/取消/死亡）；新进程读回确认正式配置无测试循环音。素材仅引用，未修改供应商音频。
+- 人工试听、多人/打包未验证；语音适配为初选。验证脚本 `Scripts/smoke_greystone_audio.py`，完整证据与失败后重测说明见上文档。
+- 独立战意语音死亡用例1/1通过（`voice-death-pie.json`），本轮音频 PIE 合计16/16。
+
+## 2026-11-12：Nameplate 2与外置分页按钮
+
+- 敌人卡改为复用Fantasy GUI 4的W_Nameplate_2控件树及头像/血条边框，800单位原始布局通过ScaleBox等比缩放到HUD卡片区域；名称采用支持中文的默认字体，隐藏示例Buff和重复等级。保留GAS生命监听，供应商模板未修改。
+- 角色/技能按钮紧贴现有画框上方，取消页面内顶部56单位占位，不改变三栏画框。八项图标未下载/替换；已核对Game-icons官方Studio透明导出设置并记录到UIExpansion.md。
+- 本轮已验证：UE5.8.2 UmbraEditor Win64 Development构建成功（Saved/UIExpansion/nameplate-build-layout.log）；通过引擎保存后在全新编辑器会话运行渲染PIE，目标卡、生命更新、无目标隐藏、整窗切页、预览暂停/恢复及关闭清理通过（nameplate-pie-clean.log、pie.json阶段end/result passed）。已查看三张最终截图；最终目标截图为技能额外造成4点伤害后的4996/10000，专项断言验证过5000时的比例。
+- 迭代记录：修正Border API；DLL/资产临时占用解除后重试；首轮截图暴露模板被挤压和按钮悬空，改为等比缩放及随框定位。同会话重编译后切页测试失败，原测试把空AssertionError误记passed，已改repr及明确断言信息；该轮不计通过，最终全新会话重跑成功。
+- 本轮未重跑上一轮3项UI自动化，未验证实体点击、多分辨率/DPI、多人或打包；未提交/推送。复验入口Scripts/refine_ui_nameplate.py及Scripts/smoke_ui_expansion.py。
+
+## 2026-11-12：八项透明属性图标接入
+
+- 使用用户已导入的/Game/Asset/Icons/8statsicons，将StatsPanel八个WBP的staticon分别映射到broadsword、magic-swirl、breastplate、magic-shield、quick-slash、stopwatch、target-arrows、wingfoot。只改Brush.ResourceObject，保留所有其他笔刷字段和Image ColorAndOpacity，不改纹理、属性数值或布局；素材来源/署名沿用UIExpansion.md。
+- 已验证：通过UE5.8.2编译并保存八个WBP；对比前后8/8完整笔刷仅资源引用不同；重新加载资产检查笔刷一致，渲染PIE验证8/8实际图标引用、Brush Tint和控件颜色保持，已查看stats-icons.png透明背景实机效果。报告Saved/UIExpansion/stats-configured.json、stats-pie.json（end/passed），日志stats-configure.log、stats-pie.log；Git LFS属性已检查。
+- 未改C++，未重新构建UmbraEditor或重跑其他自动化；未验证多人、打包和多分辨率。未提交或推送。配置/复验脚本为Scripts/configure_eight_stat_icons.py、Scripts/smoke_eight_stat_icons.py。
+
+## 2026-11-12：直接引用原版W_Nameplate_2
+
+- 按用户指定路径，将WBP_EnemyTargetPanel中的复制布局替换为NameplateTemplate子控件，其实际生成类为/Game/Asset/fantasy_gui_4/widgets/templates/nameplates/W_Nameplate_2.W_Nameplate_2_C。原供应商资产未改动；原血条材质、头像材质和装饰保留，GAS比例通过原SetProgressValue(Value)事件驱动。仅适配中文名字字体、真实生命数值叠字，并隐藏演示Buff。
+- 已验证：UmbraEditor Win64 Development构建成功（Saved/UIExpansion/nameplate-direct-build-final.log），UE保存迁移成功（nameplate-direct-configure.log）；全新渲染PIE断言实际模板类、原Retainer材质Value从1变为0.5、生命文字5000/10000、无目标隐藏、两页切换及预览恢复/关闭清理通过（nameplate-direct-pie-final.log、pie.json阶段end/result passed）。已查看最终enemy-target.png原模板血条画面。供应商模板无Git改动，目标卡LFS属性正确。
+- 首轮鼠标移离后重新进入目标导致无目标断言失败，改为保持光标移离并确认控制器无目标后验证隐藏，最终重跑通过。本轮未重跑其他自动化，未验证实体点击、多分辨率、多人或打包；未提交或推送。八项图标配置未改。
+## 2026-11-12：关闭左侧属性调试面板
+
+- 通过 UE 5.8.2 将 `BP_UmbraPlayerController.Enable Attribute Debug Panel` 从 true 改为 false 并保存。保留面板类和输入配置；现有 C++ 开关同时跳过面板创建与专用 F1/F2 输入绑定。恢复入口见 [属性调试面板](AttributeDebugPanel.md)。
+- 已验证独立进程重载、最小 PIE 游戏时间5秒后实际控制器开关为 false，属性调试面板 Widget 数量为0。报告 `Saved/AttributeDebugDisabled/pie.json`，日志 `Saved/AttributeDebugDisabledFinalPIE.log`。首次验证脚本接口名称错误已修正后重跑通过。
+- 本轮仅改 Blueprint 默认开关及脚本/文档；未改 C++、未重新编译、未执行人工视觉验收、联机或打包验证。未提交/推送。
+
+## 2026-11-12：敌人卡思源字体与红色血条
+
+- WBP_EnemyTargetPanel新增样式配置：名称汉字使用SourceHanSerifSC-Regular_Font（思源宋体），等级/生命数字使用SourceHanSansSC-Regular_Font（思源黑体），血条指定原供应商Mat_GUI_ProgressBar_Red。保留模板字号、布局和血条事件；原Retainer与SetProgressValue共用更新后的红色MID，继续支持生命比例及边缘发光。配置脚本Scripts/configure_nameplate_style.py，未修改供应商模板、字体或材质原资产。
+- 已验证：UmbraEditor Win64 Development构建成功（Saved/UIExpansion/nameplate-style-build.log）；UE保存配置成功；渲染PIE明确断言名称、等级和生命字体路径、红色材质父资源、100%→50%血量、5000/10000文本、无目标隐藏与切页预览生命周期通过（nameplate-style-pie-final.log、pie.json阶段end/passed）。已查看最终enemy-target.png红色血条截图。
+- 首轮验证脚本使用不存在的Python get_font接口，改为读取font属性后完整重跑通过。未重跑其他自动化，未验证多分辨率、多人或打包；本轮范围为当前敌人信息卡，未批量覆盖其他现有WBP字体。未提交/推送。
+
+## 2026-11-12：复制原姓名板结构与Designer血量文本
+
+- 按用户要求，WBP_EnemyTargetPanel改为复制W_Nameplate_2原WidgetTree，保留MainSizeBox、原布局及W_EnemyIcon_2/W_ProgressBar_Parent嵌套实例。SizeBox_2中增加HealthValueOverlay，原血条为下层，保存的HealthText为上层。外层NameplateViewport只负责等比缩放，供应商原资产未修改。
+- 名称TextBlock_0、等级TextBlock_5、HealthText字体/字号/颜色/布局由Designer控制；当前配置思源宋体/思源黑体和红色血条。移除运行时创建文本、覆盖字体和替换材质逻辑；原生仅更新内容/头像参数及血量比例。旧ChineseFont/NumericFont/HealthBarMaterial默认项已移除，直接编辑控件及原血条实例ProgressBarMaterial。迁移检测HealthValueOverlay后不再重建，保留后续手改。
+- 已验证：UmbraEditor Win64 Development构建成功（Saved/UIExpansion/nameplate-editable-build.log）；匹配UE保存迁移成功（nameplate-editable-configure.log）；全新渲染PIE确认HealthText存在于保存的Designer控件树、复制布局存在、字体/红材质正确，血量100%→50%与5000/10000文本、无目标隐藏、切页预览生命周期通过（nameplate-editable-pie.log、pie.json end/passed）。已查看最终enemy-target.png。
+- 未重跑其他自动化，未验证实体Designer拖动操作、多分辨率、多人或打包。未提交/推送。最新手动入口见UIExpansion.md，样式重置脚本同步为修改Designer属性。
+
+## 2026-11-13 1技能斩切波
+
+- 按用户指定替换1技能：Attack_C_Slow（慢速第三段攻击）+新AM_SlashWave，0.38秒释放前向弧形波，0消耗；2–6技能未修改。DA路径/SkillId为兼容保留BreachSlash，显示名已改。
+- 在UE中创建并保存弧形材质、蒙太奇、技能引用；第三方资产未修改。资产备份在Saved/SlashWave/Backup；调整入口见[SlashWave](SlashWave.md)。
+- `Saved/SlashWaveBuild.log`：UmbraEditor Win64 Development成功；`SlashWaveAutomation.log`：Umbra.Skills 6/6成功。
+- `Saved/SlashWave/pie.json`：带渲染PIE六例全部通过，正面/侧缘/偏移目标各只受15伤害，范围外/墙后/出手前取消无伤害；方向保持直线、Resource=0、投射物到期清理。独立进程加载保存配置后测试。
+- 已查看`Saved/SlashWave/wave.png`确认弧形朝前可见。新动画源编辑器检查0.8秒且Notify为空；出手时间为当前初调值，未完成逐帧手感验收。启动日志仍有引擎Condition failed等既有输出；未声称零错误。
+- 未验证多人客户端、打包和人工听感。现为命中第一个目标即消散，不是穿透多目标波。碰撞为弧形的宽盒近似。
+
+## 2026-11-13 技能2：长按引导旋风
+
+已实现按住2无限引导、松开停止，可同时WASD/地面移动；伤害围绕当前位置结算，眩晕/死亡/清空输入结束，无资源消耗。复用Ability_E持剑与Jog_Fwd腿部素材制作循环旋转，玩家动画类使用项目副本的最终DefaultSlot。当前资产与手工打磨入口见 [SwordStormChannel](SwordStormChannel.md)，该记录覆盖旧的固定时长/6脉冲说明。
+
+本轮：UE5.8.2 UmbraEditor Development构建成功，Umbra.Skills 6项通过，带渲染PIE 9场景通过（长按8秒原地/移动各15脉冲、停走转向、短按、释放移动、眩晕、取消、其他技能取消、死亡）。查看移动截图。未验证多人网络、打包及人工混音；PIE有音频缓冲欠载日志。数据见Saved/SwordStorm/channel-pie.json，自动化日志Saved/SwordStormAutomation.log。
+
+补充：点地移动引导PIE通过，位移636cm，停止后无持续伤害/特效；Saved/SwordStorm/channel-click-pie.json。本轮合计10场景通过。
+
+## 2026-11-13 第8空槽：跃击选点原型
+
+已完成8键进入、鼠标选落点、左键确认、右键/Esc取消；参数化贴花显示600cm可达圈和220cm落地判定圈，无效落点红色标识。真实落地经GAS结算，零资源消耗，现有六技能未接入。配置与人工调整见[技能目标选择](SkillTargeting.md)。
+
+本轮验证：UE5.8.2 UmbraEditor Development构建及Rider项目刷新成功；Umbra.Skills 6/6通过；最终带渲染PIE 33项断言通过（输入消费、鼠标投影、取消无移动、距离夹紧、实际跳跃/落地、范围内外伤害、路径阻挡、死亡清理、零消耗）。新进程资产回读通过，已查看最终指示器截图。证据：Saved/TargetingBuild.log、TargetingAutomation.log、TargetingReadback.log、SkillTargeting/pie.json、SkillTargeting/targeting-preview.png。启动日志仍有Condition failed；未验证物理键鼠手感、多人、打包、复杂地形与移动平台。扇形/条形及已有技能接入不在本轮实现。
+
+## 2026-11-13 技能2动画纠正
+
+按用户要求恢复原Ability_E、UpperBody槽、Greystone_AnimBlueprint，不再使用合成全身旋转/迈步。保留长按引导与移动施法，人物朝向继续由原CharacterMovement随移动方向决定。详见 [SwordStormChannel](SwordStormChannel.md)。本记录替代之前全身旋转版本描述。
+
+本轮构建成功，Umbra.Skills 6项通过，9个PIE场景通过，包含移动朝向偏差<15度断言。未重跑点地、多人与打包；历史点地验证不作为此版新结果。
+
+## 2026-11-13 斩切波前摇打磨
+
+- 新增投射物分段前摇接口WindupEndTime/WindupDuration与Blueprint GetReleaseDelay；原动画前0.25秒用0.65秒播放，后续PlayRate=0.65，源发射帧StrikeTime=0.38，计算实际发波0.85秒、动作约1.50秒。DA时序字段覆盖源码默认0前摇；其余技能保持默认。操作说明见[SlashWave](SlashWave.md)最后一节。
+- 仅保存1技能时序，原DA备份在Saved/SlashWave/DA_BreachSlash-before-windup-*.uasset。前摇取消会清理变速与发射定时器。
+- 本轮UmbraEditor Win64 Development成功（SlashWaveWindupBuild.log）；Umbra.Skills回归成功（SlashWaveWindupAutomation.log）。
+- 渲染PIE 7/7成功：正面/侧缘/范围外/墙体/早取消/0.55秒前摇取消/直线。实测首次投射物出现0.86～0.87秒；约0.3秒时源动画仅播放到0.11秒，确认准备动作确实减速；零消耗与碰撞行为通过。报告Saved/SlashWave/pie.json，日志SlashWaveWindupPIE.log；已查看windup.png。
+- 未验证多人预测与复制、打包、人工最终手感及音频混音。启动时仍有既有引擎测试诊断，不能声称日志零错误。
+
+## 2026-11-13 技能文字 Tooltip
+
+- 新增`/Game/UI/Skills/WBP_SkillTooltip`，复用物品Tooltip边框与文字样式，仅保留技能名称和机制描述，使用思源宋体。Designer可编辑SkillName/DescriptionText及布局，原物品资产未修改。
+- 技能Definition增加Description（多行FText），从PlayerState当前技能槽读取；已填充配置时的六个Greystone技能和一个跃击瞄准测试技能。文本仅描述机制，不在UI复制伤害计算。配置脚本只填写空描述。
+- 技能槽通过原生悬停事件展示；优先置于技能框上方居中、间距8，上方不足改在下方，按视口边距8夹紧；空/未授予槽不挂说明，换槽清理旧说明，销毁解除引用。调整技能条命中链以允许子槽悬停，不更改布局或属性图标颜色。修改入口与复验脚本见[UIExpansion](UIExpansion.md)。
+- 本轮验证：UmbraEditor Win64 Development构建成功（Saved/UIExpansion/skill-tooltip-build.log）；匹配UE5.8.2编辑器编译并保存WBP及数据资产成功（skill-tooltip-configure-linked.log）。渲染PIE的数据断言已通过：10槽、7个有效技能的名称/描述与绑定TextBlock一致、空槽无Tooltip、临时换成无效槽后清理并可恢复。
+- 未完成验证：实际鼠标悬停显示、移出关闭及屏幕边缘视觉检查。后台测试会话中控件绘制几何为0，鼠标命中断言失败；修正后台节流测试设置后的最后一次编辑器启动提前退出，未产生新报告。因此不能将skill-tooltip-pie.json标为整体通过。需在前台PIE运行Scripts/smoke_skill_tooltip.py或手动逐槽悬停复验。未做打包、多人及多DPI测试。
+- 源码/文档范围git diff --check通过；新WBP的LFS filter已确认。全仓检查受现有LFS filter进程启动失败影响，未宣称全仓通过；保留全部既有未提交修改。
+
+### 技能Tooltip上方定位补充
+
+- 按用户要求改用技能框锚点：上方居中，间距8；上方不足回退下方，按视口边距8夹紧。使用视口Slate坐标且不二次除DPI；原生MouseEnter/Leave控制显示，已有刷新更新位置，销毁移除视口实例。
+- 新版UmbraEditor Win64 Development编译通过：Saved/UIExpansion/skill-tooltip-above-build.log。编译中一并修复编辑器粒子检查工具的TObjectPtr取指针（RequiredModule.Get()），不改粒子行为。
+- 新版PIE数据检查通过：10个槽、当前9个有效技能的描述及TextBlock一致，空槽和槽复用清理检查通过。配置变化来自同期新增瞄准测试技能，未覆盖其数据。
+- 实际悬停及上方布局仍未通过自动验证：skill-tooltip-above-pie3.log / skill-tooltip-pie.json显示，临时关闭后台节流后仍得到全部槽绘制几何为0，测试在进入鼠标定位前失败。设置已恢复。不得将本次结果记为视觉/悬停通过；需要前台PIE验收。尚未验证超长描述、小分辨率、多DPI、多人和打包。
+
+## 2026-11-13 技能2持续粒子、节拍和敌人命中火星
+
+修复原Cascade发射器Loops=1造成约4～5.8秒后停止；项目持续副本改循环并关闭Sparks层，新增只含火星的短发射副本，GAS结算实际掉血后在各受击者位置播放。空转不播放命中火星。SyncStormToAnimation使周期/PlayRate控制伤害频率，持续粒子速度跟随PlayRate，重复Timer避免帧误差累积。原动画及朝移动方向规则不变。当前每轮一次约1.05556秒，单次伤害不变，DPS随频率降低。
+
+最终构建通过、6项Umbra.Skills通过、10项PIE通过（原地/移动各30秒，存活粒子与命中火星位置/空转验证、伤害节拍、松键/控制/死亡清理）。多人网络/打包/群怪压力未验证。人工编辑步骤和证据见 [SwordStormChannel](SwordStormChannel.md)。
+
+## 2026-11-13 第9/10空槽：方向型扇形与条形原型
+
+9键进入3米/120°扇形，0键进入8米长/2米宽条形；鼠标选方向，左键确认，右键/Esc取消。确认锁定方向；斩击一次结算，波以10米/秒推进并对每目标去重。两者共用DA形状参数驱动材质和中心判定，资源消耗为0，未接入现有技能，保留第8槽跃击。具体参数与边界约定见[技能目标选择](SkillTargeting.md)。
+
+本轮验证：UE5.8.2 UmbraEditor Development构建成功；Umbra.Skills自动化6/6通过；最终离屏渲染PIE17场景、263项断言通过，覆盖鼠标/左右键、确认方向锁定、取消、各形状边界、任意旋转远端角落、墙后遮挡、多目标穿透、推进时序、零消耗、生命周期清理。已查看扇形/条形与波推进截图。证据：Saved/DirectionalBuild.log、DirectionalAutomation.log、DirectionalTargeting/pie.json及同目录PNG。未验证多人、打包、复杂地形、大规模性能或人工物理键鼠手感；本轮未重跑跃击全套。启动阶段仍有既有Condition failed等日志，详见技能目标选择文档。
+
+## 2026-11-13 斩切波发射对齐挥剑中段
+
+- 在编辑器逐帧检查Attack_C_Slow：0.38秒接近收招，选取剑向前挥过的0.175秒作为发射帧。DA_BreachSlash的StrikeTime改为0.175、WindupEndTime改为0.10；WindupDuration=0.65与PlayRate=0.65保持不变。只保存1技能DA，供应商动画和其余技能未修改。
+- 调整入口仍为DA中的Strike Time（源动画秒），当前实际发射延迟约0.765秒。脚本及配置源见[SlashWave](SlashWave.md)末节；默认配置脚本已同步，避免恢复旧时刻。
+- 新进程渲染PIE 7/7通过（SlashWaveMidSwingPIE.log、Saved/SlashWave/pie.json），首次观察到投射物约0.775～0.783秒，碰撞/取消/零消耗正常；已查看源动画姿势和发波截图。本轮没有修改C++，未重新编译；多人、打包、人工最终手感未验证。
+- 独立发射姿势检查1/1通过（Saved/SlashWave/release-pose-pie.json）：在首次看到投射物时读取蒙太奇位置，与0.175秒目标帧误差小于0.04秒。合计7个行为用例与1个姿势同步用例通过。
+
+## 2026-11-13 工作区与版本控制整理
+
+- `.gitignore` 补充根目录临时文件清单 `files.txt`、个人 Unreal 工作区 `Content/Developers` / `Content/Collections`、本地打包输出 `LocalBuilds` / `PackagedBuilds`，以及 Python 虚拟环境、测试和类型检查缓存。
+- `files.txt` 与已被忽略但仍受跟踪的 `UpgradeLog.htm` 仅从 Git 索引移除，本地文件保留。已有 Binaries、Intermediate、Saved、DerivedDataCache、IDE 缓存和导入 Staging 规则继续生效。
+- Git 仓库保存开发所需源材料，不等于最终发布包。Docs、Scripts、测试源码、UmbraEditorTools、SkillLab 和正式 EquipmentImport/Library 保留版本控制，以支持复现、回归和引用追踪。最终资源裁剪需匹配编辑器中的引用审计与打包验证；本次未认定未读取的二进制资产无用，资产内容与引用待编辑器确认。
+- 本次只整理版本控制并提交现有工作区进展，不修改玩法或二进制资产。验证范围为忽略规则、暂存差异和 Git LFS；未重新构建、运行自动化、PIE 或正式打包，前文历史验证不代表本次验证。
+- 依据 [辉石魔砾导入记录](GlintstonePebbleImport.md) 对失败候选的明确记录，额外忽略 Staging/GlintstonePebble 下 Source、SourceV2/V3、Retarget、RetargetV2/V3 六个目录，仅保留本地诊断文件；V4 与正式目录继续跟踪。补充 Scripts 下 .NET bin/obj 生成物规则；清理本次提交文本末尾多余空行。

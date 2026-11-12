@@ -3,6 +3,7 @@
 #include "Blueprint/WidgetTree.h"
 #include "Components/PanelWidget.h"
 #include "Components/WidgetSwitcher.h"
+#include "Components/Button.h"
 #include "UI/Equipment/UmbraEquipmentMenu.h"
 #include "UI/Inventory/UmbraInventoryMenu.h"
 
@@ -18,6 +19,9 @@ namespace
 void UUmbraCharacterMenu::NativeConstruct()
 {
 	Super::NativeConstruct();
+	if (CharacterPageButton) CharacterPageButton->OnClicked.AddUniqueDynamic(this, &ThisClass::ShowCharacterPage);
+	if (SkillsPageButton) SkillsPageButton->OnClicked.AddUniqueDynamic(this, &ThisClass::ShowSkillsPage);
+	SetMainPage(MainPageSwitcher ? MainPageSwitcher->GetActiveWidgetIndex() : 0);
 	OnVisibilityChanged.AddUniqueDynamic(this, &ThisClass::HandleMenuVisibility);
 	RefreshEquipmentPages();
 }
@@ -25,6 +29,8 @@ void UUmbraCharacterMenu::NativeConstruct()
 void UUmbraCharacterMenu::NativeDestruct()
 {
 	SetMenuOpen(false);
+	if (CharacterPageButton) CharacterPageButton->OnClicked.RemoveDynamic(this, &ThisClass::ShowCharacterPage);
+	if (SkillsPageButton) SkillsPageButton->OnClicked.RemoveDynamic(this, &ThisClass::ShowSkillsPage);
 	UnbindPageEvents();
 	OnVisibilityChanged.RemoveDynamic(this, &ThisClass::HandleMenuVisibility);
 	Super::NativeDestruct();
@@ -92,3 +98,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
+
+void UUmbraCharacterMenu::ShowCharacterPage() { SetMainPage(0); }
+void UUmbraCharacterMenu::ShowSkillsPage() { SetMainPage(1); }
+void UUmbraCharacterMenu::SetMainPage(int32 Index)
+{
+ if (MainPageSwitcher) MainPageSwitcher->SetActiveWidgetIndex(Index);
+ const FLinearColor Selected(1.f, .83f, .48f, 1.f);
+ if (CharacterPageButton) CharacterPageButton->SetColorAndOpacity(Index == 0 ? Selected : FLinearColor::White);
+ if (SkillsPageButton) SkillsPageButton->SetColorAndOpacity(Index == 1 ? Selected : FLinearColor::White);
+ RefreshEquipmentPages();
+}

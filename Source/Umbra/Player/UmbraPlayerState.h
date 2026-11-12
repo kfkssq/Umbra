@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Skills/UmbraSweepDefinition.h"
 #include "AbilitySystem/UmbraDebugInitialAttributes.h"
 #include "AbilitySystemInterface.h"
 #include "GameFramework/PlayerState.h"
@@ -40,7 +41,8 @@ enum class EUmbraTransferResult : uint8
 	TransferFailed,
 	SlotSelectionRequired,
 	Pending,
-	StaleRequest
+	StaleRequest,
+	EquippingUnavailable
 };
 
 /** Persistent replicated owner of a player's ability system and attributes. */
@@ -62,6 +64,9 @@ public:
 	/** Config defaults -> PlayerState Blueprint override. Each entry creates one distinct instance. */
 	UPROPERTY(EditDefaultsOnly, Config, BlueprintReadOnly, Category = "Inventory")
 	TArray<TSoftObjectPtr<UUmbraItemDefinition>> InitialInventoryItems;
+	/** Per-slot input binding is separate from the immutable skill definition. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Skills")
+	TArray<FUmbraSkillSlot> InitialSkillSlots;
 
 	/** Player-owned ASC. Use it to bind attribute change delegates or apply Gameplay Effects. */
 	UFUNCTION(BlueprintPure, Category = "Ability System")

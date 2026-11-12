@@ -21,7 +21,7 @@ struct FUmbraInventoryItem
 	/** Authoritative complete payload; legacy fields above remain Blueprint-compatible projections. */
 	UPROPERTY(BlueprintReadOnly) FUmbraItemInstance Instance;
 	void SetInstance(const FUmbraItemInstance& Value) { Instance = Value; Definition = Value.Definition; InstanceId = Value.InstanceId; RolledAffixes = Value.RolledAffixes; }
-	FUmbraItemInstance GetInstance() const { if (Instance.SchemaVersion > 0) return Instance; FUmbraItemInstance Item; Item.Definition = Definition; Item.InstanceId = InstanceId; Item.RolledAffixes = RolledAffixes; return Item; }
+	FUmbraItemInstance GetInstance() const { if (Instance.Definition) return Instance; FUmbraItemInstance Item; Item.Definition = Definition; Item.InstanceId = InstanceId; Item.RolledAffixes = RolledAffixes; return Item; }
 };
 
 USTRUCT(BlueprintType)
@@ -36,7 +36,7 @@ struct FUmbraInventorySnapshot
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUmbraInventoryChanged, const FUmbraInventorySnapshot&, Snapshot);
 
-/** Minimal authority-owned, non-stacking storage. No equipment transfer, loot generation or persistence. */
+/** Authority-owned storage with opt-in material stacks. No loot generation or save-slot persistence. */
 UCLASS(ClassGroup = (Umbra), meta = (BlueprintSpawnableComponent))
 class UMBRA_API UUmbraInventoryComponent : public UActorComponent
 {
@@ -49,7 +49,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory") EUmbraInventoryResult AddItem(UUmbraItemDefinition* Definition, FGuid InstanceId);
 	/** Trusted server import/transfer. Never rolls; clients cannot use this as an RPC. */
 	EUmbraInventoryResult AddInstance(const FUmbraItemInstance& Instance, int32 TargetSlot = INDEX_NONE);
-	/** Move to an empty cell or swap occupied cells, preserving both complete instances. */
+	/** Move, merge compatible material stacks, or swap occupied cells. */
 	UFUNCTION(BlueprintCallable, Category = "Inventory") EUmbraInventoryResult MoveItem(FGuid InstanceId, int32 TargetSlot);
 	/** Removes by identity, preserving other cells' indices. This does not equip or destroy a world actor. */
 	UFUNCTION(BlueprintCallable, Category = "Inventory") EUmbraInventoryResult RemoveItem(FGuid InstanceId, FUmbraInventoryItem& RemovedItem);
@@ -69,6 +69,8 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_Snapshot) FUmbraInventorySnapshot Snapshot;
 	/** Retained for this component's lifetime so regranting a known GUID cannot reroll it. */
 	UPROPERTY(Transient) TMap<FGuid, FUmbraItemInstance> KnownInstances;
+	/** Absorbed identities cannot be submitted again, even after their receiving stack is removed. */
+	UPROPERTY(Transient) TSet<FGuid> AbsorbedInstances;
 	bool bInitialized = false;
 	bool bPublishing = false;
 };

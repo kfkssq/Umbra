@@ -48,6 +48,35 @@
 Thumbs.db
 Desktop.ini
 
+# Local inventories, personal Unreal workspace data and generated packages.
+/files.txt
+/Content/Developers/
+/Content/Collections/
+/LocalBuilds/
+/PackagedBuilds/
+
+# Local Python test/type-check caches and virtual environments.
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+
+# Reproducible .NET helper build products.
+/Scripts/**/bin/
+/Scripts/**/obj/
+
+# Failed animation candidates documented in Docs/GlintstonePebbleImport.md.
+# Keep local diagnostic assets; retain V4 and production assets in Git.
+/Content/Skills/Staging/GlintstonePebble/Source/
+/Content/Skills/Staging/GlintstonePebble/SourceV2/
+/Content/Skills/Staging/GlintstonePebble/SourceV3/
+/Content/Skills/Staging/GlintstonePebble/Retarget/
+/Content/Skills/Staging/GlintstonePebble/RetargetV2/
+/Content/Skills/Staging/GlintstonePebble/RetargetV3/
+
 # Keep Content tracked. Unreal binary assets are handled by Git LFS in
 # .gitattributes; do not ignore *.uasset or *.umap here.
 

@@ -14,6 +14,10 @@ void UUmbraWorldItemLabel::SetItem(const FUmbraItemInstance& InItem, bool bInHig
 void UUmbraWorldItemLabel::NativeConstruct()
 {
 	Super::NativeConstruct();
+	// The controller reveals the label only after measuring and placing it above its item.
+	// Never expose a Designer/stale render offset during the first screen-layer frame.
+	SetRenderOpacity(0.f);
+	SetRenderTranslation(FVector2D::ZeroVector);
 	bConstructed = true;
 	if (ItemName) DefaultNameColor = ItemName->GetColorAndOpacity();
 	RefreshVisuals();
@@ -31,7 +35,7 @@ void UUmbraWorldItemLabel::RefreshVisuals()
 	const UUmbraItemDefinition* Definition = IsValid(Item.Definition) ? Item.Definition.Get() : nullptr;
 	if (ItemName)
 	{
-		ItemName->SetText(Definition ? Definition->DisplayName : FText::GetEmpty());
+		ItemName->SetText(Definition ? Item.GetDisplayName() : FText::GetEmpty());
 		FSlateColor NameColor = DefaultNameColor;
 		if (Definition)
 		{

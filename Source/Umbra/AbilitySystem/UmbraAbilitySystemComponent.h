@@ -36,6 +36,19 @@ public:
 	void AbilityInputTagReleased(const FGameplayTag& InputTag);
 	void ProcessAbilityInput(float DeltaTime);
 	void ClearAbilityInput();
+	bool ActivateTargetedLeap(FGameplayAbilitySpecHandle Handle, const FVector& Ground, FText& Reason);
+	bool ConsumeTargetedLeap(FGameplayAbilitySpecHandle Handle, FVector& Ground);
+	/** Cosmetic multicast only; authoritative hit detection never depends on particle completion. */
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastSkillPresentation(const class UUmbraSweepDefinition* Definition, FVector Location, FRotator Rotation);
+    UFUNCTION(NetMulticast, Unreliable)
+    void MulticastStormHit(const class UUmbraSweepDefinition* Definition, FVector Location, FRotator Rotation);
+	/** Reliable start/stop pair: looping particles must not survive an interrupted ability. */
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastSkillActiveEffect(const class UUmbraSweepDefinition* Definition, bool bStart, bool bCancelled = false);
+
+	/** Bounded planar aiming, delivered before GAS activation on this ASC's reliable channel. */
+	UFUNCTION(Server, Reliable) void ServerReceiveSkillAim(FVector_NetQuantizeNormal Direction);
 
 	/** Shares the owning player's target/queued combo before GAS activation on the same ASC channel. */
 	UFUNCTION(Server, Reliable)
@@ -66,6 +79,16 @@ public:
 	bool IsPrimaryAttackDamageMeasurementActive() const { return bPrimaryAttackDamageMeasurementActive; }
 
 private:
+	TMap<FGameplayAbilitySpecHandle, FVector> PendingLeapTargets;
+	TMap<FName, TWeakObjectPtr<class UParticleSystemComponent>> SkillActiveEffects;
+	TMap<FName, TWeakObjectPtr<class UNiagaraComponent>> SkillActiveNiagara;
+	TMap<FName, TWeakObjectPtr<class UAudioComponent>> SkillActiveSounds;
+	TWeakObjectPtr<class UAudioComponent> SkillVoice;
+	FName SkillVoiceOwner;
+	void PlaySkillVoice(const class UUmbraSweepDefinition* Definition, class USoundBase* Sound);
+	void StopSkillAudio();
+	void HandleSkillAudioDeath(FGameplayTag Tag, int32 Count);
+	FDelegateHandle SkillAudioDeathHandle;
 	friend class FUmbraCombatMaintenanceTest;
 	void UnbindMoveSpeed();
 	void ApplyMoveSpeed();

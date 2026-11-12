@@ -10,6 +10,35 @@
 #include "Curves/CurveFloat.h"
 #include "Engine/World.h"
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUmbraTooltipDefenseSeparationTest, "Umbra.Items.Tooltip.DefenseSeparation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FUmbraTooltipDefenseSeparationTest::RunTest(const FString& Parameters)
+{
+	FUmbraItemTooltipData Data;
+	for (const FName Id : { FName(TEXT("Armor")), FName(TEXT("MagicResistance")) })
+	{
+		auto& Base = Data.Stats.AddDefaulted_GetRef();
+		Base.StatId = Id;
+		Base.Source = EUmbraTooltipStatSource::Intrinsic;
+		Base.RawValue = 8.;
+		auto& Affix = Data.Stats.AddDefaulted_GetRef();
+		Affix.StatId = Id;
+		Affix.Source = EUmbraTooltipStatSource::RolledAffix;
+		Affix.RawValue = 11.;
+		Affix.CandidateValues = { 5.f, 15.f };
+	}
+	UmbraTooltipFormatting::BuildDisplayText(Data);
+	TestEqual(TEXT("Two base defenses"), Data.DefenseEntries.Num(), 2);
+	TestEqual(TEXT("Two defense affixes remain"), Data.AffixEntries.Num(), 2);
+	TestEqual(TEXT("Base value has no bonus prefix"), Data.DefenseEntries[0].ValueText.ToString(), FString(TEXT("8")));
+	TestEqual(TEXT("Affix retains roll"), Data.AffixEntries[0].RolledValue, 11.);
+	TestFalse(TEXT("Affix retains range"), Data.AffixEntries[0].RangeText.IsEmpty());
+	Data.Stats.Reset();
+	UmbraTooltipFormatting::BuildDisplayText(Data);
+	TestTrue(TEXT("Switching items clears defenses"), Data.DefenseEntries.IsEmpty());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUmbraTooltipDefinitionTest, "Umbra.Items.Tooltip.DefinitionAndScaling",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FUmbraTooltipDefinitionTest::RunTest(const FString& Parameters)
@@ -35,7 +64,7 @@ bool FUmbraTooltipDefinitionTest::RunTest(const FString& Parameters)
 	Item->RequiredLevel = 3;
 	Item->RarityColor = FLinearColor::Green;
 	Data = UUmbraItemTooltipDataBuilder::FromDefinition(Item);
-	TestEqual(TEXT("Independent required level"), Data.RequiredLevel, 3);
+	TestEqual(TEXT("Required level equals item level, ignoring legacy field"), Data.RequiredLevel, 90);
 	TestEqual(TEXT("Display-only item level"), Data.ItemLevel, 90);
 	TestEqual(TEXT("Authored color retained"), Data.RarityColor, FLinearColor::Green);
 	Item->Weapon = NewObject<UUmbraWeaponProfile>(Item);
@@ -214,9 +243,9 @@ bool FUmbraTooltipIdentityTest::RunTest(const FString& Parameters)
 	const auto Attributes = UUmbraEquipmentEffect::Attributes();
 	TArray<float> ValuesBefore;
 	for (const auto& Attribute : Attributes) ValuesBefore.Add(ASC->GetNumericAttribute(Attribute));
-	Item->RequiredLevel = 2;
-	TestEqual(TEXT("Level blocks wearing"), Read(Snapshot, First, FirstSlot).RequirementState, EUmbraTooltipRequirementState::LevelTooLow);
-	Item->RequiredLevel = 1;
+	auto HighLevelSnapshot = Snapshot;
+	for (auto& Entry : HighLevelSnapshot.Items) Entry.Instance.ItemLevel = 2;
+	TestEqual(TEXT("Instance level blocks wearing"), Read(HighLevelSnapshot, First, FirstSlot).RequirementState, EUmbraTooltipRequirementState::LevelTooLow);
 	auto Data = Read(Snapshot, First, FirstSlot);
 	TestEqual(TEXT("Primary shortage allows penalized wearing"), Data.RequirementState, EUmbraTooltipRequirementState::PrimaryPenalty);
 	TestEqual(TEXT("Candidate own +10 excluded"), Data.Requirements.CurrentPrimaries[0], 10.f);

@@ -4,6 +4,26 @@
 
 ## 最简操作
 
+### 武器需求与补正来源（2026-11-03）
+
+用户已确认法环武器四属性需求作为Umbra正式配置：`properStrength/Agility/Magic/Faith`分别写入`Requirements.Strength/Dexterity/Intelligence/Faith`，原值直接保留，不使用伤害补正字段替代。`RequiredLevel`、伤害配置、装备槽与生成配置不变。感应不加入Umbra系统，`properLuck`不参与需求判定；弹药仍不创建装备定义。
+
+`weapon_requirements.py`同时将`correctStrength/Agility/Magic/Faith`原值及`correctType*`、`reinforceTypeId`、`attackElementCorrectId`引用保存在资产元数据`UmbraItemImport.SourceScaling`，供以后制作曲线使用；不换算、不自动赋`WeaponProfile`系数、曲线或补正等级。`correctLuck`只作来源留档。原完整raw_params继续保留在`UmbraItemImport.Source`。
+
+需求字段覆盖顺序：首次仅采用默认零值或已与源值一致的配置；后续仅当前值仍等于`UmbraItemImport.RequirementsBaseline`时允许更新。检测到手工改动则保留并报冲突。新建导入草稿自动采用这些规则；既有正式库通过`apply_weapon_requirements.py`定向迁移，无需重导模型和材质。原队列配方指纹已变化，不应绕过指纹检查重跑旧全量任务。
+
+本次预检296份武器无冲突，295份需求需要更新、1份数值一致；全部296份已保存正式需求/补正来源元数据。报告目录`Saved/EquipmentImport/WeaponRequirements/`（preview.json、apply.json、readback.json）。这不表示草稿已配齐WeaponProfile和装备槽；仍须按项目玩法配置才能投入游戏。
+
+### 分类补齐（2026-11-03）
+
+新增23种展示武器类型及中文名：刀、双头剑、重刺剑、连枷、镰刀、拳套、爪、软鞭、特大武器、弩炮、圣印记、小盾、中盾、大盾、火把、格斗术、调香瓶、突刺盾、投掷剑、反手剑、轻大剑、大刀、兽爪。原枚举0–14保持不变，新增值15–37；原有映射仍保留。
+
+按用户要求，法环类别81/83/85/86（箭、大箭、弩箭、弩炮箭）标记为`non_equippable_definition_excluded`，不生成装备定义。已导入的12件弹药资源保留；没有删除模型/icon或新增弹药类型。其余127件原asset_only资源已通过UE补建展示草稿，独立进程复跑127件全部保留、零保存。正式库现有580份展示草稿；历史队列报告保持原始结果，以`Saved/EquipmentImport/ClassificationBackfill/created_result.json`及`result.json`为补齐证据。
+
+[backfill_classification.py](../Scripts/EquipmentImport/backfill_classification.py)只处理Library中已有单模型的asset_only记录：补建缺失草稿、复用模型/icon、保留来源信息；已有不同配方定义拒绝覆盖。不重导材质，不赋WeaponProfile/AllowedSlots/GenerationProfile。原始法环类别通过映射表转换为Umbra展示类型，游戏动作、槽位和伤害仍由项目既有配置决定。
+
+分类规则已变化，因此旧总队列的配方指纹不再匹配；不要修改旧state.json绕过保护或为补分类重跑全量转换。本次已通过独立补齐脚本完成现有资源更新。
+
 ### 一次启动全部剩余装备
 
 关闭UE，在项目根目录运行：

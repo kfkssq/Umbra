@@ -145,6 +145,7 @@ bool FUmbraGenerationLifecycleTest::RunTest(const FString& Parameters)
 	B = A; ++B.ItemLevel; TestEqual(TEXT("Known GUID metadata tamper"), Inventory->AddInstance(B), EUmbraInventoryResult::InvalidIdentity);
 	const float Strength = ASC->GetNumericAttribute(UUmbraAttributeSet::GetStrengthAttribute());
 	const float Armor = ASC->GetNumericAttribute(UUmbraAttributeSet::GetArmorAttribute());
+	Equipment->CharacterLevel = A.GetItemLevel(); // Lifecycle test requires a character eligible for the generated level.
 	TestEqual(TEXT("Equip"), F.Owner->EquipFromInventory(EUmbraEquipmentSlot::Ring1,A.InstanceId), EUmbraTransferResult::Success);
 	if (!TestEqual(TEXT("One equipped item"), Equipment->GetSnapshot().Items.Num(),1)) return false;
 	TestTrue(TEXT("Equipped metadata exact"), Same(A,Equipment->GetSnapshot().Items[0].GetInstance()));
@@ -182,6 +183,7 @@ bool FUmbraDamagePoolTest::RunTest(const FString& Parameters)
 	auto* Equipment = F.Owner->GetEquipmentComponent(); Equipment->bEnableEquipment = true; F.Owner->InitializeAttributes();
 	ASC->SetNumericAttributeBase(UUmbraAttributeSet::GetCriticalChanceAttribute(),0);
 	TestEqual(TEXT("Import"),F.Owner->AcceptLootInstance(Instance),EUmbraInventoryResult::Success);
+	Equipment->CharacterLevel = Instance.GetItemLevel(); // Exercise GAS snapshot after satisfying the level gate.
 	TestEqual(TEXT("Equip public pool damage"),F.Owner->EquipFromInventory(EUmbraEquipmentSlot::Ring1,Instance.InstanceId),EUmbraTransferResult::Success);
 	const FUmbraEquipmentEffectContext* Snapshot = nullptr;
 	int32 EquipmentHandles = 0;
@@ -236,6 +238,8 @@ bool FUmbraTransferProtocolTest::RunTest(const FString& Parameters)
 	auto* Controller=F.World->SpawnActor<AUmbraLootTestController>(); Controller->SetPlayerState(F.Owner); F.Owner->SetOwner(Controller);
 	auto* ASC=F.Owner->GetUmbraAbilitySystemComponent(); ASC->InitializeComponent(); ASC->InitAbilityActorInfo(F.Owner,F.Owner);
 	F.Owner->GetEquipmentComponent()->bEnableEquipment=true; F.Owner->FindComponentByClass<UUmbraDerivedStatsComponent>()->bUseWeaponDerivedPower=true; F.Owner->InitializeAttributes();
+	// This test exercises request revisions, not the separate level requirement rejection.
+	F.Owner->GetEquipmentComponent()->CharacterLevel=Item.GetItemLevel();
 	F.Owner->AcceptLootInstance(Item);
 	FUmbraItemTransferRequest Request; Request.InstanceId=Item.InstanceId; Request.EquipmentSlot=EUmbraEquipmentSlot::Ring1;
 	auto Refresh=[&]() { ++Request.RequestId; Request.InventoryRevision=F.Owner->GetInventoryComponent()->GetSnapshot().Revision; Request.EquipmentRevision=F.Owner->GetEquipmentComponent()->GetSnapshot().Revision; };

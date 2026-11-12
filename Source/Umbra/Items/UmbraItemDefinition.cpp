@@ -5,6 +5,19 @@
 #include "Items/UmbraItemGeneration.h"
 #include "Misc/DataValidation.h"
 
+TArray<EUmbraEquipmentSlot> UUmbraItemDefinition::GetAllowedEquipmentSlots() const
+{
+	if (ItemCategory == EUmbraItemCategory::Accessory)
+		return {EUmbraEquipmentSlot::Amulet, EUmbraEquipmentSlot::Amulet2, EUmbraEquipmentSlot::Ring1, EUmbraEquipmentSlot::Ring2};
+	return AllowedSlots;
+}
+
+bool UUmbraItemDefinition::CanEquipInSlot(EUmbraEquipmentSlot Slot) const
+{
+	if (!IsUmbraEquipmentSlotActive(Slot)) return false;
+	return ItemCategory == EUmbraItemCategory::Accessory ? IsUmbraRelicSlot(Slot) : AllowedSlots.Contains(Slot);
+}
+
 #if WITH_EDITOR
 EDataValidationResult UUmbraItemDefinition::IsDataValid(FDataValidationContext& Context) const
 {

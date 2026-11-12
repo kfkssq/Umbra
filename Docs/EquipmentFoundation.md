@@ -1,3 +1,5 @@
+> 2026-11-04 栏位更新：Feet 停用，原鞋子位置改为 Amulet2；Legs 包含裤靴，仍为十个有效栏位。旧文中的 Feet 配置及独立腿鞋规划由 [双护符栏说明](AccessoriesAndConsumables.md) 覆盖。
+
 # 最小装备组件（第三阶段）
 
 2026-10-04 后续已完成[背包与装备 UI 交互](InventoryEquipmentInteraction.md)：背包双击经PlayerState穿戴，右键返还原GUID到背包；初始TestSword/TestMace在背包中。下文“未来Inventory/菜单尚未绑定”及直接Equip测试步骤保留为历史阶段说明，不是当前生产UI入口。

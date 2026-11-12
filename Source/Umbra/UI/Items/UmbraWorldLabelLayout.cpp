@@ -54,6 +54,8 @@ void UmbraWorldLabelLayout::Update(TArray<FEntry>& Entries, const FVector2D& Vie
  TArray<FBox2D> Occupied;
  TArray<bool> Assigned;
  Assigned.Init(false, Entries.Num());
+ TArray<int32> OccupiedSlots;
+ OccupiedSlots.Init(INDEX_NONE, Entries.Num());
  TArray<bool> WasVisible;
  for (const auto& E : Entries) WasVisible.Add(E.State->bVisible);
  // Reserve history before newcomers. Hover gets first refusal, without changing identity order.
@@ -62,11 +64,39 @@ void UmbraWorldLabelLayout::Update(TArray<FEntry>& Entries, const FVector2D& Vie
  {
   auto& E = Entries[I]; auto& S = *E.State;
   if (!WasVisible[I] || E.bPinned != (Pass == 0)) continue;
-  const FVector2D Previous = E.bPinned ? S.RenderPosition : S.TargetPosition + (E.DesiredMin - S.Anchor);
+  const FVector2D Previous = (E.bPinned ? S.RenderPosition : S.TargetPosition) + (E.DesiredMin - S.Anchor);
   const FBox2D R(Previous, Previous + E.Size);
   if (Fits(R, ViewSize, Occupied, Gap))
   {
-   S.TargetPosition = Previous; Assigned[I] = true; Occupied.Add(R);
+   S.TargetPosition = Previous; Assigned[I] = true; OccupiedSlots[I] = Occupied.Add(R);
+  }
+ }
+ // Reserve every available natural anchor before anyone searches for an avoidance slot.
+ // Otherwise an earlier duplicate can steal a later item's own above-item position.
+ for (int32 I = 0; I < Entries.Num(); ++I)
+ {
+  auto& E = Entries[I]; auto& S = *E.State;
+  const FBox2D Natural(E.DesiredMin, E.DesiredMin + E.Size);
+  if (!Assigned[I] && Fits(Natural, ViewSize, Occupied, Gap))
+  {
+   S.TargetPosition = E.DesiredMin; Assigned[I] = true; OccupiedSlots[I] = Occupied.Add(Natural);
+  }
+ }
+ // Spawned drops can overlap while falling and later spread out. Do not permanently
+ // inherit that temporary displacement once their own anchor is comfortably free.
+ for (int32 I = 0; I < Entries.Num(); ++I)
+ {
+  auto& E = Entries[I]; auto& S = *E.State;
+  if (!Assigned[I] || !WasVisible[I] || E.bPinned || S.TargetPosition.Equals(E.DesiredMin, 0.01)) continue;
+  const FVector2D Previous = S.RenderPosition + (E.DesiredMin - S.Anchor);
+  if (!Previous.Equals(S.TargetPosition, 0.01)) continue;
+  TArray<FBox2D> Others = Occupied;
+  Others.RemoveAt(OccupiedSlots[I]);
+  const FBox2D Natural(E.DesiredMin, E.DesiredMin + E.Size);
+  if (Fits(Natural, ViewSize, Others, Gap + SwitchThreshold))
+  {
+   S.TargetPosition = E.DesiredMin;
+   Occupied[OccupiedSlots[I]] = Natural;
   }
  }
  for (int32 I = 0; I < Entries.Num(); ++I)
@@ -84,7 +114,7 @@ void UmbraWorldLabelLayout::Update(TArray<FEntry>& Entries, const FVector2D& Vie
     if (WasVisible[I] && Place(Previous, E.Size, ViewSize, Occupied, Gap, Repair)
      && FVector2D::Distance(Repair.Min, E.DesiredMin) <= FVector2D::Distance(Best.Min, E.DesiredMin) + SwitchThreshold)
      Best = Repair;
-    S.TargetPosition = Best.Min; Assigned[I] = true; Occupied.Add(Best);
+    S.TargetPosition = Best.Min; Assigned[I] = true; OccupiedSlots[I] = Occupied.Add(Best);
    }
   }
  }
@@ -95,11 +125,14 @@ void UmbraWorldLabelLayout::Update(TArray<FEntry>& Entries, const FVector2D& Vie
  for (int32 I = 0; I < Entries.Num(); ++I)
  {
   const auto& E = Entries[I]; const auto& S = *E.State;
-  FVector2D P = WasVisible[I] ? FMath::Lerp(S.RenderPosition, S.TargetPosition, Alpha) : S.TargetPosition;
+  // Projection motion is not a layout adjustment. Carry history with the anchor,
+  // then smooth only the avoidance offset; otherwise camera movement alternates lag and batch snaps.
+  const FVector2D Previous = S.RenderPosition + (E.DesiredMin - S.Anchor);
+  FVector2D P = WasVisible[I] ? FMath::Lerp(Previous, S.TargetPosition, Alpha) : S.TargetPosition;
   if (P.Equals(S.TargetPosition, 0.01)) P = S.TargetPosition;
   Render.Add(P);
   FBox2D Sweep(P, P + E.Size);
-  if (WasVisible[I]) { Sweep += S.RenderPosition; Sweep += S.RenderPosition + E.Size; }
+  if (WasVisible[I]) { Sweep += Previous; Sweep += Previous + E.Size; }
   Sweeps.Add(Sweep);
   if (!Assigned[I]) continue;
   if (!Fits(Sweep, ViewSize, {}, 0)) bSnap = true;

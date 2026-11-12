@@ -1,5 +1,7 @@
 # Umbra 最小属性调试面板：UE 5.8 配置与验收
 
+2026-11-12 当前配置：`BP_UmbraPlayerController` 的 `Enable Attribute Debug Panel` 已关闭，开局不创建左侧面板，也不绑定其专用 F1/F2 输入。面板类、输入资源和功能保留；需要恢复时在该 Blueprint 类默认值中重新勾选此开关。下文勾选步骤供启用调试时使用。
+
 本指南对应 `UUmbraAttributeDebugPanel` 和 `AUmbraPlayerController` 的当前实现。
 面板只观察属性，不负责初始化、重置或填满属性。操作由本地控制器发送至服务器执行。
 

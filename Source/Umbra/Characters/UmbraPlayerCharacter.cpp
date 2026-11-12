@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Characters/UmbraPlayerCharacter.h"
+#include "Skills/UmbraSkillTargetingComponent.h"
 #include "Audio/UmbraAudioComponent.h"
+#include "Skills/UmbraSweepAbility.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "Animation/AnimSequence.h"
 #include "Net/UnrealNetwork.h"
@@ -405,9 +407,12 @@ void AUmbraPlayerCharacter::FinishSpawnAnimation()
 	}
 }
 
+
 void AUmbraPlayerCharacter::AbilityInputTagPressed(FGameplayTag InputTag)
 {
 	if (bIsDead) return;
+	if (auto* PC = Cast<AUmbraPlayerController>(GetController()); PC && PC->SkillTargeting
+		&& PC->SkillTargeting->HandleSkillInput(InputTag)) return;
 	if (const AUmbraPlayerController* PlayerController = Cast<AUmbraPlayerController>(GetController());
 		PlayerController && PlayerController->IsCharacterMenuOpen())
 	{
@@ -415,6 +420,16 @@ void AUmbraPlayerCharacter::AbilityInputTagPressed(FGameplayTag InputTag)
 	}
 	if (UUmbraAbilitySystemComponent* AbilitySystemComponent = Cast<UUmbraAbilitySystemComponent>(GetAbilitySystemComponent()))
 	{
+		if (InputTag == UmbraGameplayTags::Input_Skill_Seven)
+		{
+			FHitResult Hit;
+			if (const auto* PC = Cast<AUmbraPlayerController>(GetController()); PC && PC->IsLocalController()
+				&& PC->GetCursorGroundHit(Hit))
+			{
+				const FVector Aim = (Hit.ImpactPoint - GetActorLocation()).GetSafeNormal2D();
+				if (!Aim.IsNearlyZero()) AbilitySystemComponent->ServerReceiveSkillAim(Aim);
+			}
+		}
 		AbilitySystemComponent->AbilityInputTagPressed(InputTag);
 	}
 }
@@ -475,6 +490,7 @@ void AUmbraPlayerCharacter::ApplyDeathAbilityState()
 	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
 	{
 		ASC->SetLooseGameplayTagCount(UmbraGameplayTags::State_Dead, 1);
+		ASC->RemoveActiveGameplayEffectBySourceEffect(UUmbraSkillFocusEffect::StaticClass(), ASC);
 		if (UUmbraAbilitySystemComponent* UmbraASC = Cast<UUmbraAbilitySystemComponent>(ASC)) UmbraASC->ClearAbilityInput();
 		ASC->CancelAllAbilities();
 	}

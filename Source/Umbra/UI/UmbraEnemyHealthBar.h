@@ -35,6 +35,8 @@ public:
 	void SetEnemy(AUmbraEnemyCharacter* Enemy);
 	void Shutdown();
 protected:
+	AUmbraEnemyCharacter* GetObservedEnemy() const { return Enemy.Get(); }
+	virtual void ApplyNativeViewState(const FUmbraEnemyHealthBarViewState& State) {}
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 

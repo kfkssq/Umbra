@@ -69,6 +69,14 @@ class UMBRA_API UUmbraItemGenerationProfile : public UDataAsset
 {
 	GENERATED_BODY()
 public:
+	/** Opt-in production rule: weights index 0..3 select 1..4 affixes; rarity follows count.
+	 * Source rarity restrictions can admit Legendary/Unique using their configured counts and weights. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bRarityFromAffixCount = false;
+	/** Materials use Definition.Rarity (authored from grade), ignoring rarity weights/source gates; no slots or affixes. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bMaterialRarityOnly = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<float> AffixCountWeights = {50.f, 30.f, 15.f, 5.f};
+	/** Probability [0,1] of Legendary rather than Epic for imported source rarity 2. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "0", ClampMax = "1")) float SourceTwoLegendaryChance = 0.25f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 RulesVersion = 1;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 MinimumLevel = 1;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 MaximumLevel = 100;

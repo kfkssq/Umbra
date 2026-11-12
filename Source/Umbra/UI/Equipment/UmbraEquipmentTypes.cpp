@@ -24,7 +24,10 @@ FUmbraEquipmentItemDisplay FUmbraEquipmentItemDisplay::FromDefinition(UUmbraItem
 FUmbraEquipmentItemDisplay FUmbraEquipmentItemDisplay::FromInstance(const FUmbraItemInstance& Instance)
 {
 	auto Display = FromDefinition(Instance.Definition, Instance.InstanceId);
+	Display.Quantity = Instance.Quantity;
+	Display.bShowQuantity = Instance.CanStack();
 	Display.AudioContext = FUmbraAudioContext::FromInstance(Instance);
+	Display.DisplayName = Instance.GetDisplayName();
 	Display.RarityColor = Instance.GetRarityColor();
 	// Generated quality uses the shared color palette; legacy authored frame art stays unchanged.
 	if (Instance.GenerationRulesVersion > 0 && Instance.Definition && Instance.Definition->GenerationProfile)

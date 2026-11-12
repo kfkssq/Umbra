@@ -12,6 +12,7 @@ FText UmbraTransferFeedback::Message(EUmbraTransferResult Result)
 	case EUmbraTransferResult::InvalidSlot: return NSLOCTEXT("UmbraTransfer", "InvalidSlot", "This item cannot use that equipment slot.");
 	case EUmbraTransferResult::InvalidIdentity: return NSLOCTEXT("UmbraTransfer", "InvalidIdentity", "The item identity is invalid.");
 	case EUmbraTransferResult::InvalidItem: return NSLOCTEXT("UmbraTransfer", "InvalidItem", "The item definition is invalid.");
+	case EUmbraTransferResult::EquippingUnavailable: return NSLOCTEXT("UmbraTransfer", "EquippingUnavailable", "该类装备暂未开放穿戴，可保留在背包中。");
 	case EUmbraTransferResult::LevelTooLow: return NSLOCTEXT("UmbraTransfer", "LevelTooLow", "Your level is too low for this item.");
 	case EUmbraTransferResult::NotFound: return NSLOCTEXT("UmbraTransfer", "NotFound", "The item changed or is no longer available.");
 	case EUmbraTransferResult::SlotOccupied: return NSLOCTEXT("UmbraTransfer", "SlotOccupied", "The equipment slot is occupied. Unequip its item first.");

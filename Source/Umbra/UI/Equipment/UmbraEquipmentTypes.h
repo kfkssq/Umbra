@@ -26,6 +26,8 @@ struct UMBRA_API FUmbraEquipmentItemDisplay
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment")
 	TObjectPtr<UObject> Item = nullptr;
 	UPROPERTY(BlueprintReadOnly, Category = "Equipment") FGuid InstanceId;
+	UPROPERTY(BlueprintReadOnly, Category = "Inventory") int32 Quantity = 1;
+	UPROPERTY(BlueprintReadOnly, Category = "Inventory") bool bShowQuantity = false;
 	UPROPERTY(BlueprintReadOnly, Category = "Equipment") FUmbraAudioContext AudioContext;
 	UPROPERTY(BlueprintReadOnly, Category = "Equipment") bool bFromEquipmentSnapshot = false;
 	UPROPERTY(BlueprintReadOnly, Category = "Equipment") bool bRequirementsMet = false;

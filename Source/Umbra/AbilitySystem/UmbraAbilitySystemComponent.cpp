@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AbilitySystem/UmbraAbilitySystemComponent.h"
+#include "Particles/ParticleSystemComponent.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 
 #include "AbilitySystem/UmbraGameplayAbility.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
@@ -15,6 +18,29 @@
 #include "TimerManager.h"
 #include "Umbra.h"
 #include "UmbraPlayerController.h"
+#include "Skills/UmbraSweepDefinition.h"
+#include "Skills/UmbraSkillTargetingComponent.h"
+#include "Skills/UmbraDirectionalSkillEffect.h"
+#include "Kismet/GameplayStatics.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/AudioComponent.h"
+#include "Components/DecalComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
+
+namespace
+{
+    void ActivateSkillParticle(UParticleSystemComponent* Effect, AActor* Avatar)
+    {
+        if (!Effect) return;
+        // Paragon bone/vertex emitters declare their source actor as an instance parameter.
+        // Populate declared parameters before activation rather than guessing a particular socket name.
+        Effect->AutoPopulateInstanceProperties();
+        for (auto& Parameter : Effect->InstanceParameters)
+            if (Parameter.ParamType == PSPT_Actor) Parameter.Actor = Avatar;
+        Effect->ActivateSystem();
+    }
+}
 
 static TAutoConsoleVariable<float> CVarUmbraAttackMeasureSeconds(
 	TEXT("umbra.Attack.MeasureSeconds"), 0.f,
@@ -223,6 +249,7 @@ void UUmbraAbilitySystemComponent::InitAbilityActorInfo(AActor* InOwnerActor, AA
 {
 	if (AActor* PreviousAvatar = GetAvatarActor(); PreviousAvatar && PreviousAvatar != InAvatarActor)
 	{
+		StopSkillAudio();
 		FinishPrimaryAttackDamageMeasurement(true);
 		// Instanced tasks and cached attack targets are scoped to the old avatar.
 		CancelAllAbilities();
@@ -234,6 +261,9 @@ void UUmbraAbilitySystemComponent::InitAbilityActorInfo(AActor* InOwnerActor, AA
 	}
 	UnbindMoveSpeed();
 	Super::InitAbilityActorInfo(InOwnerActor, InAvatarActor);
+	if (!SkillAudioDeathHandle.IsValid())
+		SkillAudioDeathHandle = RegisterGameplayTagEvent(UmbraGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved)
+			.AddUObject(this, &ThisClass::HandleSkillAudioDeath);
 	bActorInfoReady = IsValid(InOwnerActor) && IsValid(InAvatarActor);
 	if (bActorInfoReady && GetSet<UUmbraAttributeSet>())
 	{
@@ -281,6 +311,7 @@ void UUmbraAbilitySystemComponent::HandleMoveSpeedChanged(const FOnAttributeChan
 
 void UUmbraAbilitySystemComponent::ClearActorInfo()
 {
+	StopSkillAudio();
 	FinishPrimaryAttackDamageMeasurement(true);
 	CancelAllAbilities();
 	ClearAbilityInput();
@@ -296,11 +327,34 @@ void UUmbraAbilitySystemComponent::ClearActorInfo()
 
 void UUmbraAbilitySystemComponent::OnUnregister()
 {
+	StopSkillAudio();
+	RegisterGameplayTagEvent(UmbraGameplayTags::State_Dead, EGameplayTagEventType::NewOrRemoved).Remove(SkillAudioDeathHandle);
+	SkillAudioDeathHandle.Reset();
+	for (auto& Entry : SkillActiveEffects)
+		if (Entry.Value.IsValid()) Entry.Value->DestroyComponent();
+	SkillActiveEffects.Reset();
+	for (auto& Entry : SkillActiveNiagara)
+		if (Entry.Value.IsValid()) Entry.Value->DestroyComponent();
+	SkillActiveNiagara.Reset();
 	FinishPrimaryAttackDamageMeasurement(true);
 	UnbindMoveSpeed();
 	bActorInfoReady = false;
 	OnLifecycleChanged.Broadcast(this, false);
 	Super::OnUnregister();
+}
+
+void UUmbraAbilitySystemComponent::HandleSkillAudioDeath(FGameplayTag Tag, int32 Count)
+{
+	if (Count > 0) StopSkillAudio();
+}
+
+void UUmbraAbilitySystemComponent::StopSkillAudio()
+{
+	for (auto& Entry : SkillActiveSounds)
+		if (Entry.Value.IsValid()) Entry.Value->Stop();
+	SkillActiveSounds.Reset();
+	if (SkillVoice.IsValid()) SkillVoice->Stop();
+	SkillVoice.Reset();
 }
 
 void UUmbraAbilitySystemComponent::InitializeAttributes(TSubclassOf<UGameplayEffect> InitialEffect, const FUmbraDebugInitialAttributes* DebugAttributes)
@@ -377,7 +431,8 @@ void UUmbraAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& In
 	for (const FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
 	{
 		const UUmbraGameplayAbility* UmbraAbility = Cast<UUmbraGameplayAbility>(AbilitySpec.Ability);
-		if (UmbraAbility && UmbraAbility->GetInputTag().MatchesTagExact(InputTag))
+		if (UmbraAbility && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)
+			|| (AbilitySpec.GetDynamicSpecSourceTags().IsEmpty() && UmbraAbility->GetInputTag().MatchesTagExact(InputTag))))
 		{
 			InputPressedSpecHandles.AddUnique(AbilitySpec.Handle);
 			InputHeldSpecHandles.AddUnique(AbilitySpec.Handle);
@@ -395,7 +450,8 @@ void UUmbraAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& I
 	for (const FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
 	{
 		const UUmbraGameplayAbility* UmbraAbility = Cast<UUmbraGameplayAbility>(AbilitySpec.Ability);
-		if (UmbraAbility && UmbraAbility->GetInputTag().MatchesTagExact(InputTag))
+		if (UmbraAbility && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)
+			|| (AbilitySpec.GetDynamicSpecSourceTags().IsEmpty() && UmbraAbility->GetInputTag().MatchesTagExact(InputTag))))
 		{
 			InputReleasedSpecHandles.AddUnique(AbilitySpec.Handle);
 			InputHeldSpecHandles.Remove(AbilitySpec.Handle);
@@ -455,6 +511,10 @@ void UUmbraAbilitySystemComponent::ProcessAbilityInput(float DeltaTime)
 		}
 
 		AbilitySpec->InputPressed = false;
+		// The tag-driven input path bypasses AbilityLocalInputReleased. Forward even when a
+		// server-initiated activation is still in flight, so a short tap cannot latch a channel.
+		if (AbilitySpec->Ability && AbilitySpec->Ability->bReplicateInputDirectly && !IsOwnerActorAuthoritative())
+			ServerSetInputReleased(AbilitySpec->Handle);
 		if (AbilitySpec->IsActive())
 		{
 			AbilitySpecInputReleased(*AbilitySpec);
@@ -467,7 +527,156 @@ void UUmbraAbilitySystemComponent::ProcessAbilityInput(float DeltaTime)
 
 void UUmbraAbilitySystemComponent::ClearAbilityInput()
 {
+	const auto Held = InputHeldSpecHandles;
+	for (const auto& Handle : Held)
+		if (auto* Spec = FindAbilitySpecFromHandle(Handle))
+		{
+			if (Spec->Ability && Spec->Ability->bReplicateInputDirectly && !IsOwnerActorAuthoritative())
+				ServerSetInputReleased(Handle);
+			AbilitySpecInputReleased(*Spec);
+		}
 	InputPressedSpecHandles.Reset();
 	InputReleasedSpecHandles.Reset();
 	InputHeldSpecHandles.Reset();
+}
+
+void UUmbraAbilitySystemComponent::MulticastSkillPresentation_Implementation(const UUmbraSweepDefinition* Definition,
+	FVector Location, FRotator Rotation)
+{
+	if (!Definition) return;
+	if (Definition->bTargetedDirection)
+	{
+		auto* Effect=GetWorld()->SpawnActor<AUmbraDirectionalSkillEffect>();
+		if (Effect) Effect->Initialize(Definition,GetAvatarActor(),Location,Rotation.Vector(),IsOwnerActorAuthoritative());
+		return;
+	}
+	if (GetNetMode() == NM_DedicatedServer) return;
+	if (Definition->bTargetedLeap && Definition->TargetIndicatorMaterial)
+	{
+		FVector Ground=Location;
+		if (const auto* C=Cast<ACharacter>(GetAvatarActor())) Ground.Z-=C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		auto* Material=UMaterialInstanceDynamic::Create(Definition->TargetIndicatorMaterial,this);
+		Material->SetVectorParameterValue(TEXT("Tint"),FLinearColor(.9f,.75f,.15f));
+		Material->SetScalarParameterValue(TEXT("LineWidth"),3.f/Definition->Radius);
+		UGameplayStatics::SpawnDecalAtLocation(this,Material,FVector(40,Definition->Radius,Definition->Radius),Ground+FVector(0,0,8),FRotator(-90,0,0),.6f);
+	}
+	if (Definition->Execution != EUmbraSkillExecution::SwordStorm && Definition->StrikeNiagara)
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Definition->StrikeNiagara,
+			Location + Rotation.RotateVector(Definition->EffectOffset),
+			(Rotation.Quaternion() * Definition->EffectRotation.Quaternion()).Rotator(), Definition->EffectScale);
+	else if (Definition->Execution != EUmbraSkillExecution::SwordStorm && Definition->StrikeEffect)
+		ActivateSkillParticle(UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Definition->StrikeEffect,
+			Location + Rotation.RotateVector(Definition->EffectOffset),
+			(Rotation.Quaternion() * Definition->EffectRotation.Quaternion()).Rotator(), Definition->EffectScale,
+			true, EPSCPoolMethod::None, false), GetAvatarActor());
+	if (Definition->StrikeSound)
+		UGameplayStatics::PlaySoundAtLocation(this, Definition->StrikeSound, Location, FRotator::ZeroRotator,
+			Definition->SkillSoundVolume, 1.f, 0.f, Definition->SkillAttenuation, Definition->SkillSoundConcurrency, GetAvatarActor());
+	PlaySkillVoice(Definition, Definition->ResolveVoice);
+}
+
+void UUmbraAbilitySystemComponent::PlaySkillVoice(const UUmbraSweepDefinition* Definition, USoundBase* Sound)
+{
+	AActor* Avatar = GetAvatarActor();
+	if (!Sound || !IsValid(Avatar)) return;
+	// Replace the preceding skill voice; leave hurt/death to the existing damage audio route.
+	if (SkillVoice.IsValid()) SkillVoice->FadeOut(.08f, 0.f);
+	SkillVoiceOwner = Definition->SkillId;
+	SkillVoice = UGameplayStatics::SpawnSoundAttached(Sound, Avatar->GetRootComponent(), NAME_None,
+		FVector::ZeroVector, EAttachLocation::KeepRelativeOffset, true, Definition->SkillVoiceVolume,
+		1.f, 0.f, Definition->SkillAttenuation, nullptr, true);
+}
+
+void UUmbraAbilitySystemComponent::MulticastSkillActiveEffect_Implementation(const UUmbraSweepDefinition* Definition, bool bStart, bool bCancelled)
+{
+	if (!Definition || GetNetMode() == NM_DedicatedServer) return;
+	if (auto* Existing = SkillActiveSounds.Find(Definition->SkillId))
+	{
+		if (Existing->IsValid()) Existing->Get()->FadeOut(.12f, 0.f);
+		SkillActiveSounds.Remove(Definition->SkillId);
+	}
+	if (!bStart && bCancelled && SkillVoiceOwner == Definition->SkillId && SkillVoice.IsValid())
+	{
+		SkillVoice->FadeOut(.08f, 0.f);
+		SkillVoice.Reset();
+	}
+	if (auto* Existing = SkillActiveEffects.Find(Definition->SkillId))
+	{
+		if (Existing->IsValid()) Existing->Get()->DestroyComponent();
+		SkillActiveEffects.Remove(Definition->SkillId);
+	}
+	AActor* Avatar = GetAvatarActor();
+	if (auto* Existing = SkillActiveNiagara.Find(Definition->SkillId))
+	{
+		if (Existing->IsValid()) Existing->Get()->DestroyComponent();
+		SkillActiveNiagara.Remove(Definition->SkillId);
+	}
+	if (bStart && Definition->ActiveNiagara && IsValid(Avatar))
+	{
+		USceneComponent* Attachment = Avatar->GetRootComponent();
+		if (!Definition->CastSocket.IsNone())
+			if (auto* Character = Cast<AUmbraPlayerCharacter>(Avatar)) Attachment = Character->GetMesh();
+		auto* Effect = UNiagaraFunctionLibrary::SpawnSystemAttached(Definition->ActiveNiagara, Attachment,
+			Definition->CastSocket, Definition->ActiveEffectOffset, FRotator::ZeroRotator, Definition->ActiveEffectScale,
+			EAttachLocation::KeepRelativeOffset, false, ENCPoolMethod::None, true, false);
+		SkillActiveNiagara.Add(Definition->SkillId, Effect);
+	}
+	else if (bStart && Definition->ActiveEffect && IsValid(Avatar))
+	{
+		USceneComponent* Attachment = Avatar->GetRootComponent();
+		if (!Definition->CastSocket.IsNone())
+			if (auto* Character = Cast<AUmbraPlayerCharacter>(Avatar)) Attachment = Character->GetMesh();
+		auto* Effect = UGameplayStatics::SpawnEmitterAttached(Definition->ActiveEffect, Attachment,
+			Definition->CastSocket, Definition->ActiveEffectOffset, FRotator::ZeroRotator, Definition->ActiveEffectScale,
+			EAttachLocation::KeepRelativeOffset, true, EPSCPoolMethod::None, false);
+		if (Effect && Definition->Execution == EUmbraSkillExecution::SwordStorm && Definition->bSyncStormToAnimation)
+			Effect->CustomTimeDilation = Definition->PlayRate;
+		ActivateSkillParticle(Effect, Avatar);
+		SkillActiveEffects.Add(Definition->SkillId, Effect);
+	}
+	if (bStart && Definition->CastSound && IsValid(Avatar))
+		UGameplayStatics::PlaySoundAtLocation(this, Definition->CastSound, Avatar->GetActorLocation(), .5f);
+	if (bStart && IsValid(Avatar))
+	{
+		PlaySkillVoice(Definition, Definition->CastVoice);
+		if (Definition->ActiveSound)
+			SkillActiveSounds.Add(Definition->SkillId, UGameplayStatics::SpawnSoundAttached(Definition->ActiveSound,
+				Avatar->GetRootComponent(), NAME_None, FVector::ZeroVector, EAttachLocation::KeepRelativeOffset,
+				true, Definition->SkillSoundVolume, 1.f, 0.f, Definition->SkillAttenuation, Definition->SkillSoundConcurrency, true));
+	}
+}
+
+void UUmbraAbilitySystemComponent::ServerReceiveSkillAim_Implementation(FVector_NetQuantizeNormal Direction)
+{
+	if (Direction.ContainsNaN() || Direction.IsNearlyZero() || HasMatchingGameplayTag(UmbraGameplayTags::State_Attacking)
+		|| HasMatchingGameplayTag(UmbraGameplayTags::State_Dead)) return;
+	if (AActor* Avatar = GetAvatarActor()) Avatar->SetActorRotation(FVector(Direction).GetSafeNormal2D().Rotation());
+}
+
+bool UUmbraAbilitySystemComponent::ActivateTargetedLeap(FGameplayAbilitySpecHandle Handle, const FVector& Ground, FText& Reason)
+{
+    if (!IsOwnerActorAuthoritative()) return false;
+    const auto* Spec=FindAbilitySpecFromHandle(Handle);
+    const auto* D=Spec ? Cast<UUmbraSweepDefinition>(Spec->SourceObject.Get()) : nullptr;
+    FVector Resolved;
+    if (!D || !D->UsesTargeting() || !UUmbraSkillTargetingComponent::EvaluateTarget(Cast<ACharacter>(GetAvatarActor()),D,Ground,false,Resolved,Reason)) return false;
+    PendingLeapTargets.Add(Handle,Resolved);
+    const bool Accepted=TryActivateAbility(Handle);
+    PendingLeapTargets.Remove(Handle);
+    if (!Accepted) Reason=FText::FromString(TEXT("技能暂时不可施放"));
+    return Accepted;
+}
+bool UUmbraAbilitySystemComponent::ConsumeTargetedLeap(FGameplayAbilitySpecHandle Handle, FVector& Ground)
+{
+    return PendingLeapTargets.RemoveAndCopyValue(Handle,Ground);
+}
+
+void UUmbraAbilitySystemComponent::MulticastStormHit_Implementation(const UUmbraSweepDefinition* Definition, FVector Location, FRotator Rotation)
+{
+    if (!Definition || GetNetMode()==NM_DedicatedServer) return;
+    // Authoritative damage supplies each victim's position; never emit hit sparks at the caster.
+    if (Definition->StrikeEffect)
+        ActivateSkillParticle(UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Definition->StrikeEffect,
+            Location + Rotation.RotateVector(Definition->EffectOffset), Rotation, Definition->EffectScale,
+            true, EPSCPoolMethod::None, false), nullptr);
 }

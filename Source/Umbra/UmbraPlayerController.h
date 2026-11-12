@@ -20,6 +20,8 @@ class UUmbraAttributeDebugPanel;
 class UAbilitySystemComponent;
 class UGameplayEffect;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FUmbraHighlightedTargetChanged);
+
 UENUM(BlueprintType)
 enum class EUmbraPrimaryActionContext : uint8
 {
@@ -48,6 +50,9 @@ class AUmbraPlayerController : public APlayerController
 
 public:
 	AUmbraPlayerController();
+	/** Hover takes priority over the persistent auto-attack highlight. */
+	UFUNCTION(BlueprintPure, Category="UI|Target") AActor* GetHighlightedEnemyForUI() const;
+	UPROPERTY(BlueprintAssignable, Category="UI|Target") FUmbraHighlightedTargetChanged OnHighlightedTargetChanged;
 	UFUNCTION(BlueprintCallable, Category="Inventory")
 	EUmbraTransferResult RequestItemTransfer(EUmbraItemTransferOperation Operation, FGuid InstanceId, EUmbraEquipmentSlot Slot, int32 TargetCell = -1);
 	EUmbraTransferResult SubmitItemTransfer(EUmbraItemTransferOperation Operation, FGuid InstanceId, EUmbraEquipmentSlot Slot, int32 TargetCell,
@@ -94,6 +99,8 @@ public:
 		float HealthDamage, float DamagePerSecond, bool bAborted);
 	void ReleaseDamageNumber(UUmbraDamageNumber* Number);
 	virtual void Tick(float DeltaSeconds) override;
+	virtual bool InputKey(const FInputKeyEventArgs& Params) override;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Skills") TObjectPtr<class UUmbraSkillTargetingComponent> SkillTargeting;
 
 	void RequestAttributeDebugOperation(AActor* Target, EUmbraAttributeDebugOperation Operation);
 	void StopPointerActionsForDebugUI();
@@ -257,6 +264,7 @@ private:
 	AUmbraWorldItem* GetWorldItemLabelUnderCursor() const;
 	AUmbraWorldItem* FindWorldItemLabelAt(const FVector2D& Position) const;
 	friend class FUmbraWorldItemInteractionTest;
+	virtual void UpdateCameraManager(float DeltaSeconds) override;
 	void LayoutWorldItemLabels(float DeltaTime);
 	UFUNCTION() void OnWorldItemLabelDestroyed(AActor* Actor);
 	TMap<TWeakObjectPtr<AUmbraWorldItem>, UmbraWorldLabelLayout::FState> WorldItemLabelStates;
@@ -293,6 +301,13 @@ private:
 	/** Strong reflected reference prevents the viewport widget from being garbage collected. */
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> CombatHUD;
+	UPROPERTY(EditDefaultsOnly, Category="UI|Skills")
+	TSubclassOf<UUserWidget> SkillBarClass;
+	/** DPI-independent offset from bottom center, configured alongside the existing HUD. */
+	UPROPERTY(EditDefaultsOnly, Category="UI|Skills")
+	FVector2D SkillBarOffset = FVector2D(0.f, -155.f);
+	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> SkillBar;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> CharacterMenu;
@@ -340,6 +355,7 @@ private:
 	void BeginAttackTarget(AActor* TargetActor);
 	void CancelPendingAttack();
 	bool IsPrimaryAttackActive() const;
+	bool IsAttackMovementLocked() const;
 	void QueueMoveCommand(const FVector& Destination);
 	void QueueDirectMoveCommand(const FVector& WorldDirection);
 	void QueueAttackCommand(AActor* TargetActor);

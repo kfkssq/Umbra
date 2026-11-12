@@ -1,4 +1,81 @@
+> 2026-11-06 辉石魔砾：数字5/第七格，正式配置 `/Game/Skills/GlintstonePebble/DA_GlintstonePebble`。7资源、0.35秒释放、1.8秒冷却（服从现有IgnoreCooldowns开关）；厘米/秒弹道、Cold/AP伤害适配、原贴图重建Cascade和自制声音。配置优先级、导入来源与PIE步骤见 [辉石魔砾导入记录](GlintstonePebbleImport.md)。
+
+> 2026-11-05 技能原型：新增数据驱动横扫/广域横扫、Q/E 输入和 Designer 可编辑技能栏。技能费用、冷却、伤害由 GAS 执行，WBP 观察真实 GE 状态；参数来源、控件契约、逐步编辑和验收见 [技能栏蓝图指南](SkillBarBlueprintGuide.md)。
+
+> 2026-11-04 布局与遗物：WBP_Equipment左右顺序已按用户新要求重排；Accessory类别及现有116护符均支持右侧四格。四格背景保持双护符/双戒指，SlotType与背景一致，玩法统一为遗物。优先级和UE迁移脚本见 [四遗物栏与布局](RelicSlots.md)。
+
+> 2026-11-04 堆叠配置：19种锻造石开启ItemDefinition.bStackableMaterial，同种同品质合并，现有WBP_InventorySlot.StackCountText显示实例Quantity；[迁移与配置边界](SmithingStoneStacks.md)。
+
+> 2026-11-04 素材配置：当前原型敌人LootTable切换至 `/Game/Items/NativeAccessoriesV1/DA_Loot_Prototype`，包含原V2武器/防具与新116护符/19锻造石。新Profile复制现有rarity概率和表现，材料不生成词条；导入流程、覆盖顺序和配置入口见 [原生护符与锻造石](NativeAccessoriesImport.md)。
+
+> 2026-11-04 栏位更新：Feet 停用，原鞋子位置改为 Amulet2；Legs 包含裤靴，仍为十个有效栏位。旧文中的 Feet 配置及独立腿鞋规划由 [双护符栏说明](AccessoriesAndConsumables.md) 覆盖。
+
+## 2026-11-03 传说与独特共用红框
+
+传奇（传说）与独特的RarityFrameTexture统一使用现有同系列 `/Game/Asset/classic-rpg-ui/Assets/ClassicRPGUI/ClassicUI/SpecialFrames/Frame_red`。五套V2生成Profile均配置两档红框，Scripts/rarity_palette.py 的 frame(4)/frame(5)同步返回red；Scripts/configure_high_rarity_frames.py通过编辑器保存并同步配方记录。字体配色、icon背景贴图、掉落概率保持现有配置。
+## 2026-11-03 提亮紫色与金色品质文字
+
+为匹配现有icon背景辉光，史诗sRGB色由6B30B7提亮为B070FF，独特由A88732提亮为FFD34D。Scripts/rarity_palette.py为生产配色来源；Scripts/brighten_rarity_colors.py通过编辑器只更新五个V2 Profile的Epic/Unique Color并同步配方元数据。背景、边框资产与概率不变。C++词条默认色同步，品质文字和六梯度对应词条共用颜色；无需重新生成已有物品。手工调色位置为各DA_Generation_*的Rarities.Color。
+## 2026-11-03 低概率晋升与高品质标记（覆盖前版限制）
+
+原始 SourceRarity=0 仍只允许普通/魔法/稀有；=1 允许普通/魔法/稀有/史诗，当前 AffixCountWeights=50/30/15/5，史诗概率5%；=2允许史诗/传奇，用户指定传奇25%、史诗75%；=3保留传奇/独特各50%。SourceTwoLegendaryChance 为独立的[0,1]概率，不受源3高档相对权重影响，也不取决于 AffixCountWeights；非法概率拒绝生成。规则版本6。
+
+正式配置来源为 Scripts/EquipmentImport/random_equipment_v2.json：source_two_legendary_chance=0.25。迁移脚本将其保存到五个 DA_Generation_*，运行时从物品的 GenerationProfile.SourceTwoLegendaryChance 读取。0/1低档使用 AffixCountWeights；3使用 Rarities 对应权重。高档仍4条普通随机词条，传奇威能和独特效果未实现。
+
+FUmbraItemInstance.HasSpecialEffect()/IsUnique() 根据已保存的实例品质返回预留特殊效果身份/独特标记；不重复保存可与品质冲突的布尔值，不产生GE或战斗加成。Tooltip向WBP暴露 bHasSpecialEffect/bIsUnique，传奇显示“特殊效果待实现”，独特另显示“独特物品”。标记随原有品质的复制/记录恢复而保留；低品质重用Tooltip时清除。已有高品质实例也可显示标记，已有物品品质不重掷。
+## 2026-11-03 法环原始稀有度限制随机品质
+
+正式 V2 每件定义的 Generation.SourceRarity 从 Library 来源元数据 item.raw_params.rarity 导入。0/1 仅普通/魔法/稀有，2 仅史诗，3 仅传奇（用户称传说）/独特；-1 表示旧测试/未导入物品，沿用旧规则。非法源值或允许范围内全零权重直接拒绝生成，不降级或回退到禁止品质。限制在品质抽取前应用，不改变分类、具体类型和模板选择概率。
+
+普通/魔法/稀有继续使用 AffixCountWeights 的 50:30:15，相对权重在允许集合内重新归一化；史诗固定4词条。原始3使用 Profile.Rarities 的 Legendary/Unique 权重，默认1:1，两档各4条普通随机词条，未增加传奇威能或独特专有效果。生成配置 Scripts/EquipmentImport/random_equipment_v2.json 的 high_rarity_weights/high_rarity_affix_count 为生产来源，rules_version 更新至5。运行时高档权重/词条数由各 DA_Generation_* 配置，低档仍由 AffixCountWeights 配置。
+
+Scripts/EquipmentImport/apply_source_rarity.py 先核对580个来源再通过编辑器迁移 V2 定义和5个Profile，并更新生产配方版本；不保存 Library 原始资产。生成器同步生成 SourceRarity。旧实例保留已生成品质，新掉落使用新规则；不回溯改写背包或装备。详见本轮 Progress 验证记录。
+## 2026-11-03 六梯度词条颜色
+
+普通属性及加法伤害词条若有六个候选值，按实例 SelectedTier 0..5 映射普通/魔法/稀有/史诗/传奇/独特，名称、实际数值、区间同时着色，与装备自身品质无关。优先读取 ItemDefinition.GenerationProfile.Rarities 对应行的 Color；缺少对应行时使用既有白/绿/蓝/紫/粉/金默认色（sRGB FFFFFF/4BCB63/448AFF/6B30B7/E83E8C/A88732）。不按数值间距插值，也不修改生成结果或 GAS 数值。
+
+固定词条、配置预览、无效索引及非六候选区间保持白色。FUmbraTooltipAffixDisplayData.RollColor 由 BuildDisplayText 投影；WBP_TooltipAffixEntry 三个文本控件及原生回退行使用该色，复用时重新赋色。字体与布局仍由 WBP 配置，无需修改资产。已生成实例也能读取已有候选梯度着色。
+## 2026-11-03 武器伤害明细字号修正
+
+DamageKeyValueEntryClass 单独配置武器 DamageRows，未配置时回退 KeyValueEntryClass。WBP_TooltipDamageEntry 的 LabelText/ValueText 为 24；基础伤害汇总与防具主属性仍为 30。字体由 WBP Designer 管理，C++ 只选择对应行类。编辑器配置脚本为 Scripts/configure_damage_row_font.py。此记录覆盖上次将伤害明细一起放大的设置。
+
+## 2026-11-03 物理词缀来源、初始背景与主属性字号
+
+正式V2的SlashingA/BluntA/PiercingA三种物理增伤词缀全部梯度取消BasicAttack限制，AttackSource=Any；仍按伤害通道类型匹配，普攻与技能都能受益，不改变加算/乘算公式、数值或类型过滤。生成脚本同步默认值；不修改测试夹具中的刻意普攻/技能条件，已经生成的实例保留原快照，重新进入PIE后新掉落使用新配置。
+
+初始 DA_Item_TestSword / DA_Item_TestMace 均为普通品质，独立Definition的SlotBackgroundTexture、TooltipIconBackgroundTexture、TooltipTitleBackgroundTexture配置为fg4_glowGreyLight，TintRarityBackgrounds=false。生成品质Profile不覆盖这两个固定初始物品，因此需独立配置。
+
+WBP_ItemTooltip 的“基础伤害”标题和 TotalDamageText、WBP_TooltipKeyValueEntry 的 LabelText / ValueText 字号由24改为30。后者供伤害通道和DefenseRows共用；字号由WBP Designer配置，C++不覆盖字号。通过匹配UE编辑器修改并保存，原字体资源/颜色/布局保留。Scripts/fix_item_presentation.py与Saved/ItemPresentationFix/assets.json记录修改前后；重复执行使用记录的原始字号，避免累乘。
+
+SpecialEffectRows/Section不再接收RequirementStatusText或PenaltyText；无真实特殊效果则整栏隐藏。不满足需求只由属性行“不满足”和等级红色×表达，实际装备惩罚规则保持不变。相关原始状态数据仍可查询。
+
+## 2026-11-03 独立防御区、精简需求与统一物品等级
+
+本节取代此前复用 DamageSection 展示基础防御的临时方案。WBP_ItemTooltip 的 DefenseSection / DefenseRows（VerticalBox）独立绑定并显示基础护甲/魔抗；DamageSection / DamageRows / TotalDamageText 只展示武器伤害。FlavorTextSection 包含用户添加的分隔线与 FlavorTextBlock，整体随风味文字显示/折叠。
+
+RequirementRows 只显示非零四维属性需求，格式“力量 8”；不满足为红色“力量 8 不满足”。满足时使用条目默认颜色，未知时灰色且不虚构不满足。没有属性需求时 RequirementsSection 整体折叠。不再显示等级行、当前属性值、已满足汇总。未开放穿戴及实际惩罚说明转入 SpecialEffectRows，旧 PenaltyText 隐藏。
+
+ItemLevelText 读取构建器格式化文本：等级不足显示红色“物品等级 N ×”，满足或上下文未知时恢复 WBP 原始颜色，无×号。角色等级来源为 EquipmentComponent.CharacterLevel（原型固定配置，复制给所属客户端），需求等级来源为 Instance.GetItemLevel；定义预览回退 Definition.ItemLevel。装备执行、GAS需求查询、装备快照刷新和Tooltip共用该等级来源。旧 Definition.RequiredLevel 仅保留序列化兼容，退出编辑器调参/运行判定，不自动迁移为 ItemLevel。
+
+UpgradeLevel 为实例独立非负元数据，默认0；名称通过 GetDisplayName 显示“名称 +N”，不改 Definition.DisplayName、不改变 ItemLevel。Tooltip、装备显示投影、地面标签统一使用；实例记录保存/恢复该字段。未实现强化操作、消耗、成功率或数值加成。
+
+验证入口：Umbra.UI.Items.TooltipCompactContract 读取真实用户WBP，检查防御控件类型/可见性、等级红色和×清除、空需求栏隐藏；Umbra.Equipment.RequirementsAndLifecycle 验证实例等级穿戴判定与强化字段记录往返。具体执行结果见 Progress。
+
+## 2026-11-03 六档品质背景已配置
+
+按用户指定的 fantasy_gui_4/textures/quality 资产，V2 五个 DA_Generation_* 的全部六档（共30行）配置为 fg4_glowGreyLight / Green / Blue / Violet / Pink / Yellow，依次对应普通/魔法/稀有/史诗/传奇/独特。SlotBackgroundTexture、TooltipIconBackgroundTexture 与共用开关的 TooltipTitleBackgroundTexture 均使用对应彩色光晕，TintBackgrounds=false，避免二次染色。品质边框引用保持原配置。本节覆盖旧“背景待用户配置”状态。
+
+编辑入口仍为各 Profile 的 Rarities 行；Scripts/configure_production_rarity_backgrounds.py 通过 UE 编辑器保存，rarity_palette.py 同步新建默认配置。没有修改战斗参数、品质概率或 C++。
+
+## 2026-11-03 Tooltip 主属性与边框配置
+
+基础护甲/魔抗复用 Tooltip 的 DamageSection / DamageRows 独立主属性区域，防御词缀留在 StatsSection。在 GenerationProfile.Rarities 各品质行手动配置 RarityFrameTexture；边框使用彩色资产原色，不受背景染色开关影响。数据来源、覆盖顺序和检查步骤见 [ItemTooltipUI](ItemTooltipUI.md#2026-11-03-基础防御分栏与品质边框)。
+
 # 编辑器配置入口
+
+2026-11-03：[V2全类型配置与特殊类别规则](RandomEquipmentExpansion.md)：默认`PrepareRandomEquipment.ps1`读取random_equipment_v2.json，生成580件独立定义。武器内部权重近战70/盾15/远程10/施法器5，具体类型权重独立于资产数量；盾/远程/施法器保留需求、设置EquippingEnabled=false及中文原因，只有掉落/背包功能，不开启未实现战斗。可用`-Config`显式选择旧V1配置。
+
+2026-11-03：[随机装备配置来源及验证](RandomEquipmentProduction.md)：正式定义位于 `/Game/Items/GeneratedEquipment/V1`，武器需求原样继承 Library 的 Requirements；基础伤害/防御使用独立原型 JSON 调参。运行时以 DataAsset 为准，创建器保护手改字段。类型权重独立于资产数量，CountWeights 决定 1–4 条词条，品质行仅负责新模式展示。
 
 2026-11-01：[1140材质候选](Material1140Audit.md)：review规则必须显式指定并匹配DDS哈希；粗糙度图乘Roughness标量（有图默认1，无图沿用preset），Normal/Roughness均关闭sRGB。Material1140Review与用户Test01分开，视觉确认前不推广规则。
 
@@ -302,3 +379,64 @@ WorldItem.Mesh 的运行时碰撞现在是 QueryOnly / Visibility Block，其余
 ## 玩家死亡配置（2026-10-27）
 
 玩家蓝图 Death Animation 与 AudioEvents 的 Death 映射、配置脚本和覆盖顺序见 [PlayerDeath](PlayerDeath.md)。新增反射属性后需要关闭编辑器完整构建；资产由匹配版本编辑器脚本保存。
+
+## 六档掉落光效（2026-11-04）
+
+BP_WorldItem → World Item|VFX 配置 LootVFXStyles 和 LootVFXColorParameters；系统顺序对应普通/魔法/稀有/史诗/传说/独特，末两档交换原包金/红色，保持各档形态。完整参数来源、优先级、第三方来源及验收见 [LootVFX](LootVFX.md)。
+
+## 开局六品质测试器（2026-11-04）
+
+L_Prototype 中选中 `Six Rarity Startup - Random Test Loot`，Loot Test → Enabled 可开关；Source Level默认10，Spacing默认150cm，位置/旋转决定排列位置。每次进入游戏重抽各品质一件。详细模板来源、覆盖顺序及调参边界见 [SixRarityStartup](SixRarityStartup.md)。
+# 2026-11-06 锻造石配置覆盖
+
+锻造石/失色锻造石改为按等级固定品质，旧的材料随机品质说明已失效。等级映射、Definition/Profile覆盖顺序、19种展示、关闭/恢复入口及复验步骤见 [锻造石固定品质与开局展示](StoneGradesAndStartup.md)。
+
+## Greystone 技能配置（2026-11-06）
+
+2026-11-12原生路线基础：已导入匹配引擎自带`Templates/TemplateResources/High/Characters/Content`到`/Game/Characters`（编辑器LoadPackage/SavePackage，非文件系统搬移；禁止覆盖原有资源）。Manny/Quinn Simple共用`SK_Mannequin`，97段原生动画包含运动/攻击/枪械等，并非97个法术。来源为UE5.8.2模板内容，沿用其适用条款，不来自第三方下载；`/Game/SkillLab/Fixtures`的两个Niagara分别来自引擎FountainLightweight和SimpleExplosion，资产metadata记录来源，仅供技术测试。
+
+后续可玩入口为`/Game/SkillLab/Maps/L_MannySkillLab`，地图级GameMode Override选择BP_MannyLabMode；项目默认地图/GameMode与正式Greystone不变。BP_MannyLab以原生PlayerCharacter为父类，不继承Greystone武器/动画图；网格相对位置(0,0,-90)cm、旋转Pitch0/Yaw-90/Roll0。ABP继承UUmbraLocomotionAnimInstance，bMoving阈值5cm/s，动画资源在图中配置；UpperBody Slot在这里输出全身姿态。DA_MannyArcBolt参数覆盖类默认值，测试PlayerState的DebugInitialAttributes配置回复与移动速度；技能全局冷却开关仍优先。具体键位、共享标签限制和PIE步骤见[路线图](SkillImportRoadmap.md)。
+
+技能DA四阶段新增`ActiveNiagara/StrikeNiagara/ProjectileNiagara/ImpactNiagara`，与同阶段Cascade互斥，原资产默认空。施法与释放复用既有offset/scale/socket配置；飞行绑定弹体、命中采用实际碰撞法线。施法循环取消时销毁，飞行命中/销毁立即停止；单次释放/命中必须选择能够自行结束的系统。正式角色与辉石魔砾表现没有切换；脚本、用户待办和验证入口见[原生路线分工](SkillImportRoadmap.md)。
+
+辉石魔砾音效更新（2026-11-07）：正式DA的StrikeSound/ProjectileSound/ImpactSound已指向原版发射、飞行循环、三变体命中Cue，CastSound为空以移除旧合成音。源增益在SoundWave.Volume，播放端乘数1；空间衰减在 `/Game/Skills/GlintstonePebble/ATT_Pebble`，400cm内半径＋2400cm衰减距离为本项目配置。导入脚本会覆盖这些设置，bootstrap会保留原声引用。详见 [原音频来源及验证](GlintstonePebbleImport.md)。原FXR视觉仍未还原。后续FXR审计确认523001无可见appearance，DA.StrikeEffect已清空，bootstrap同样不再接入自制释放闪光；其余旧粒子仍是待替换近似版，法阵510010尚未接入。
+
+`/Game/Skills/Greystone/DA_*` 是新增四种技能的参数源；技能栏第3–6格对应主键区1–4。蒙太奇使用当前 AnimBP 的 UpperBody Slot，复苏使用独立限高下砸副本 `A_StoneRecovery_Slam`，根骨骼可见高度压缩到220cm，不能直接换回具有约41米根位移的源 Ultimate。`DefaultEngine.ini` 中 `umbra.Skills.IgnoreCooldowns=1` 暂时关闭技能CD；控制台设为0恢复DA原值。冷却UI使用 `Img_Cooldown` 的顺时针动态材质，开启CD后可见。Definition、PlayerState槽位、IMC输入、WBP预览与第三方图标来源的完整对应见 [Greystone 技能指南](GreystoneSkills.md)。脚本为显式配置入口，会重写四个新 DA 的原型数值；人工调参后不要无意重跑。
+
+## 2026-11-12 Greystone 技能图标配置
+
+当前六项技能图标由各 Definition.Icon 提供，统一指向 `/Game/Asset/Icons/flat_skills_icons_color/warrior`；Designer 的 PreviewIcon 只作预览。辉石魔砾已从 PlayerState 授予、玩家输入及 IMC 中停用，源素材保留。图标映射、可重复迁移入口、旧引导脚本的覆盖注意事项及动画素材约束见 [Greystone 方向与素材](GreystoneDirection.md)。Combat HUD 属性区本轮只提供图标推荐，未替换或导入外部资产。
+
+## Greystone 原生六技能配置（2026-11-12）
+
+当前入口见 [GreystoneNativeKit](GreystoneNativeKit.md)：主键区1–6，顺序为破阵斩、剑刃风暴、跃击震地、坚盾防御、石化复苏、战意。取代早前Q/E与彩色图标映射，原资产保留。`Scripts/configure_greystone_native_kit.py` 是当前显式配置入口；无色图标来自现有Icons包。战意持续时间与暴击率增量由DA_BattleFocus覆盖C++默认，通过GAS应用并在死亡清理；完整参数、覆盖边界与动画备用素材登记见专项文档。
+
+## 敌人卡与角色/技能整窗切页（2026-11-12）
+
+`WBP_CombatHUD.EnemyTargetPanel` 位于左上角，身份配置位于敌人BP的UI|Identity；健康信息只读GAS。`WBP_CharacterMenu.MainPageSwitcher` 包含原三栏角色页和空白技能页，顶部居中两个按钮切换整窗。素材来源、迁移入口、头像回退及静态显示等级边界见 [UI扩展配置](UIExpansion.md)。八项属性图标本轮仅提供下载推荐，未导入/替换。
+
+## Greystone 技能音效配置
+
+见 [GreystoneAudio](GreystoneAudio.md)。执行 `Scripts/configure_greystone_audio.py` 需在匹配版本 UE Editor 中；素材仅引用，配置保存在六个 Skill DA、`/Game/Skills/Greystone/Audio` 与默认音频库。缺少的循环/岩石/地面重击等素材留空。全量 native kit 配置之后再次运行音频配置。禁止把缺少音效的字段直接填入无限循环声音而不使用 ActiveSound 生命周期入口。
+
+## 斩切波编辑入口
+
+1技能仍引用DA_BreachSlash以保留技能栏链接，显示斩切波，蒙太奇为AM_SlashWave。调整和配置源见[斩切波](SlashWave.md)。不要重跑历史native kit配置覆盖手动打磨；已增加保护。
+
+## 技能2引导编辑入口
+
+`DA_SwordStorm` 开启 ChannelWhileHeld，引用 `AM_SwordStorm_Channel`（Loop段自连接）；玩家动画类为 `ABP_GreystoneMobileStorm`，最终 DefaultSlot 保留全身旋转。具体动画来源、参数单位、覆盖顺序和手工调校见 [SwordStormChannel](SwordStormChannel.md)。`configure_mobile_sword_storm.py` 只迁移技能2，保存前必须关闭占用同一资产的编辑器；已有旋转动画会保留人工修改。
+
+技能2后续纠正：当前玩家动画类恢复Greystone_AnimBlueprint，蒙太奇使用Ability_E与UpperBody槽；上文ABP_GreystoneMobileStorm/DefaultSlot方案已停用。入口及验证见 [SwordStormChannel](SwordStormChannel.md)。
+
+## 2026-11-13 跃击目标选择编辑入口
+
+第8槽测试使用`/Game/Skills/TargetingPrototype/DA_TargetLeap`。LeapDistance控制最大选点距离，Radius同时控制小圈与伤害半径，CV_TargetLeap控制路径，M_TargetCircle控制颜色与线宽；ResourceCost必须为0。配置脚本会覆盖初值，人工调参后不要重跑。完整参数单位、覆盖顺序及PIE操作见[技能目标选择](SkillTargeting.md)。
+
+斩切波前摇可在DA_BreachSlash的Timing/Windup分类调整；WindupDuration控制实际准备时长，PlayRate控制其后的挥剑速度。StrikeTime仍是源动画时刻。具体当前值、公式和限制见[SlashWave](SlashWave.md)。
+
+### 方向型原型参数入口
+
+`/Game/Skills/TargetingPrototype/DA_TargetSector`调整Radius/ArcDegrees；`DA_TargetWave`调整TargetLineLength/TargetLineHalfWidth/TargetWaveSpeed。M_TargetDirection由同一组参数驱动。9键/0键进入瞄准，左右键确认/取消；资源消耗为0。现有六技能及第8槽跃击不迁移。配置脚本、单位、覆盖顺序与手测步骤见[技能目标选择](SkillTargeting.md)。
+
+技能2特效当前分为P_SwordStorm_Channel与P_SwordStorm_HitSparks，均在/Game/Skills/Greystone/FX；前者去除Sparks层且无限循环，后者仅火星层，实际扣血时在受击者位置生成。调校时分别使用ActiveEffectScale/Offset与EffectScale/Offset；SyncStormToAnimation开启时PulseInterval不再决定伤害频率，改PlayRate可同步动画和持续粒子速度。详见 [SwordStormChannel](SwordStormChannel.md)。

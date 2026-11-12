@@ -1,3 +1,66 @@
+## 2026-11-03 传说与独特共用红框
+
+传奇（传说）与独特的RarityFrameTexture统一使用现有同系列 `/Game/Asset/classic-rpg-ui/Assets/ClassicRPGUI/ClassicUI/SpecialFrames/Frame_red`。五套V2生成Profile均配置两档红框，Scripts/rarity_palette.py 的 frame(4)/frame(5)同步返回red；Scripts/configure_high_rarity_frames.py通过编辑器保存并同步配方记录。字体配色、icon背景贴图、掉落概率保持现有配置。
+## 2026-11-03 提亮紫色与金色品质文字
+
+为匹配现有icon背景辉光，史诗sRGB色由6B30B7提亮为B070FF，独特由A88732提亮为FFD34D。Scripts/rarity_palette.py为生产配色来源；Scripts/brighten_rarity_colors.py通过编辑器只更新五个V2 Profile的Epic/Unique Color并同步配方元数据。背景、边框资产与概率不变。C++词条默认色同步，品质文字和六梯度对应词条共用颜色；无需重新生成已有物品。手工调色位置为各DA_Generation_*的Rarities.Color。
+## 2026-11-03 低概率晋升与高品质标记（覆盖前版限制）
+
+原始 SourceRarity=0 仍只允许普通/魔法/稀有；=1 允许普通/魔法/稀有/史诗，当前 AffixCountWeights=50/30/15/5，史诗概率5%；=2允许史诗/传奇，用户指定传奇25%、史诗75%；=3保留传奇/独特各50%。SourceTwoLegendaryChance 为独立的[0,1]概率，不受源3高档相对权重影响，也不取决于 AffixCountWeights；非法概率拒绝生成。规则版本6。
+
+正式配置来源为 Scripts/EquipmentImport/random_equipment_v2.json：source_two_legendary_chance=0.25。迁移脚本将其保存到五个 DA_Generation_*，运行时从物品的 GenerationProfile.SourceTwoLegendaryChance 读取。0/1低档使用 AffixCountWeights；3使用 Rarities 对应权重。高档仍4条普通随机词条，传奇威能和独特效果未实现。
+
+FUmbraItemInstance.HasSpecialEffect()/IsUnique() 根据已保存的实例品质返回预留特殊效果身份/独特标记；不重复保存可与品质冲突的布尔值，不产生GE或战斗加成。Tooltip向WBP暴露 bHasSpecialEffect/bIsUnique，传奇显示“特殊效果待实现”，独特另显示“独特物品”。标记随原有品质的复制/记录恢复而保留；低品质重用Tooltip时清除。已有高品质实例也可显示标记，已有物品品质不重掷。
+## 2026-11-03 六梯度词条颜色
+
+普通属性及加法伤害词条若有六个候选值，按实例 SelectedTier 0..5 映射普通/魔法/稀有/史诗/传奇/独特，名称、实际数值、区间同时着色，与装备自身品质无关。优先读取 ItemDefinition.GenerationProfile.Rarities 对应行的 Color；缺少对应行时使用既有白/绿/蓝/紫/粉/金默认色（sRGB FFFFFF/4BCB63/448AFF/6B30B7/E83E8C/A88732）。不按数值间距插值，也不修改生成结果或 GAS 数值。
+
+固定词条、配置预览、无效索引及非六候选区间保持白色。FUmbraTooltipAffixDisplayData.RollColor 由 BuildDisplayText 投影；WBP_TooltipAffixEntry 三个文本控件及原生回退行使用该色，复用时重新赋色。字体与布局仍由 WBP 配置，无需修改资产。已生成实例也能读取已有候选梯度着色。
+## 2026-11-03 武器伤害明细字号修正
+
+DamageKeyValueEntryClass 单独配置武器 DamageRows，未配置时回退 KeyValueEntryClass。WBP_TooltipDamageEntry 的 LabelText/ValueText 为 24；基础伤害汇总与防具主属性仍为 30。字体由 WBP Designer 管理，C++ 只选择对应行类。编辑器配置脚本为 Scripts/configure_damage_row_font.py。此记录覆盖上次将伤害明细一起放大的设置。
+
+## 2026-11-03 物理词缀来源、初始背景与主属性字号
+
+正式V2的SlashingA/BluntA/PiercingA三种物理增伤词缀全部梯度取消BasicAttack限制，AttackSource=Any；仍按伤害通道类型匹配，普攻与技能都能受益，不改变加算/乘算公式、数值或类型过滤。生成脚本同步默认值；不修改测试夹具中的刻意普攻/技能条件，已经生成的实例保留原快照，重新进入PIE后新掉落使用新配置。
+
+初始 DA_Item_TestSword / DA_Item_TestMace 均为普通品质，独立Definition的SlotBackgroundTexture、TooltipIconBackgroundTexture、TooltipTitleBackgroundTexture配置为fg4_glowGreyLight，TintRarityBackgrounds=false。生成品质Profile不覆盖这两个固定初始物品，因此需独立配置。
+
+WBP_ItemTooltip 的“基础伤害”标题和 TotalDamageText、WBP_TooltipKeyValueEntry 的 LabelText / ValueText 字号由24改为30。后者供伤害通道和DefenseRows共用；字号由WBP Designer配置，C++不覆盖字号。通过匹配UE编辑器修改并保存，原字体资源/颜色/布局保留。Scripts/fix_item_presentation.py与Saved/ItemPresentationFix/assets.json记录修改前后；重复执行使用记录的原始字号，避免累乘。
+
+SpecialEffectRows/Section不再接收RequirementStatusText或PenaltyText；无真实特殊效果则整栏隐藏。不满足需求只由属性行“不满足”和等级红色×表达，实际装备惩罚规则保持不变。相关原始状态数据仍可查询。
+
+## 2026-11-03 独立防御区、精简需求与统一物品等级
+
+本节取代此前复用 DamageSection 展示基础防御的临时方案。WBP_ItemTooltip 的 DefenseSection / DefenseRows（VerticalBox）独立绑定并显示基础护甲/魔抗；DamageSection / DamageRows / TotalDamageText 只展示武器伤害。FlavorTextSection 包含用户添加的分隔线与 FlavorTextBlock，整体随风味文字显示/折叠。
+
+RequirementRows 只显示非零四维属性需求，格式“力量 8”；不满足为红色“力量 8 不满足”。满足时使用条目默认颜色，未知时灰色且不虚构不满足。没有属性需求时 RequirementsSection 整体折叠。不再显示等级行、当前属性值、已满足汇总。未开放穿戴及实际惩罚说明转入 SpecialEffectRows，旧 PenaltyText 隐藏。
+
+ItemLevelText 读取构建器格式化文本：等级不足显示红色“物品等级 N ×”，满足或上下文未知时恢复 WBP 原始颜色，无×号。角色等级来源为 EquipmentComponent.CharacterLevel（原型固定配置，复制给所属客户端），需求等级来源为 Instance.GetItemLevel；定义预览回退 Definition.ItemLevel。装备执行、GAS需求查询、装备快照刷新和Tooltip共用该等级来源。旧 Definition.RequiredLevel 仅保留序列化兼容，退出编辑器调参/运行判定，不自动迁移为 ItemLevel。
+
+UpgradeLevel 为实例独立非负元数据，默认0；名称通过 GetDisplayName 显示“名称 +N”，不改 Definition.DisplayName、不改变 ItemLevel。Tooltip、装备显示投影、地面标签统一使用；实例记录保存/恢复该字段。未实现强化操作、消耗、成功率或数值加成。
+
+验证入口：Umbra.UI.Items.TooltipCompactContract 读取真实用户WBP，检查防御控件类型/可见性、等级红色和×清除、空需求栏隐藏；Umbra.Equipment.RequirementsAndLifecycle 验证实例等级穿戴判定与强化字段记录往返。具体执行结果见 Progress。
+
+## 2026-11-03 六档品质背景已配置
+
+按用户指定的 fantasy_gui_4/textures/quality 资产，V2 五个 DA_Generation_* 的全部六档（共30行）配置为 fg4_glowGreyLight / Green / Blue / Violet / Pink / Yellow，依次对应普通/魔法/稀有/史诗/传奇/独特。SlotBackgroundTexture、TooltipIconBackgroundTexture 与共用开关的 TooltipTitleBackgroundTexture 均使用对应彩色光晕，TintBackgrounds=false，避免二次染色。品质边框引用保持原配置。本节覆盖旧“背景待用户配置”状态。
+
+编辑入口仍为各 Profile 的 Rarities 行；Scripts/configure_production_rarity_backgrounds.py 通过 UE 编辑器保存，rarity_palette.py 同步新建默认配置。没有修改战斗参数、品质概率或 C++。
+
+### Icon 背景由用户配置（2026-11-03）
+
+已通过 UE5.8.2 读取 V2 五个 DA_Generation_*：SlotBackgroundTexture=Background_grey，TooltipIconBackgroundTexture 与 TooltipTitleBackgroundTexture=fg4_glowGreyLight，bTintBackgrounds=true。目前是灰色资产加染色，未选用分品质彩色背景。按用户要求，本轮不修改背景。用户在各 Rarities 行选择 Slot Background Texture、Tooltip Icon Background Texture；使用彩色素材时关闭 Tint Backgrounds。该开关也影响 Tooltip Title Background Texture，标题背景应同时配置。随机实例优先使用品质行，因此仅修改 ItemDefinition 背景不会覆盖生成品质行。
+## 2026-11-03 基础防御分栏与品质边框
+
+`DefenseEntries` 仅投影 `Stats` 中来源为 Intrinsic 的 Armor / MagicResistance；保留原始 Stats，固定/随机防御词缀仍进入 AffixEntries，数值与范围不合并。基础值不带加号。
+
+沿用 WBP 的 DamageSection / DamageRows 作为主数值区域：防具和盾显示“主要属性”标题及基础护甲/魔抗，与 StatsSection 的“物品属性”分开；武器继续显示伤害，若有基础防御则在同区追加。空区域折叠，切换物品清空旧行，不需要修改二进制 WBP。
+
+随机实例边框从匹配的 GenerationProfile.Rarities 行取得 RarityFrameTexture，保持彩色贴图原色，不受 bTintBackgrounds 影响。可在 DA_Generation_Armor / Weapon / Shield / Ranged / Catalyst 的 Rarities 各行手动选图；随机实例品质行覆盖 Definition 边框。当前正式四品质使用 Frame_grey / green / blue / purple。修复脚本 configure_production_rarity_frames.py 仅替换 V2 中错误的灰色默认引用，保留已自定义的其他贴图；全部六档均为配置范围；传奇/独特边框待用户指定粉色/金色透明边框资产，目前仍为灰色默认引用，不视为配置完成。背包与装备槽共用实现，图标不染色。
+
+验证：Umbra.Items.Tooltip.DefenseSeparation、Umbra.UI.Items.TooltipLifecycle、Umbra.UI.Items.Presentation。人工 PIE 检查防具/盾的主要属性与防御词缀分离、普通/魔法/稀有/史诗边框、悬停及选中高亮、切换武器/空槽无残留。执行结果见 Progress。
+
 # 物品 Tooltip：分类、WBP 契约与正式 Hover
 
 2026-10-31：[六品质修复](SixRarityRepair.md)覆盖下方旧标题颜色约定：ItemName和RarityText均随实际品质色；背景可按显式开关染色。客户端缺少服务端需求查询器时保留Tooltip，详细需求标为未知，已装备聚合状态取复制快照。

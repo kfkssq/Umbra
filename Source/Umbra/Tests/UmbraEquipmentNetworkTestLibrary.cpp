@@ -8,6 +8,37 @@
 #include "UmbraPlayerController.h"
 #include "AbilitySystem/UmbraAttributeSet.h"
 #include "Engine/Engine.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/Widget.h"
+#include "UI/Equipment/UmbraEquipmentSlotWidget.h"
+
+bool UUmbraEquipmentNetworkTestLibrary::MigrateRetiredFeetWidget(UUmbraEquipmentSlotWidget* Widget)
+{
+#if WITH_EDITOR
+	if (!IsValid(Widget)) return false;
+	const auto* Icon = Widget->EmptySlotIcons.Find(EUmbraEquipmentSlot::Amulet);
+	if (!Icon || !IsValid(Icon->Get())) return false;
+	const auto AmuletIcon = *Icon;
+	Widget->Modify();
+	Widget->EmptySlotIcons.Remove(EUmbraEquipmentSlot::Feet);
+	Widget->EmptySlotIcons.Add(EUmbraEquipmentSlot::Amulet2, AmuletIcon);
+	if (Widget->SlotType == EUmbraEquipmentSlot::Feet) Widget->SlotType = EUmbraEquipmentSlot::Amulet2;
+	return true;
+#else
+	return false;
+#endif
+}
+
+TArray<UWidget*> UUmbraEquipmentNetworkTestLibrary::GetBlueprintWidgets(UObject* Blueprint)
+{
+	TArray<UWidget*> Widgets;
+#if WITH_EDITOR
+	if (IsValid(Blueprint))
+		if (const auto* Property = FindFProperty<FObjectPropertyBase>(Blueprint->GetClass(), TEXT("WidgetTree")))
+			if (auto* Tree = Cast<UWidgetTree>(Property->GetObjectPropertyValue_InContainer(Blueprint))) Tree->GetAllWidgets(Widgets);
+#endif
+	return Widgets;
+}
 
 bool UUmbraEquipmentNetworkTestLibrary::KillEnemyForLootTest(AUmbraEnemyCharacter* Enemy)
 {

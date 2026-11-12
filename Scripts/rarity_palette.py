@@ -1,7 +1,7 @@
 """User-approved six-rarity hue order; hex values are editable sRGB tuning."""
 import unreal as u
 NAMES=("COMMON","MAGIC","RARE","EPIC","LEGENDARY","UNIQUE")
-HEX=("FFFFFF","4BCB63","448AFF","6B30B7","E83E8C","A88732")
+HEX=("FFFFFF","4BCB63","448AFF","B070FF","E83E8C","FFD34D")
 def color(index):
     rgb=[int(HEX[index][i:i+2],16)/255 for i in (0,2,4)]
     return u.LinearColor(*[(v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4) for v in rgb],1)
@@ -15,9 +15,27 @@ def art():
     return values
 def style(row,index):
     row.set_editor_property("color",color(index))
-    row.set_editor_property("tint_backgrounds",True)
+    row.set_editor_property("tint_backgrounds",False)
     for key,value in art().items(): row.set_editor_property(key,value)
+    for key,value in backgrounds(index).items(): row.set_editor_property(key,value)
+    # Active production ranks use authored frame colors, independently of background tint.
+    row.set_editor_property("rarity_frame_texture",frame(index))
     return row
+
+def backgrounds(index):
+    suffix=("GreyLight","Green","Blue","Violet","Pink","Yellow")[index]
+    path="/Game/Asset/fantasy_gui_4/textures/quality/fg4_glow"+suffix
+    texture=u.load_asset(path)
+    if not isinstance(texture,u.Texture2D): raise RuntimeError("Missing quality glow: "+path)
+    return dict(slot_background_texture=texture, tooltip_icon_background_texture=texture,
+                tooltip_title_background_texture=texture)
+
+def frame(index):
+    name=("grey","green","blue","purple","red","red")[index]
+    path="/Game/Asset/classic-rpg-ui/Assets/ClassicRPGUI/ClassicUI/SpecialFrames/Frame_"+name
+    texture=u.load_asset(path)
+    if not isinstance(texture,u.Texture2D): raise RuntimeError("Missing rarity frame: "+path)
+    return texture
 def six_rows():
     rows=[]
     for index,name in enumerate(NAMES):

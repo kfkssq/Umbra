@@ -1,0 +1,26 @@
+{
+  "rules_version": 3,
+  "destination": "/Game/Items/GeneratedEquipment/V1",
+  "note": "Umbra prototype tuning, not imported combat values. Requirements are copied unchanged from Library definitions. Types absent here remain excluded.",
+  "affix_count_weights": [50, 30, 15, 5],
+  "category_weights": {"Weapon": 40, "Armor": 60},
+  "drop_chance": 1.0,
+  "weapon_types": {
+    "OneHandedSword": {"weight": 1, "damage_type": "Slashing", "min": 20, "max": 30, "load": 4},
+    "TwoHandedSword": {"weight": 1, "damage_type": "Slashing", "min": 25, "max": 35, "load": 8},
+    "Dagger": {"weight": 1, "damage_type": "Piercing", "min": 15, "max": 25, "load": 2},
+    "Rapier": {"weight": 1, "damage_type": "Piercing", "min": 20, "max": 30, "load": 3},
+    "OneHandedAxe": {"weight": 1, "damage_type": "Slashing", "min": 20, "max": 30, "load": 4},
+    "TwoHandedAxe": {"weight": 1, "damage_type": "Slashing", "min": 25, "max": 35, "load": 8},
+    "OneHandedMace": {"weight": 1, "damage_type": "Blunt", "min": 20, "max": 30, "load": 4},
+    "TwoHandedMace": {"weight": 1, "damage_type": "Blunt", "min": 25, "max": 35, "load": 8},
+    "Spear": {"weight": 1, "damage_type": "Piercing", "min": 20, "max": 30, "load": 5},
+    "Halberd": {"weight": 1, "damage_type": "Slashing", "min": 25, "max": 35, "load": 7}
+  },
+  "armor_slots": {
+    "Head": {"weight": 1, "armor": 5, "magic_resistance": 3, "load": 2},
+    "Chest": {"weight": 1, "armor": 10, "magic_resistance": 6, "load": 5},
+    "Hands": {"weight": 1, "armor": 3, "magic_resistance": 2, "load": 1},
+    "Legs": {"weight": 1, "armor": 7, "magic_resistance": 4, "load": 3}
+  }
+}

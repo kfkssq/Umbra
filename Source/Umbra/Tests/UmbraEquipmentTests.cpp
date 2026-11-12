@@ -59,7 +59,7 @@ bool FUmbraEquipmentBindingsTest::RunTest(const FString& Parameters)
 	for (int32 Index = 0; Index < 10; ++Index)
 	{
 		UUmbraEquipmentSlotWidget* Slot = Menu->WidgetTree->ConstructWidget<UUmbraEquipmentSlotWidget>();
-		Slot->SetSlotType(static_cast<EUmbraEquipmentSlot>(Index));
+		Slot->SetSlotType((Index == 4 ? EUmbraEquipmentSlot::Amulet2 : static_cast<EUmbraEquipmentSlot>(Index)));
 		Root->AddChild(Slot);
 		Slots.Add(Slot);
 	}

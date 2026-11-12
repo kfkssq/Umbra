@@ -1,3 +1,5 @@
+> 2026-11-04 栏位更新：Feet 停用，原鞋子位置改为 Amulet2；Legs 包含裤靴，仍为十个有效栏位。旧文中的 Feet 配置及独立腿鞋规划由 [双护符栏说明](AccessoriesAndConsumables.md) 覆盖。
+
 # CharacterMenu 四维与空槽图标接线（2026-09-29）
 
 本轮只扩展既有 UI 类；不改变 Preview、装备高亮、攻击/伤害或页面切换。用户在 UE Editor 中完成下列资产接线。代码验证结果见 [Progress](Progress.md)，以前文档的历史结果不代表本次验证。

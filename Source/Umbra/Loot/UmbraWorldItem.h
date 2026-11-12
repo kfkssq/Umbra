@@ -15,7 +15,20 @@ class UMeshComponent;
 class UWidgetComponent;
 class UUmbraWorldItemVisualComponent;
 class AUmbraPlayerController;
+class UAudioComponent;
 struct FStreamableHandle;
+class UNiagaraSystem;
+class UNiagaraComponent;
+
+/** BP owns asset selection and optional VFX-only color overrides. Gameplay rarity is unchanged. */
+USTRUCT(BlueprintType)
+struct FUmbraLootVFXStyle
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) TObjectPtr<UNiagaraSystem> System;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bOverrideColor = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(EditCondition="bOverrideColor")) FLinearColor Color = FLinearColor::White;
+};
 
 UENUM(BlueprintType)
 enum class EUmbraPickupResult : uint8
@@ -40,6 +53,13 @@ public:
 	UWidgetComponent* GetLabelComponent() const { return Label; }
 	UFUNCTION(BlueprintPure, Category = "World Item") bool IsDropSettled() const { return DropMotion.bSettled; }
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "World Item|Drop Physics") FUmbraDropPhysicsSettings DropPhysics;
+	/** Seconds to fade in rarity ambience at first playback or after becoming audible again. */
+	UPROPERTY(EditDefaultsOnly, Category = "World Item|Audio", meta=(ClampMin="0.01", ClampMax="5", Units="s"))
+	float LootAmbienceFadeInDuration = 0.5f;
+	/** Empty/missing entries disable VFX. Defaults are configured on BP_WorldItem. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "World Item|VFX") TMap<EUmbraItemRarity, FUmbraLootVFXStyle> LootVFXStyles;
+	/** Exact exposed Niagara color parameter names, configured for the selected asset family. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "World Item|VFX") TArray<FName> LootVFXColorParameters;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 protected:
 	virtual void Tick(float DeltaSeconds) override;
@@ -50,9 +70,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<UStaticMeshComponent> Mesh;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<USkeletalMeshComponent> SkeletalMesh;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<UUmbraWorldItemVisualComponent> VisualComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item|VFX") TObjectPtr<UNiagaraComponent> LootVFX;
 	/** Relative location is the label offset above mesh bounds, or fixed fallback without a mesh (cm). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Item") TObjectPtr<UWidgetComponent> Label;
 private:
+	friend class FUmbraLootVFXTest;
+	void RefreshLootVFX();
 	friend class FUmbraDropPhysicsTest;
 	friend class FUmbraLootSpawnAudioTest;
 	friend class FUmbraWorldItemInteractionTest;
@@ -60,9 +83,13 @@ private:
 	void PlaySpawnAudio();
 	void RefreshLootAmbience();
 	void StopLootAmbience();
+	void OnLootAmbienceVirtualizationChanged(const UAudioComponent* Component, bool bVirtualized);
+	float GetLootAmbienceFadeDuration() const;
 	UPROPERTY(Transient) TObjectPtr<class UAudioComponent> LootAmbience;
 	FTimerHandle LootAmbienceTimer;
+	FTimerHandle LootAmbienceFadeTimer;
 	bool bLootAmbienceConfigured = false;
+	double LootAmbienceStartedAt = -1;
 	UFUNCTION() void HandleAudioGroundHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 		UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit);
 	bool bSpawnAudioSent = false;

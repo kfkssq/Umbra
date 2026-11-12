@@ -68,7 +68,7 @@ bool FUmbraItemClassificationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Warning also available to presentation"), Conflict.ClassificationWarnings.Num(), 1);
 	TestTrue(TEXT("Classification cannot generate damage"), Conflict.DamageChannels.IsEmpty());
 	Item->WeaponType = EUmbraWeaponType::Unknown;
-	const TCHAR* Categories[] = {TEXT("装备"), TEXT("武器"), TEXT("防具"), TEXT("饰品"), TEXT("消耗品"), TEXT("材料"), TEXT("杂项")};
+	const TCHAR* Categories[] = {TEXT("装备"), TEXT("武器"), TEXT("防具"), TEXT("遗物"), TEXT("消耗品"), TEXT("材料"), TEXT("杂项")};
 	for (uint8 Index = 0; Index < UE_ARRAY_COUNT(Categories); ++Index)
 	{
 		Item->ItemCategory = EUmbraItemCategory(Index);
@@ -178,10 +178,11 @@ bool FUmbraItemTooltipWidgetTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Rarity keeps authored color"), Block(TEXT("RarityText"))->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Red);
 	TestEqual(TEXT("Item level copied independent of requirement"), Block(TEXT("ItemLevelText"))->GetText().ToString(), Data.ItemLevelText.ToString());
 	TestEqual(TEXT("Damage total copied"), Block(TEXT("TotalDamageText"))->GetText().ToString(), Data.TotalDamageText.ToString());
-	TestEqual(TEXT("Only nonzero damage rows"), Rows(TEXT("DamageRows"))->GetChildrenCount(), 1);
+	TestEqual(TEXT("Damage rows exclude defenses"), Rows(TEXT("DamageRows"))->GetChildrenCount(), 1);
+	TestEqual(TEXT("Independent defense rows"), Rows(TEXT("DefenseRows"))->GetChildrenCount(), 1);
 	TestEqual(TEXT("None grades omitted"), Rows(TEXT("ScalingRows"))->GetChildrenCount(), 1);
 	TestTrue(TEXT("Curve reference note visible"), Block(TEXT("ScalingNote"))->GetText().ToString().Contains(TEXT("曲线")));
-	TestEqual(TEXT("Unified intrinsic and fixed stats"), Rows(TEXT("StatRows"))->GetChildrenCount(), Data.Stats.Num());
+	TestEqual(TEXT("Affixes exclude intrinsic defense"), Rows(TEXT("StatRows"))->GetChildrenCount(), Data.AffixEntries.Num());
 	TestFalse(TEXT("Empty special effects folded"), Visible(TEXT("SpecialEffectsSection")));
 	TestFalse(TEXT("Empty flavor folded"), Visible(TEXT("FlavorTextSection")));
 	TestTrue(TEXT("Zero weight remains valid and visible"), Visible(TEXT("WeightSection")));
@@ -190,7 +191,7 @@ bool FUmbraItemTooltipWidgetTest::RunTest(const FString& Parameters)
 	{
 		auto* Entry = CastChecked<UUmbraTooltipEntryTestWidget>(Rows(TEXT("RequirementRows"))->GetChildAt(Index));
 		TestEqual(TEXT("Unknown is never green/met"), Entry->GetEntryStyle(), EUmbraTooltipRowStyle::Unknown);
-		TestTrue(TEXT("Unknown is explicit"), Entry->GetEntryText().ToString().Contains(TEXT("未知")));
+		TestFalse(TEXT("Unknown never marked unmet"), Entry->GetEntryText().ToString().Contains(TEXT("不满足")));
 	}
 	TestEqual(TEXT("Whole subtree ignores mouse"), Tooltip->GetVisibility(), ESlateVisibility::HitTestInvisible);
 	Tooltip->SetVisibility(ESlateVisibility::Visible);
@@ -199,9 +200,9 @@ bool FUmbraItemTooltipWidgetTest::RunTest(const FString& Parameters)
 	auto* OldRow = CastChecked<UUmbraTooltipAffixTestWidget>(Rows(TEXT("StatRows"))->GetChildAt(0));
 	for (int32 Index = 0; Index < 4; ++Index) Tooltip->SetTooltipData(Data);
 	TestTrue(TEXT("Detached affix row cleared"), OldRow->GetAffixData().DisplayName.IsEmpty());
-	TestEqual(TEXT("Refresh never duplicates rows"), Rows(TEXT("StatRows"))->GetChildrenCount(), Data.Stats.Num());
+	TestEqual(TEXT("Refresh never duplicates rows"), Rows(TEXT("StatRows"))->GetChildrenCount(), Data.AffixEntries.Num());
 	Tooltip->ConstructForTest();
-	TestEqual(TEXT("Repeated Construct never duplicates rows"), Rows(TEXT("StatRows"))->GetChildrenCount(), Data.Stats.Num());
+	TestEqual(TEXT("Repeated Construct never duplicates rows"), Rows(TEXT("StatRows"))->GetChildrenCount(), Data.AffixEntries.Num());
 	// Pure projection: deliberately different preformatted text must be used verbatim.
 	auto DisplayOnly = Data;
 	DisplayOnly.AffixEntries[0].ValueText = FText::FromString(TEXT("already formatted condition"));
@@ -213,6 +214,13 @@ bool FUmbraItemTooltipWidgetTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Damage string not recomputed"), Block(TEXT("TotalDamageText"))->GetText().ToString(), DisplayOnly.TotalDamageText.ToString());
 	TestTrue(TEXT("Nonempty extension displayed"), Visible(TEXT("SpecialEffectsSection")));
 	TestTrue(TEXT("Nonempty flavor displayed"), Visible(TEXT("FlavorTextSection")));
+	auto DefenseData = Data;
+	DefenseData.DamageChannels.Reset();
+	DefenseData.DamageEntries.Reset();
+	Tooltip->SetTooltipData(DefenseData);
+	TestTrue(TEXT("Defense primary section visible"), Visible(TEXT("DefenseSection")));
+	TestFalse(TEXT("Defense hides base damage label section"), Visible(TEXT("DamageSection")));
+	TestEqual(TEXT("Defense appears outside affixes"), Rows(TEXT("DefenseRows"))->GetChildrenCount(), 1);
 	auto* Plain = NewObject<UUmbraItemDefinition>();
 	Plain->ItemCategory = EUmbraItemCategory::Material;
 	const auto PlainData = UUmbraItemTooltipDataBuilder::FromDefinition(Plain);
@@ -249,7 +257,7 @@ bool FUmbraItemTooltipWidgetTest::RunTest(const FString& Parameters)
 	const TSharedRef<SWidget> MinimalSlate = Minimal->TakeWidget();
 	TestTrue(TEXT("Optional controls absent remain usable"), Minimal->GetTooltipData().bValid);
 	auto* MinimalRows = CastChecked<UVerticalBox>(Minimal->WidgetTree->FindWidget(TEXT("StatRows")));
-	TestEqual(TEXT("Fallback plain row count"), MinimalRows->GetChildrenCount(), Data.Stats.Num());
+	TestEqual(TEXT("Fallback plain row count"), MinimalRows->GetChildrenCount(), Data.AffixEntries.Num());
 	TestNotNull(TEXT("Fallback is native text"), Cast<UTextBlock>(MinimalRows->GetChildAt(0)));
 	// Entry neutral restores the WBP color after state-specific styles.
 	auto* Entry = CreateWidget<UUmbraTooltipEntryTestWidget>(PC);
@@ -293,7 +301,7 @@ bool FUmbraTooltipWidgetReadOnlyTest::RunTest(const FString& Parameters)
 	const auto Data = UUmbraItemTooltipDataBuilder::FromInventory(InvBefore, Slot, Id, Item, Equipment, true, EUmbraEquipmentSlot::Head);
 	TestEqual(TEXT("Inventory builder carries category"), Data.ItemCategory, EUmbraItemCategory::Armor);
 	TestEqual(TEXT("Insufficient primary status built"), Data.RequirementState, EUmbraTooltipRequirementState::PrimaryPenalty);
-	TestEqual(TEXT("Requirement row is unmet"), Data.RequirementRows[1].Style, EUmbraTooltipRowStyle::Unmet);
+	TestEqual(TEXT("Requirement row is unmet"), Data.RequirementRows[0].Style, EUmbraTooltipRowStyle::Unmet);
 	const auto Effects = ASC->GetActiveEffects(FGameplayEffectQuery());
 	const auto Attributes = UUmbraEquipmentEffect::Attributes();
 	TArray<float> Values;
@@ -313,7 +321,10 @@ bool FUmbraTooltipWidgetReadOnlyTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Equipment builder valid"), Worn.bValid);
 	TestEqual(TEXT("Equipment localized type"), Worn.ItemType.ToString(), FString(TEXT("防具")));
 	Tooltip->SetTooltipData(Worn);
-	TestEqual(TEXT("Penalty shown exactly from data"), CastChecked<UTextBlock>(Tooltip->WidgetTree->FindWidget(TEXT("PenaltyText")))->GetText().ToString(), Worn.PenaltyText.ToString());
+	TestTrue(TEXT("Legacy penalty text no longer occupies requirement section"), CastChecked<UTextBlock>(Tooltip->WidgetTree->FindWidget(TEXT("PenaltyText")))->GetText().IsEmpty());
+	auto* Notices = CastChecked<UVerticalBox>(Tooltip->WidgetTree->FindWidget(TEXT("SpecialEffectRows")));
+	TestEqual(TEXT("Equipment penalties never occupy special effects"), Notices->GetChildrenCount(), 0);
+	TestEqual(TEXT("No empty special effect section"), Tooltip->WidgetTree->FindWidget(TEXT("SpecialEffectsSection"))->GetVisibility(), ESlateVisibility::Collapsed);
 	Tooltip->DestructForTest();
 	World->DestroyWorld(false);
 	GEngine->DestroyWorldContext(World);
@@ -442,6 +453,63 @@ bool FUmbraTooltipLayoutStabilityTest::RunTest(const FString& Parameters)
 	}
 	World->DestroyWorld(false);
 	GEngine->DestroyWorldContext(World);
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUmbraTooltipCompactContractTest, "Umbra.UI.Items.TooltipCompactContract",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FUmbraTooltipCompactContractTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	World->InitializeActorsForPlay(FURL());
+	auto* PC = World->SpawnActor<APlayerController>();
+	PC->SetPlayer(NewObject<ULocalPlayer>(GEngine));
+	auto* Class = LoadClass<UUmbraItemTooltip>(nullptr, TEXT("/Game/UI/Tooltip/WBP_ItemTooltip.WBP_ItemTooltip_C"));
+	if (TestNotNull(TEXT("User-edited WBP loads"), Class))
+	{
+		auto* Tip = CreateWidget<UUmbraItemTooltip>(PC, Class);
+		Tip->TakeWidget();
+		auto* Defense = Cast<UVerticalBox>(Tip->GetWidgetFromName(TEXT("DefenseRows")));
+		auto* DefenseSection = Tip->GetWidgetFromName(TEXT("DefenseSection"));
+		auto* Damage = Tip->GetWidgetFromName(TEXT("DamageSection"));
+		auto* Level = Cast<UTextBlock>(Tip->GetWidgetFromName(TEXT("ItemLevelText")));
+		auto* Requirements = Tip->GetWidgetFromName(TEXT("RequirementsSection"));
+		if (TestNotNull(TEXT("DefenseRows must be VerticalBox"), Defense) && TestNotNull(TEXT("DefenseSection binding"), DefenseSection)
+			&& TestNotNull(TEXT("DamageSection binding"), Damage) && TestNotNull(TEXT("ItemLevelText binding"), Level)
+			&& TestNotNull(TEXT("RequirementsSection binding"), Requirements))
+		{
+			const FSlateColor DefaultLevelColor = Level->GetColorAndOpacity();
+			auto* Item = NewObject<UUmbraItemDefinition>();
+			Item->Armor = 5.f; Item->MagicResistance = 3.f; Item->ItemLevel = 12;
+			Item->Requirements.Strength = 8.f;
+			auto Data = UUmbraItemTooltipDataBuilder::FromDefinition(Item);
+			Data.Requirements.bKnown = true; Data.Requirements.bLevelKnown = true; Data.Requirements.bLevelMet = false;
+			Data.Requirements.CurrentPrimaries = {5.f, 10.f, 10.f, 10.f};
+			Data.Requirements.PrimaryMet = {false, true, true, true};
+			Data.RequirementState = EUmbraTooltipRequirementState::LevelTooLow;
+			UmbraTooltipFormatting::BuildDisplayText(Data);
+			Tip->SetTooltipData(Data);
+			TestEqual(TEXT("Two defense rows in saved WBP"), Defense->GetChildrenCount(), 2);
+			TestEqual(TEXT("Defense section visible"), DefenseSection->GetVisibility(), ESlateVisibility::HitTestInvisible);
+			TestEqual(TEXT("Base damage section hidden for armor"), Damage->GetVisibility(), ESlateVisibility::Collapsed);
+			TestEqual(TEXT("Only primary requirement, no level row"), Data.RequirementRows.Num(), 1);
+			TestEqual(TEXT("Compact unmet text"), Data.RequirementRows[0].Text.ToString(), FString(TEXT("力量 8 不满足")));
+			TestEqual(TEXT("Low level marker"), Level->GetText().ToString(), FString(TEXT("物品等级 12 ×")));
+			TestEqual(TEXT("Low level red"), Level->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor(0.95f, 0.3f, 0.25f));
+			Data.Requirements.bLevelMet = true; Data.Requirements.PrimaryMet[0] = true;
+			Data.RequirementState = EUmbraTooltipRequirementState::Met;
+			UmbraTooltipFormatting::BuildDisplayText(Data); Tip->SetTooltipData(Data);
+			TestEqual(TEXT("Compact met text"), Data.RequirementRows[0].Text.ToString(), FString(TEXT("力量 8")));
+			TestEqual(TEXT("Level marker cleared"), Level->GetText().ToString(), FString(TEXT("物品等级 12")));
+			TestTrue(TEXT("Level designer color restored"), Level->GetColorAndOpacity() == DefaultLevelColor);
+			Item->Armor = 0.f; Item->MagicResistance = 0.f; Item->Requirements.Strength = 0.f;
+			Tip->SetTooltipData(UUmbraItemTooltipDataBuilder::FromDefinition(Item));
+			TestEqual(TEXT("No empty requirements section"), Requirements->GetVisibility(), ESlateVisibility::Collapsed);
+			TestEqual(TEXT("Defense rows cleared on reuse"), Defense->GetChildrenCount(), 0);
+			TestEqual(TEXT("Empty defense section collapsed"), DefenseSection->GetVisibility(), ESlateVisibility::Collapsed);
+		}
+	}
+	World->DestroyWorld(false); GEngine->DestroyWorldContext(World);
 	return true;
 }
 #endif

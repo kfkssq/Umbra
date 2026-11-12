@@ -7,9 +7,9 @@
 
 namespace
 {
-	bool Nonnegative(float Value) { return FMath::IsFinite(Value) && Value >= 0.f; }
-	bool Ratio(float Value) { return Nonnegative(Value) && Value <= 1.f; }
-	bool ValidSlot(EUmbraEquipmentSlot Slot) { return uint8(Slot) <= uint8(EUmbraEquipmentSlot::OffHand); }
+	bool IsEquipmentNonnegative(float Value) { return FMath::IsFinite(Value) && Value >= 0.f; }
+	bool Ratio(float Value) { return IsEquipmentNonnegative(Value) && Value <= 1.f; }
+	bool ValidSlot(EUmbraEquipmentSlot Slot) { return IsUmbraEquipmentSlotActive(Slot); }
 }
 
 UUmbraEquipmentComponent::UUmbraEquipmentComponent()
@@ -26,7 +26,7 @@ void UUmbraEquipmentComponent::Initialize(UUmbraAbilitySystemComponent* ASC)
 	auto* Power = GetOwner()->FindComponentByClass<UUmbraDerivedStatsComponent>();
 	if (!Power || !Power->IsDerivedPowerActive() || Power->IsPublishing() || Power->EquipmentOwner.IsValid()
 		|| CharacterLevel < 1 || !Ratio(UnmetWeaponBaseMultiplier) || !Ratio(UnmetWeaponScalingMultiplier)
-		|| !Ratio(UnmetDefenseMultiplier) || !Nonnegative(BaseCapacity) || !Nonnegative(CapacityPerStrength)
+		|| !Ratio(UnmetDefenseMultiplier) || !IsEquipmentNonnegative(BaseCapacity) || !IsEquipmentNonnegative(CapacityPerStrength)
 		|| !Ratio(LightThreshold) || !Ratio(MediumThreshold) || LightThreshold > MediumThreshold)
 	{
 		UE_LOG(LogUmbra, Error, TEXT("Equipment requires active derived stats and valid startup settings."));
@@ -70,12 +70,12 @@ bool UUmbraEquipmentComponent::IsReadyForCombat() const
 
 bool UUmbraEquipmentComponent::ValidateItem(const UUmbraItemDefinition* Item) const
 {
-	if (!IsValid(Item) || Item->RequiredLevel < 1 || Item->AllowedSlots.IsEmpty()
-		|| !Nonnegative(Item->Armor) || !Nonnegative(Item->MagicResistance) || !Nonnegative(Item->Weight)) return false;
-	for (const auto Slot : Item->AllowedSlots)
+	if (!IsValid(Item) || Item->ItemLevel < 1 || Item->GetAllowedEquipmentSlots().IsEmpty()
+		|| !IsEquipmentNonnegative(Item->Armor) || !IsEquipmentNonnegative(Item->MagicResistance) || !IsEquipmentNonnegative(Item->Weight)) return false;
+	for (const auto Slot : Item->GetAllowedEquipmentSlots())
 		if (!ValidSlot(Slot) || (Item->Weapon && Slot != EUmbraEquipmentSlot::MainHand)) return false;
-	for (const float Value : Item->Requirements.ToArray()) if (!Nonnegative(Value)) return false;
-	for (const float Value : Item->PrimaryBonuses.ToArray()) if (!Nonnegative(Value)) return false;
+	for (const float Value : Item->Requirements.ToArray()) if (!IsEquipmentNonnegative(Value)) return false;
+	for (const float Value : Item->PrimaryBonuses.ToArray()) if (!IsEquipmentNonnegative(Value)) return false;
 	if (!UUmbraEquipmentEffect::ValidateBonuses(Item)) return false;
 	if (Item->Weapon)
 	{
@@ -107,9 +107,10 @@ EUmbraEquipResult UUmbraEquipmentComponent::EquipInstance(EUmbraEquipmentSlot Sl
 	const auto InstanceId = Instance.InstanceId;
 	if (!CanMutate()) return EUmbraEquipResult::NotReady;
 	if (!Instance.IsValid()) return EUmbraEquipResult::InvalidItem;
+	if (!Item->bEquippingEnabled) return EUmbraEquipResult::EquippingUnavailable;
 	if (!InstanceId.IsValid() || !ValidateItem(Item)) return EUmbraEquipResult::InvalidItem;
-	if (!ValidSlot(Slot) || !Item->AllowedSlots.Contains(Slot)) return EUmbraEquipResult::WrongSlot;
-	if (CharacterLevel < Item->RequiredLevel) return EUmbraEquipResult::LevelTooLow;
+	if (!ValidSlot(Slot) || !Item->CanEquipInSlot(Slot)) return EUmbraEquipResult::WrongSlot;
+	if (CharacterLevel < Instance.GetItemLevel()) return EUmbraEquipResult::LevelTooLow;
 	for (const auto& Existing : Snapshot.Items)
 		if (Existing.InstanceId == InstanceId) return EUmbraEquipResult::DuplicateInstance;
 	const auto* Previous = Snapshot.Items.FindByPredicate([Slot](const auto& Entry) { return Entry.Slot == Slot; });
@@ -210,7 +211,7 @@ void UUmbraEquipmentComponent::Refresh()
 			if (!Effect || !ValidateItem(Entry.Definition)) { Snapshot.bValid = false; continue; }
 			const auto* Item = Entry.Definition.Get();
 			FUmbraEquipmentRequirementsPreview Requirements;
-			Entry.bRequirementsMet = ReadRequirements(Item, Handle, Requirements) && Requirements.bPrimariesMet;
+			Entry.bRequirementsMet = ReadRequirements(Item, Handle, Requirements, Entry.GetInstance().GetItemLevel()) && Requirements.bPrimariesMet;
 			const float DefenseMultiplier = Entry.bRequirementsMet ? 1.f : UnmetDefenseMultiplier;
 			TMap<FGameplayTag, float> Defense;
 			Defense.Add(Tags[4], Item->Armor * DefenseMultiplier);
@@ -270,7 +271,7 @@ void UUmbraEquipmentComponent::OnEffectRemoved(const FActiveGameplayEffect& Effe
 }
 
 bool UUmbraEquipmentComponent::ReadRequirements(const UUmbraItemDefinition* Item,
-	FActiveGameplayEffectHandle Excluded, FUmbraEquipmentRequirementsPreview& Out) const
+	FActiveGameplayEffectHandle Excluded, FUmbraEquipmentRequirementsPreview& Out, int32 InstanceLevel) const
 {
 	Out = FUmbraEquipmentRequirementsPreview();
 	if (!IsValid(Item) || !BoundASC.IsValid() || !BoundASC->IsActorInfoReady()) return false;
@@ -281,7 +282,8 @@ bool UUmbraEquipmentComponent::ReadRequirements(const UUmbraItemDefinition* Item
 	const auto Attributes = UUmbraEquipmentEffect::Attributes();
 	const auto Required = Item->Requirements.ToArray();
 	Out.CurrentLevel = CharacterLevel;
-	Out.bLevelMet = CharacterLevel >= Item->RequiredLevel;
+	Out.bLevelKnown = true;
+	Out.bLevelMet = CharacterLevel >= InstanceLevel;
 	Out.bPrimariesMet = true;
 	for (int32 Index = 0; Index < 4; ++Index)
 	{
@@ -300,12 +302,13 @@ bool UUmbraEquipmentComponent::ReadRequirements(const UUmbraItemDefinition* Item
 }
 
 bool UUmbraEquipmentComponent::QueryRequirements(const UUmbraItemDefinition* Item, bool bHasTargetSlot,
-	EUmbraEquipmentSlot TargetSlot, FUmbraEquipmentRequirementsPreview& Out) const
+	EUmbraEquipmentSlot TargetSlot, FUmbraEquipmentRequirementsPreview& Out, int32 InstanceLevel) const
 {
 	Out = FUmbraEquipmentRequirementsPreview();
-	if (!IsReadyForCombat() || !ValidateItem(Item)
-		|| (bHasTargetSlot && (!ValidSlot(TargetSlot) || !Item->AllowedSlots.Contains(TargetSlot)))) return false;
-	return ReadRequirements(Item, bHasTargetSlot ? Handles.FindRef(TargetSlot) : FActiveGameplayEffectHandle(), Out);
+	if ((InstanceLevel != INDEX_NONE && InstanceLevel < 1) || !IsReadyForCombat() || !ValidateItem(Item)
+		|| (bHasTargetSlot && (!ValidSlot(TargetSlot) || !Item->CanEquipInSlot(TargetSlot)))) return false;
+	return ReadRequirements(Item, bHasTargetSlot ? Handles.FindRef(TargetSlot) : FActiveGameplayEffectHandle(), Out,
+		InstanceLevel == INDEX_NONE ? Item->ItemLevel : InstanceLevel);
 }
 
 void UUmbraEquipmentComponent::Shutdown()
@@ -344,4 +347,5 @@ void UUmbraEquipmentComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProper
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME_CONDITION(UUmbraEquipmentComponent, Snapshot, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(UUmbraEquipmentComponent, CharacterLevel, COND_OwnerOnly);
 }

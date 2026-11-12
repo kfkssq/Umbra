@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "non_equippable_weapon_categories": [81, 83, 85, 86],
   "note": "Presentation suggestions only; no WeaponProfile, AllowedSlots or combat values are assigned. Review before applying to ItemDefinition.",
   "weapons": {
     "1": {"ItemCategory": "Weapon", "WeaponType": "Dagger"},
@@ -20,7 +21,30 @@
     "51": {"ItemCategory": "Weapon", "WeaponType": "Bow"},
     "53": {"ItemCategory": "Weapon", "WeaponType": "Bow"},
     "55": {"ItemCategory": "Weapon", "WeaponType": "Crossbow"},
-    "57": {"ItemCategory": "Weapon", "WeaponType": "Staff"}
+    "57": {"ItemCategory": "Weapon", "WeaponType": "Staff"},
+    "13": {"ItemCategory": "Weapon", "WeaponType": "Katana"},
+    "14": {"ItemCategory": "Weapon", "WeaponType": "Twinblade"},
+    "16": {"ItemCategory": "Weapon", "WeaponType": "HeavyThrustingSword"},
+    "24": {"ItemCategory": "Weapon", "WeaponType": "Flail"},
+    "31": {"ItemCategory": "Weapon", "WeaponType": "Scythe"},
+    "35": {"ItemCategory": "Weapon", "WeaponType": "Fist"},
+    "37": {"ItemCategory": "Weapon", "WeaponType": "Claw"},
+    "39": {"ItemCategory": "Weapon", "WeaponType": "Whip"},
+    "41": {"ItemCategory": "Weapon", "WeaponType": "ColossalWeapon"},
+    "56": {"ItemCategory": "Weapon", "WeaponType": "Ballista"},
+    "61": {"ItemCategory": "Weapon", "WeaponType": "SacredSeal"},
+    "65": {"ItemCategory": "Weapon", "WeaponType": "SmallShield"},
+    "67": {"ItemCategory": "Weapon", "WeaponType": "MediumShield"},
+    "69": {"ItemCategory": "Weapon", "WeaponType": "Greatshield"},
+    "87": {"ItemCategory": "Weapon", "WeaponType": "Torch"},
+    "88": {"ItemCategory": "Weapon", "WeaponType": "HandToHand"},
+    "89": {"ItemCategory": "Weapon", "WeaponType": "PerfumeBottle"},
+    "90": {"ItemCategory": "Weapon", "WeaponType": "ThrustingShield"},
+    "91": {"ItemCategory": "Weapon", "WeaponType": "ThrowingBlade"},
+    "92": {"ItemCategory": "Weapon", "WeaponType": "BackhandBlade"},
+    "93": {"ItemCategory": "Weapon", "WeaponType": "LightGreatsword"},
+    "94": {"ItemCategory": "Weapon", "WeaponType": "GreatKatana"},
+    "95": {"ItemCategory": "Weapon", "WeaponType": "BeastClaw"}
   },
   "armor": {
     "0": {"ItemCategory": "Armor", "SuggestedSlot": "Head"},

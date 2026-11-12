@@ -105,4 +105,5 @@ void UUmbraEnemyHealthBar::Refresh()
 	// HitTestInvisible applies to this widget AND all descendants.
 	SetVisibility(State.bVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	BP_ApplyViewState(State);
+	ApplyNativeViewState(State);
 }

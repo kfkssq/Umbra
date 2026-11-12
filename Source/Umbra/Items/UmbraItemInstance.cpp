@@ -77,7 +77,8 @@ bool FUmbraItemInstance::Create(const AActor* Authority, UUmbraItemDefinition* I
 bool FUmbraItemInstance::IsValid() const
 {
 	if (!::IsValid(Definition) || !InstanceId.IsValid()) return false;
-	if (SchemaVersion < 0 || SchemaVersion > 1) return false;
+	if (Quantity < 1 || (Quantity != 1 && !CanStack())) return false;
+	if (UpgradeLevel < 0 || SchemaVersion < 0 || SchemaVersion > 1) return false;
 	if (Definition->GenerationProfile && (SchemaVersion != 1 || GenerationRulesVersion < 1)) return false;
 	if (SchemaVersion == 1 && (DefinitionId.IsNone() || ItemLevel < 1 || uint8(Rarity) > uint8(EUmbraItemRarity::Unique)
 		|| GenerationRulesVersion < 0)) return false;
@@ -94,6 +95,19 @@ bool FUmbraItemInstance::IsValid() const
 	return true;
 }
 
+bool FUmbraItemInstance::CanStack() const
+{
+	return ::IsValid(Definition) && Definition->bStackableMaterial
+		&& Definition->ItemCategory == EUmbraItemCategory::Material && !Definition->bEquippingEnabled
+		&& Definition->AllowedSlots.IsEmpty() && !Definition->Weapon && RolledAffixes.IsEmpty() && UpgradeLevel == 0;
+}
+
+bool FUmbraItemInstance::CanStackWith(const FUmbraItemInstance& Other) const
+{
+	// Material level and generation seed have no effect on its use; the receiving stack keeps its metadata.
+	return CanStack() && Other.CanStack() && Definition == Other.Definition && GetRarity() == Other.GetRarity();
+}
+
 bool FUmbraItemInstance::UpgradeLegacy()
 {
 	if (!IsValid()) return false;
@@ -103,6 +117,13 @@ bool FUmbraItemInstance::UpgradeLegacy()
 	ItemLevel = Definition->ItemLevel; Rarity = Definition->Rarity;
 	SchemaVersion = 1;
 	return true;
+}
+
+FText FUmbraItemInstance::GetDisplayName() const
+{
+	if (!Definition) return FText::GetEmpty();
+	const FText Name = Definition->DisplayName.IsEmpty() ? FText::FromName(Definition->GetFName()) : Definition->DisplayName;
+	return UpgradeLevel > 0 ? FText::Format(NSLOCTEXT("UmbraItem", "UpgradedName", "{0} +{1}"), Name, FText::AsNumber(UpgradeLevel)) : Name;
 }
 
 int32 FUmbraItemInstance::GetItemLevel() const { return SchemaVersion == 0 && Definition ? Definition->ItemLevel : ItemLevel; }
@@ -119,6 +140,8 @@ bool FUmbraItemInstanceRecord::Capture(FUmbraItemInstance Value, FUmbraItemInsta
 {
 	if (!Value.UpgradeLegacy()) return false;
 	Out.SchemaVersion = Value.SchemaVersion; Out.DefinitionId = Value.DefinitionId; Out.InstanceId = Value.InstanceId;
+	Out.UpgradeLevel = Value.UpgradeLevel;
+	Out.Quantity = Value.Quantity;
 	Out.ItemLevel = Value.ItemLevel; Out.Rarity = Value.Rarity; Out.GenerationSeed = Value.GenerationSeed;
 	Out.GenerationRulesVersion = Value.GenerationRulesVersion; Out.RolledAffixes = Value.RolledAffixes;
 	// Rolled damage stores a scalar; never persist its authoring curve reference.
@@ -134,6 +157,8 @@ bool FUmbraItemInstanceRecord::Restore(UUmbraItemDefinition* Resolved, FUmbraIte
 	if (Expected != DefinitionId) return false;
 	FUmbraItemInstance Next;
 	Next.Definition = Resolved; Next.SchemaVersion = SchemaVersion; Next.DefinitionId = DefinitionId;
+	Next.UpgradeLevel = UpgradeLevel;
+	Next.Quantity = Quantity;
 	Next.InstanceId = InstanceId; Next.ItemLevel = ItemLevel; Next.Rarity = Rarity;
 	Next.GenerationSeed = GenerationSeed; Next.GenerationRulesVersion = GenerationRulesVersion; Next.RolledAffixes = RolledAffixes;
 	if (!Next.IsValid()) return false;

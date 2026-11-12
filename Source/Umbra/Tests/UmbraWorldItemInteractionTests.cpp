@@ -27,6 +27,21 @@ bool FUmbraWorldItemInteractionTest::RunTest(const FString& Parameters)
 	TArray<FBox2D> Rects;
 	{
 		using namespace UmbraWorldLabelLayout;
+		FState First, Duplicate, Neighbor;
+		TArray<FEntry> Entries{
+			{FVector2D(300, 300), FVector2D(100, 24), &First, false},
+			{FVector2D(300, 300), FVector2D(100, 24), &Duplicate, false},
+			{FVector2D(300, 272), FVector2D(100, 24), &Neighbor, false}};
+		Update(Entries, FVector2D(1280, 720), 4, 1.f/60, 16, 12);
+		TestTrue(TEXT("Initial label starts at its item anchor"), First.RenderPosition.Equals(Entries[0].DesiredMin));
+		TestTrue(TEXT("Duplicate cannot steal another item's natural anchor"), Neighbor.RenderPosition.Equals(Entries[2].DesiredMin));
+		TestTrue(TEXT("Only the overlapping label is displaced"), Duplicate.RenderPosition.Equals(FVector2D(300, 328)));
+		Entries.RemoveAt(2); Entries.RemoveAt(0);
+		for (int32 Frame=0; Frame<120; ++Frame) Update(Entries, FVector2D(1280, 720), 4, 1.f/60, 16, 12);
+		TestTrue(TEXT("Temporary spawn avoidance returns to its own free anchor"), Duplicate.RenderPosition.Equals(Entries[0].DesiredMin, 0.01));
+	}
+	{
+		using namespace UmbraWorldLabelLayout;
 		TArray<FState> States;
 		States.SetNum(20);
 		TArray<FEntry> Entries;
@@ -63,14 +78,17 @@ bool FUmbraWorldItemInteractionTest::RunTest(const FString& Parameters)
 			for (auto& E : Entries) E.DesiredMin = FVector2D(500 + Offset, 300);
 			Update(Entries, View, 4, 1.f / 60, 16, 12);
 			for (int32 I = 0; I < States.Num(); ++I)
+			{
 				TestTrue(TEXT("Small camera oscillation preserves slots"), States[I].TargetPosition.Equals(Initial[I] + FVector2D(Offset, 0), 0.001));
+				TestTrue(TEXT("Camera motion has no render lag or snap cycle"), States[I].RenderPosition.Equals(Initial[I] + FVector2D(Offset, 0), 0.001));
+			}
 			CheckVisible(View);
 		}
 		Entries[5].bPinned = true;
 		const FVector2D Pinned = States[5].RenderPosition;
 		for (auto& E : Entries) E.DesiredMin += FVector2D(2, 2);
 		Update(Entries, View, 4, 1.f / 60, 16, 12);
-		TestTrue(TEXT("Hovered rectangle stays under cursor"), States[5].RenderPosition.Equals(Pinned, 0.001));
+		TestTrue(TEXT("Hovered offset follows camera without screen pinning"), States[5].RenderPosition.Equals(Pinned + FVector2D(2, 2), 0.001));
 		CheckVisible(View);
 		Entries[5].bPinned = false;
 		// Physical viewport / DPI changes enter the solver as new Slate bounds and anchors.
@@ -93,9 +111,10 @@ bool FUmbraWorldItemInteractionTest::RunTest(const FString& Parameters)
 		FState A, B;
 		A.bVisible = B.bVisible = true;
 		A.Anchor = B.Anchor = FVector2D(100, 100);
-		A.TargetPosition = B.TargetPosition = A.RenderPosition = B.RenderPosition = A.Anchor;
-		TArray<FEntry> EA{{FVector2D(200, 100), FVector2D(100, 20), &A, false}};
-		TArray<FEntry> EB{{FVector2D(200, 100), FVector2D(100, 20), &B, false}};
+		A.RenderPosition = B.RenderPosition = A.Anchor;
+		A.TargetPosition = B.TargetPosition = FVector2D(200, 100);
+		TArray<FEntry> EA{{A.Anchor, FVector2D(100, 20), &A, false}};
+		TArray<FEntry> EB{{B.Anchor, FVector2D(100, 20), &B, false}};
 		Update(EA, View, 4, 1.f / 30, 16, 12);
 		Update(EB, View, 4, 1.f / 60, 16, 12); Update(EB, View, 4, 1.f / 60, 16, 12);
 		TestTrue(TEXT("DeltaTime independent smoothing"), A.RenderPosition.Equals(B.RenderPosition, 0.001));

@@ -1,4 +1,59 @@
+> 2026-11-12 可玩Manny实验场：独立L_MannySkillLab → BP_MannyLabMode → BP_MannyLab/BP_MannyLabState，BP_MannyLabController继承现有Controller并配置独立IMC_MannyLab（技能从1开始），沿用Enhanced Input及GAS。地图动态导航支持鼠标地面寻路。UUmbraLocomotionAnimInstance仅提供速度/移动状态，ABP_MannyLab配置待机/跑步混合与全身Montage Slot；DA_MannyArcBolt配置原生动画和四阶段Niagara、复用现有投射物技能图标，不替换正式角色或原技能。UpperBody为兼容已有Montage工具的Slot名，在此ABP中作用于全身。配置与直接PIE步骤见[路线图](SkillImportRoadmap.md)。
+
+> 2026-11-12 原生表现基础：DA新增四阶段可选Niagara引用，校验同阶段Cascade/Niagara互斥；ASC拥有施法实例，投射物拥有飞行实例，命中及生命周期结束清理。释放/命中为有限时长自销毁系统。GAS权威伤害/费用/冷却不变。Manny/Quinn基准与后续可玩实验场均与正式角色隔离；[原生路线与分工](SkillImportRoadmap.md)记录配置来源和验证边界。
+
+> 2026-11-06 辉石魔砾：既有技能执行器新增 Projectile 分支，服务器生成 `AUmbraSkillProjectile`，子步扫掠与首次命中锁定后走既有 GAS 伤害链；动画/粒子/声音引用由DA配置，UI仍观察GAS。2026-11-07新增DA.ProjectileSound：投射物拥有附着的FlightAudio，BeginPlay启动、命中及EndPlay停止，专用服务器跳过播放；原声音源、循环及空间衰减由编辑器资产配置。数据流、适配差异和验证见 [辉石魔砾导入记录](GlintstonePebbleImport.md)。
+
+> 2026-11-05 技能原型：新增数据驱动横扫/广域横扫、Q/E 输入和 Designer 可编辑技能栏。技能费用、冷却、伤害由 GAS 执行，WBP 观察真实 GE 状态；参数来源、控件契约、逐步编辑和验收见 [技能栏蓝图指南](SkillBarBlueprintGuide.md)。
+
+> 2026-11-04 遗物规则更新：Accessory类别统一使用右侧四栏；装备、背包UI、Tooltip和词条筛选使用GetAllowedEquipmentSlots/CanEquipInSlot。左侧头胸手腿，右侧护符护符戒指戒指的背景只是视觉区分。见 [四遗物栏与布局](RelicSlots.md)。
+
+> 2026-11-04 背包更新：锻造石按定义+品质堆叠，Quantity归属实例并随背包快照复制；服务器合并，UI投影数量。边界和验证入口见 [锻造石堆叠](SmithingStoneStacks.md)。
+
+> 2026-11-04 素材更新：116件护符和19种锻造石接入独立NativeAccessoriesV1配置。生成器用bMaterialRarityOnly分支复用品质选择但跳过战斗词条；混合掉落表支持Accessory/Material，材料Tooltip不查询装备需求。配置与数据流见 [原生护符与锻造石](NativeAccessoriesImport.md)。
+
+> 2026-11-04 栏位更新：Feet 停用，原鞋子位置改为 Amulet2；Legs 包含裤靴，仍为十个有效栏位。旧文中的 Feet 配置及独立腿鞋规划由 [双护符栏说明](AccessoriesAndConsumables.md) 覆盖。
+
+## 2026-11-03 低概率晋升与高品质标记（覆盖前版限制）
+
+原始 SourceRarity=0 仍只允许普通/魔法/稀有；=1 允许普通/魔法/稀有/史诗，当前 AffixCountWeights=50/30/15/5，史诗概率5%；=2允许史诗/传奇，用户指定传奇25%、史诗75%；=3保留传奇/独特各50%。SourceTwoLegendaryChance 为独立的[0,1]概率，不受源3高档相对权重影响，也不取决于 AffixCountWeights；非法概率拒绝生成。规则版本6。
+
+正式配置来源为 Scripts/EquipmentImport/random_equipment_v2.json：source_two_legendary_chance=0.25。迁移脚本将其保存到五个 DA_Generation_*，运行时从物品的 GenerationProfile.SourceTwoLegendaryChance 读取。0/1低档使用 AffixCountWeights；3使用 Rarities 对应权重。高档仍4条普通随机词条，传奇威能和独特效果未实现。
+
+FUmbraItemInstance.HasSpecialEffect()/IsUnique() 根据已保存的实例品质返回预留特殊效果身份/独特标记；不重复保存可与品质冲突的布尔值，不产生GE或战斗加成。Tooltip向WBP暴露 bHasSpecialEffect/bIsUnique，传奇显示“特殊效果待实现”，独特另显示“独特物品”。标记随原有品质的复制/记录恢复而保留；低品质重用Tooltip时清除。已有高品质实例也可显示标记，已有物品品质不重掷。
+## 2026-11-03 法环原始稀有度限制随机品质
+
+正式 V2 每件定义的 Generation.SourceRarity 从 Library 来源元数据 item.raw_params.rarity 导入。0/1 仅普通/魔法/稀有，2 仅史诗，3 仅传奇（用户称传说）/独特；-1 表示旧测试/未导入物品，沿用旧规则。非法源值或允许范围内全零权重直接拒绝生成，不降级或回退到禁止品质。限制在品质抽取前应用，不改变分类、具体类型和模板选择概率。
+
+普通/魔法/稀有继续使用 AffixCountWeights 的 50:30:15，相对权重在允许集合内重新归一化；史诗固定4词条。原始3使用 Profile.Rarities 的 Legendary/Unique 权重，默认1:1，两档各4条普通随机词条，未增加传奇威能或独特专有效果。生成配置 Scripts/EquipmentImport/random_equipment_v2.json 的 high_rarity_weights/high_rarity_affix_count 为生产来源，rules_version 更新至5。运行时高档权重/词条数由各 DA_Generation_* 配置，低档仍由 AffixCountWeights 配置。
+
+Scripts/EquipmentImport/apply_source_rarity.py 先核对580个来源再通过编辑器迁移 V2 定义和5个Profile，并更新生产配方版本；不保存 Library 原始资产。生成器同步生成 SourceRarity。旧实例保留已生成品质，新掉落使用新规则；不回溯改写背包或装备。详见本轮 Progress 验证记录。
+## 2026-11-03 六梯度词条颜色
+
+普通属性及加法伤害词条若有六个候选值，按实例 SelectedTier 0..5 映射普通/魔法/稀有/史诗/传奇/独特，名称、实际数值、区间同时着色，与装备自身品质无关。优先读取 ItemDefinition.GenerationProfile.Rarities 对应行的 Color；缺少对应行时使用既有白/绿/蓝/紫/粉/金默认色（sRGB FFFFFF/4BCB63/448AFF/6B30B7/E83E8C/A88732）。不按数值间距插值，也不修改生成结果或 GAS 数值。
+
+固定词条、配置预览、无效索引及非六候选区间保持白色。FUmbraTooltipAffixDisplayData.RollColor 由 BuildDisplayText 投影；WBP_TooltipAffixEntry 三个文本控件及原生回退行使用该色，复用时重新赋色。字体与布局仍由 WBP 配置，无需修改资产。已生成实例也能读取已有候选梯度着色。
+## 2026-11-03 武器伤害明细字号修正
+
+DamageKeyValueEntryClass 单独配置武器 DamageRows，未配置时回退 KeyValueEntryClass。WBP_TooltipDamageEntry 的 LabelText/ValueText 为 24；基础伤害汇总与防具主属性仍为 30。字体由 WBP Designer 管理，C++ 只选择对应行类。编辑器配置脚本为 Scripts/configure_damage_row_font.py。此记录覆盖上次将伤害明细一起放大的设置。
+
+## 2026-11-03 物理词缀与展示配置
+
+V2 的斩击、打击、穿刺增伤资产及生成脚本采用 AttackSource=Any，仍按实际伤害类型匹配，由既有 GAS 计算，不在 UI 重算。初始测试剑/锤从各自 Definition 读取品质背景；主属性字体保存在 WBP 模板。Tooltip 的特殊效果区只读取 SpecialEffects，不再混入装备门槛或惩罚提示。编辑器脚本使用开发辅助库 GetBlueprintWidgets 读取 WidgetTree，再通过编辑器编译和保存资产；不直接修改二进制文件。详见 [展示契约](ItemTooltipUI.md)。
+
+## 2026-11-03 Tooltip 与实例等级
+
+装备穿戴、需求预览及Tooltip统一读取实例 ItemLevel；RequiredLevel旧字段仅为序列化兼容。UpgradeLevel独立保存在实例与记录中，只驱动名称后缀；防御区改为独立 DefenseSection/DefenseRows。详细契约见 [ItemTooltipUI](ItemTooltipUI.md)。
+
+## 2026-11-03 Tooltip 防御投影与边框
+
+BuildDisplayText 将 Intrinsic Armor/MagicResistance 投影为 DefenseEntries，与 AffixEntries 分离；Tooltip 只呈现，不重算战斗值。FUmbraEquipmentItemDisplay 从实例品质对应配置行读取 RarityFrameTexture，FUmbraItemSlotVisual 对背包/装备槽统一应用彩色资产原色。见 [展示契约](ItemTooltipUI.md#2026-11-03-基础防御分栏与品质边框)。
+
 # Umbra 架构与维护地图
+
+2026-11-03：[全类型随机装备V2](RandomEquipmentExpansion.md)：580件完整投放、28武器类型+4防具部位独立权重。特殊92件先可掉落/拾取，Definition的EquippingEnabled服务器门禁在库存/GE变更前拒绝穿戴，Tooltip独立显示可用性；格挡/远程/施法规则已规划，未冒充实现。V1资产与旧实例保留。
+
+2026-11-03：[导入资产随机装备 V1](RandomEquipmentProduction.md)：Library 展示草稿 → 保留名称/分类/属性需求的独立玩法定义 → 大类/类型/模板分层选择 → 1–4 条词条确定普通至史诗 → 既有实例/GAS/背包装备链。旧平面掉落与旧品质先行生成模式保留，传奇/独特正式生成未启用。
 
 2026-11-01：[跨类型批测](EquipmentBatchCoverage18.md)：逐包转换失败隔离→成功资源继续进入UE→逐行草稿创建；盾等未映射类型仅在测试计划显式允许时导入资源，不伪造分类。18件样本7成功/11阻断，下一步优先解析detail层语义。
 
@@ -229,3 +284,66 @@ PlayerCharacter 观察 PlayerState ASC Health → 权威死亡状态复制 → �
 ## 批量装备导入更新（2026-11-02）
 
 [批量入口](EquipmentBulkImport.md)由bulk_import编排固定选择、分进程导入与失败重试；matbin_rules负责源材质默认引用，flver_layout负责主顶点语义；玩法定义仍由现有C++拥有，导入只创建展示草稿。Special材质不做未知通道回退。
+
+## 六档掉落 Niagara 光效（2026-11-04）
+
+AUmbraWorldItem 在实例初始化/复制与视觉刷新处更新自有 LootVFX 组件；BP_WorldItem 提供六档系统与颜色参数配置。组件跟随位置、保持绝对旋转/缩放，拾取立即清理，专用服务器不播放。品质来源仍为 ItemInstance，新增覆盖色只作用于 VFX。参数优先级、来源和验证见 [LootVFX](LootVFX.md)。
+
+## 开局六品质测试掉落（2026-11-04）
+
+原型地图新增 BP_SixRarityStartup，继承既有 AUmbraLootTestSpawner；开局服务端只生成一批六档实例，模板与词条通过既有生成器随机采样，正式规则不变。该功能只在开发构建运行。配置来源、关闭方法和验证见 [SixRarityStartup](SixRarityStartup.md)。
+# 2026-11-06 材料品质规则补充
+
+`bMaterialRarityOnly` 生成器按 `ItemDefinition.Rarity` 固定品质，材料不参与SourceRarity门槛、权重抽取或晋升。等级到品质映射由导入配置写入定义；实例快照驱动UI和掉落光效。装备/护符随机规则不变。配置源、覆盖顺序及19种开局展示见 [锻造石固定品质](StoneGradesAndStartup.md)。
+
+## Greystone 主动技能扩展（2026-11-06）
+
+现有 SweepDefinition/Ability 以 Execution 区分扇形、风暴脉冲、实际落地震击、防御 GE 和蓄力恢复。保留序列化类型与 Q/E 默认行为；PlayerState 继续按 Definition SourceObject 授予同一能力类。伤害统一进入 UmbraDamage/GAS，防御与治疗通过专用 GE；技能自身拥有定时器、根运动任务与增益清理，ASC 拥有角色粒子的开始/停止多播。UI 继续只观察槽位定义和真实冷却。资源、时点、原地副本、输入与维护入口见 [Greystone 技能](GreystoneSkills.md)。
+
+## Greystone 原生技能组（2026-11-12）
+
+现役六槽改为独立原生动作组与数字键1–6，见 [原生六技能](GreystoneNativeKit.md)。`UUmbraSweepAbility` 新增BattleFocus执行方式，施法成功产生定时`UUmbraSkillFocusEffect`，结束施法不撤销已成功的增益；重施刷新，PlayerCharacter死亡路径移除。效果只修改现有CriticalChance，伤害仍走既有GAS链，不新增附魔/元素计算。Editor-only ConfigureGuardMontage管理防御三段时间组织，不修改供应商序列；运行时蒙太奇由资产引用。旧横扫及辉石素材保留但不在InitialSkillSlots授予。
+
+## UI目标观察与主页面（2026-11-12）
+
+`AUmbraPlayerController.OnHighlightedTargetChanged` 发布已有悬停/自动攻击高亮来源的变化；`UUmbraEnemyTargetPanel` 解析当前目标，继承 `UUmbraEnemyHealthBar` 的GAS生命值监听、ASC生命周期与EndPlay清理，WBP只负责布局。敌人身份由 `AUmbraEnemyCharacter.UI|Identity` 类默认值配置，等级为显式展示字段，不推导掉落等级或战斗倍率。
+
+`UUmbraCharacterMenu` 新增主页面按钮与可选MainPageSwitcher绑定；整组三栏内容仍为原Widget实例，技能页为空Canvas；既有递归可见性监听继续管理装备预览和背包页面生命周期。资产入口、配置覆盖顺序及验证见 [UI扩展](UIExpansion.md)。
+
+## 2026-11-12 Greystone 技能音频
+
+技能专用声音继续由 `UUmbraSweepDefinition` 配置。ASC multicast 负责起手/生效语音与可停止的附着 ActiveSound；`UUmbraSweepAbility::EndAbility` 传递取消状态，ASC 死亡标签/换角色/注销负责清理。真实伤害音保留 `FUmbraDamageAudio → UUmbraAudioComponent → Library` 路径，避免空挥播放命中音。配置、素材缺口与验证见 [GreystoneAudio](GreystoneAudio.md)。
+
+## 2026-11-13 斩切波投射物
+
+`AUmbraSkillProjectile` 增加可配置静态网格表现、宽体盒扫掠；HalfWidth=0保留既有球体行为。起点清障与飞行使用同一碰撞形状；转向率0同时禁用初始目标吸附。具体资产、尺寸和验证见[斩切波](SlashWave.md)。
+
+## 2026-11-13 可移动引导旋风
+
+技能2由 `UUmbraSweepAbility` 的 SwordStorm 分支处理按住/释放、持续伤害和结束清理；ASC 标签输入路径转发释放事件，ClearAbilityInput 同样结束引导。`State.Skill.SwordStorm` 由无限 GE 授予并在 EndAbility 移除，Controller 只对该状态解除移动锁。动画资产和完整配置边界见 [SwordStormChannel](SwordStormChannel.md)。
+
+### 技能文字Tooltip（2026-11-13）
+
+UUmbraSweepDefinition.Description存储玩家可读机制说明，SkillSlot的ReadViewState与DisplayName一起投影。UUmbraSkillSlotWidget按授予状态缓存/解除UUmbraSkillTooltip，通过原生MouseEnter/Leave控制悬停，并使用视口Slate坐标优先定位在技能框上方，不建立第二套技能状态。UUmbraSkillTooltip更新两段FText和相对槽位的位置，WBP拥有文字、换行和物品同系列底板。手动配置及边界见[UI扩展](UIExpansion.md)。
+
+### 2026-11-13 用户纠正：保留原技能动画与移动朝向
+
+技能2已恢复Ability_E、UpperBody槽和原Greystone_AnimBlueprint；不再使用额外制作的整圈根骨旋转与合成迈步。仅保留可移动长按引导，CharacterMovement朝移动方向转向规则未改。见 [SwordStormChannel](SwordStormChannel.md)。此修正覆盖上文全身DefaultSlot方案。
+
+## 2026-11-13 独立跃击选点原型
+
+PlayerController持有UUmbraSkillTargetingComponent，负责本地鼠标投影、输入消费和独立可见Actor上的参数化贴花。仅bTargetedLeap定义进入选点；ASC从已授予Spec验证并消费一次确认目标，SweepAbility等待真实Landed后经现有GAS结算。范围参数与轨迹曲线在预览、服务器检查和执行之间共享。第8空槽承载测试，原有六技能不接入。详见[技能目标选择](SkillTargeting.md)。
+
+## 2026-11-13 分段前摇
+
+投射物技能可通过SweepDefinition.WindupEndTime/WindupDuration定义准备动作区间与真实时长，SweepAbility在准备阶段使用区间长度/时长作为播放速率，再通过ASC切回PlayRate；发射延迟使用同一分段公式，取消清理WindupTimer。默认0保留其余技能。当前斩切波调整接口见[SlashWave](SlashWave.md)。
+
+### 2026-11-13 方向型目标选择
+
+同一选点组件新增bTargetedDirection：第9槽扇形、第10槽条形，现有技能保持关闭。服务器消费确认方向，SweepAbility在出手时创建AUmbraDirectionalSkillEffect；该Actor在服务端通过共享ContainsTarget几何规则与既有GAS结算，客户端仅显示参数化贴花。发波独立推进并对目标去重。数据与执行边界见[技能目标选择](SkillTargeting.md)。
+
+## 2026-11-13 旋风节拍与受击火星
+
+SwordStorm的伤害间隔改由首段蒙太奇周期/PlayRate/StormPulsesPerCycle推导（显式开启SyncStormToAnimation）；重复Timer避免逐脉冲重设产生累积偏移。ASC持续Cascade组件播放速度跟随PlayRate。
+
+SwordStorm不再在施法者中心生成StrikeEffect；Sweep权威端保存每个受击者位置，GAS结算后检测其Health实际降低，再MulticastStormHit于该位置生成短命火星。持续旋风和受击火星使用独立项目粒子副本，源Paragon资产不变。参数/观感调校见 [SwordStormChannel](SwordStormChannel.md)。

@@ -65,6 +65,11 @@ void UUmbraEquipmentMenu::UnbindSlots()
 	for (UUmbraEquipmentSlotWidget* EquipmentSlot : BoundSlots)
 	{
 		if (!EquipmentSlot) continue;
+		if (!IsUmbraEquipmentSlotActive(EquipmentSlot->GetSlotType()))
+		{
+			EquipmentSlot->SetVisibility(ESlateVisibility::Collapsed);
+			continue;
+		}
 		EquipmentSlot->OnSelectionRequested.RemoveDynamic(this, &ThisClass::HandleSelection);
 		EquipmentSlot->OnUnequipRequested.RemoveDynamic(this, &ThisClass::HandleUnequip);
 		EquipmentSlot->OnTooltipHoverChanged.RemoveAll(this);
@@ -87,6 +92,11 @@ void UUmbraEquipmentMenu::RebuildSlotBindings()
 	{
 		UUmbraEquipmentSlotWidget* EquipmentSlot = Cast<UUmbraEquipmentSlotWidget>(Widget);
 		if (!EquipmentSlot) continue;
+		if (!IsUmbraEquipmentSlotActive(EquipmentSlot->GetSlotType()))
+		{
+			EquipmentSlot->SetVisibility(ESlateVisibility::Collapsed);
+			continue;
+		}
 		BoundSlots.Add(EquipmentSlot);
 		EquipmentSlot->InteractionMenu = this;
 		EquipmentSlot->SetVisibility(ESlateVisibility::Visible);

@@ -51,3 +51,27 @@ P0 为原型主循环，P1 为体验补齐，P2 为当前仅接口。时长单�
 | [Sonniss GameAudioGDC](https://sonniss.com/gameaudiogdc/) / [Bundle License](https://sonniss.com/gdc-bundle-license/) | 仅核查官方 Bundle 许可入口 | 该 Bundle 许可允许商业项目使用和修改、不要求署名；须遵守完整条款，不单独转售原音效 | 按实际选用年份/包版本保存适用许可副本，不推及 Sonniss 全站其他资源 |
 
 选定每个文件后补登记：`EventName / 原始文件名 / UE 资产路径 / 来源单条 URL / 作者 / 下载或购买日期 / 许可证版本与 URL / 署名原文 / 本地许可凭证位置 / 剪辑修改说明 / 审核状态`。未确认前保持库的 Sounds 数组为空。上述在线来源核查日期为 2026-10-24。
+
+## 2026-11-06：Greystone 技能打击感素材补充建议
+
+这次仅查询官方来源与提出制作方案，没有购买、下载或导入新声音。优先补齐可分层、短起音、少混响、带多个变体的素材，再按技能时序组合。
+
+| 获取路线 | 适合用途 | 官方来源与本次确认 |
+| --- | --- | --- |
+| 免费起步：Sonniss GameAudioGDC | 金属、碎石、低频冲击、破风等素材底库；需要筛选剪辑 | [当期包](https://gdc.sonniss.com/)说明免费、免署名；[历年档案](https://sonniss.com/gameaudiogdc/)扩大选择。保存实际下载包的许可，不推及全站付费库。 |
+| 免费检索：Soundly Free | 用元数据检索 whoosh、impact、debris、rumble、shield、magic，快速试听选择 | [官方商业使用说明](https://getsoundly.com/faq/how-can-i-use-the-sounds/)确认自有 Free/Pro 库可商用；其 Freesound 集成资源仍须分别看许可。 |
+| 低成本通用库：Gamemaster Audio Pro Sound Collection | 快速补齐 Magic & Spell、Punch & Combat、Foley 等不同类别 | [作者产品页](https://www.gamemasteraudio.com/product/pro-sound-collection/)提供试听、声音清单和商业许可说明。购买前试听代表性攻击，避免只按总数量选库。 |
+| 重点提升：BOOM Medieval Melee / Magic | 前者针对武器接触、格挡、破风，后者补元素、治疗和暗系技能 | [Medieval Melee官方介绍](https://www.boomlibrary.com/blog/medieval-melee/)、[Magic产品页](https://www.boomlibrary.com/sound-effects/magic/)。Designed适合快速使用，Construction Kit适合分层制作。 |
+| 单项缺口：Freesound | 补金属摩擦、岩石裂开、锁链、低频纹理等 | [官方许可FAQ](https://freesound.org/help/faq/)。优先CC0；CC BY登记署名，商业项目排除CC BY-NC。 |
+
+建议首批精选约40–60条：轻/重挥动、肉体/金属/盾/石头命中、低频冲击、碎屑、蓄力、释放、持续循环、治疗结束音，每类约3–6个变体；不必先导入整个数百GB库。保留原始母带，在制作副本中裁掉前导静音、留短尾与淡入淡出，按需求输出48kHz WAV。点状武器/接触层优先单声道，环境/大范围魔法尾音按空间需求保留立体声。
+
+| 当前技能 | 推荐声音组合 | 触发与控制 |
+| --- | --- | --- |
+| Q/E横扫 | 破风 + 武器接触的短脆瞬态 + 低频重量层 | 破风跟出手帧；接触音只随有效命中，不随空挥播放；E可稍宽、稍低但不只拉大音量。 |
+| 1剑刃风暴 | 起手挥动 + 风刃持续层 + 短接触点 + 收尾 | 持续层用有生命周期的AudioComponent/循环入口，取消即淡出；每次脉冲不叠一整段长爆炸，多目标接触用并发和限频。 |
+| 2跃击震地 | 离地破风 + 下落加速声 + 落地低频/石裂/碎屑 | 地爆音只在实际落地触发；墙前落地跟真实位置，不在预设终点播放。 |
+| 3坚盾防御 | 举盾金属移动 + 轻持续共鸣 + 接触格挡 | 无受击时不循环播放碰撞；真正挡住攻击再播放接触层。 |
+| 4石化复苏 | 岩石聚拢/蓄力 + 第二段下降破风 + 下砸冲击 + 短恢复尾音 | 第二段下降声可对齐约3.0秒；主冲击对齐约3.33秒；回血提示小音量，避免掩盖砸地瞬态。 |
+
+项目已有AudioLibrary/AudioSubsystem与AttackSwing、SkillCast、SkillHit等事件，可复用随机变体、匹配、类别音量、空间衰减和并发配置。一次性动作跟动画Notify，接触层跟权威命中结果，持续层必须有明确停止所有者。保留一种事件所有者，避免DA的StrikeSound与SkillHit重复播放同一层。建议先做一个横扫与一个下砸的A/B试听，再扩展所有派系；随机音高仅小幅变化（例如0.95–1.05），通过瞬态、材质与低频层区分重量。

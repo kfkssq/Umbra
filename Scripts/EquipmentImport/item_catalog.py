@@ -21,6 +21,14 @@ def valid_text(value):
     return bool(value and value.strip() and value.strip() not in {"[ERROR]", "dummy", "DLC dummy"})
 
 
+def display_name(value):
+    """Remove source error markers from UI names; retain raw text in provenance."""
+    cleaned = re.sub(r'\[error\]', '', value, flags=re.I).strip()
+    if not cleaned or 'error' in cleaned.casefold():
+        raise ValueError('Unresolved item display name: ' + value)
+    return cleaned
+
+
 def text_index(document):
     # Preserve conflicts across base/DLC instead of guessing an override order.
     index = collections.defaultdict(list)
@@ -121,6 +129,9 @@ def build(config):
             identity = f"ER:EquipParam{kind}:{number}"
             code = row["wepType" if kind == "Weapon" else "protectorCategory"]
             classification = mapping["weapons" if kind == "Weapon" else "armor"].get(code)
+            definition_excluded = kind == 'Weapon' and int(code) in mapping.get('non_equippable_weapon_categories', [])
+            if definition_excluded:
+                classification = None
             name = resolve_text(texts, kind, "Name", number)
             description = resolve_text(texts, kind, "Caption", number)
             models, model_status = model_candidates(row, kind, parts)
@@ -131,7 +142,9 @@ def build(config):
                 problems.append("name_" + name["status"])
             if description["status"] != "matched":
                 problems.append("description_" + description["status"])
-            if not classification:
+            if definition_excluded:
+                problems.append('non_equippable_definition_excluded')
+            elif not classification:
                 problems.append("category_unmapped")
             if not models:
                 problems.append("model_" + model_status)
@@ -150,6 +163,9 @@ def build(config):
                     "classification_status": "suggested_requires_review" if classification else "unmapped",
                     "icons": item_icons, "models": models, "model_status": model_status,
                     "raw_params": row, "issues": problems}
+            if definition_excluded:
+                item['definition_excluded'] = True
+                item['classification_status'] = 'non_equippable_definition_excluded'
             items.append(item)
             issues.extend({"source_id": identity, "code": problem} for problem in problems)
             for model in models:

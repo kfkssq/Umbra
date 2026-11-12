@@ -1,3 +1,5 @@
+> 2026-11-04 栏位更新：Feet 停用，原鞋子位置改为 Amulet2；Legs 包含裤靴，仍为十个有效栏位。旧文中的 Feet 配置及独立腿鞋规划由 [双护符栏说明](AccessoriesAndConsumables.md) 覆盖。
+
 # 装备页基础与全身预览
 
 2026-09-29：已保存的 WBP_Equipment 已有十槽且 SlotType 正确，不再是下文历史检查中的单槽。新空槽图标映射和四维属性迁移见 [CharacterMenu 四维与空槽](CharacterMenuStatsAndIcons.md)。该文的本轮资产证据优先于下文 09-28 快照；Preview 架构保持不变。

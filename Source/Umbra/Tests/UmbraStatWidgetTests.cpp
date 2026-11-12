@@ -31,11 +31,11 @@ bool FUmbraEmptySlotIconsTest::RunTest(const FString& Parameters)
 	for (int32 Index = 0; Index < 10; ++Index)
 	{
 		Textures.Add(NewObject<UTexture2D>());
-		Slot->SetEmptyIconForTest(static_cast<EUmbraEquipmentSlot>(Index), Textures.Last());
+		Slot->SetEmptyIconForTest((Index == 4 ? EUmbraEquipmentSlot::Amulet2 : static_cast<EUmbraEquipmentSlot>(Index)), Textures.Last());
 	}
 	for (int32 Index = 0; Index < 10; ++Index)
 	{
-		Slot->SetSlotType(static_cast<EUmbraEquipmentSlot>(Index));
+		Slot->SetSlotType((Index == 4 ? EUmbraEquipmentSlot::Amulet2 : static_cast<EUmbraEquipmentSlot>(Index)));
 		TestEqual(TEXT("Each type resolves its own icon"), Empty->GetBrush().GetResourceObject(), static_cast<UObject*>(Textures[Index]));
 		TestEqual(TEXT("Empty visible"), Empty->GetVisibility(), ESlateVisibility::HitTestInvisible);
 		TestEqual(TEXT("Item hidden"), Item->GetVisibility(), ESlateVisibility::Collapsed);

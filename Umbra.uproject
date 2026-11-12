@@ -5,6 +5,11 @@
 	"Description": "",
 	"Modules": [
 		{
+			"Name": "UmbraEditorTools",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
+		},
+		{
 			"Name": "Umbra",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",

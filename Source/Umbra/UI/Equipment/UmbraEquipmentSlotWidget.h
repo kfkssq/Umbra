@@ -21,6 +21,7 @@ class UMBRA_API UUmbraEquipmentSlotWidget : public UUserWidget
 	GENERATED_BODY()
 	friend class UUmbraItemDragDropOperation;
 	friend class UUmbraEquipmentMenu;
+	friend class UUmbraEquipmentNetworkTestLibrary;
 	TWeakObjectPtr<UUmbraEquipmentMenu> InteractionMenu;
 public:
  FUmbraEquipmentTooltipHover OnTooltipHoverChanged;

@@ -6,6 +6,14 @@
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "EngineUtils.h"
 
+void AUmbraPlayerController::UpdateCameraManager(float DeltaSeconds)
+{
+ Super::UpdateCameraManager(DeltaSeconds);
+ // Screen-space WidgetComponents use the completed camera view in Slate later this frame.
+ // Compute avoidance and its hit rectangles from that same view, not the previous Tick's camera.
+ if (IsLocalPlayerController()) LayoutWorldItemLabels(DeltaSeconds);
+}
+
 void AUmbraPlayerController::OnWorldItemLabelDestroyed(AActor* Actor)
 {
  auto* Item = Cast<AUmbraWorldItem>(Actor);
@@ -51,6 +59,8 @@ void AUmbraPlayerController::LayoutWorldItemLabels(float DeltaTime)
  }
  const float Scale = UWidgetLayoutLibrary::GetViewportScale(this);
  const FVector2D ViewSize = Scale > 0 ? UWidgetLayoutLibrary::GetViewportSize(this) / Scale : FVector2D::ZeroVector;
+ const FVector2D HostSize = UWidgetLayoutLibrary::GetViewportWidgetGeometry(this).GetLocalSize();
+ const bool bViewportReady = HostSize.X > 0 && HostSize.Y > 0 && ViewSize.X > 0 && ViewSize.Y > 0;
  TArray<UmbraWorldLabelLayout::FEntry> Entries;
  TArray<AUmbraWorldItem*> VisibleItems;
  for (auto* Item : Items)
@@ -59,6 +69,12 @@ void AUmbraPlayerController::LayoutWorldItemLabels(float DeltaTime)
   auto* Component = Item->GetLabelComponent();
   auto* Widget = Component ? Cast<UUmbraWorldItemLabel>(Component->GetUserWidgetObject()) : nullptr;
   if (!Widget) { State.bVisible = false; continue; }
+  // ScreenToViewport depends on Slate host geometry, which can be empty on the first
+  // game frame. Do not cache a corner-clamped "anchor" before the viewport is arranged.
+  if (!bViewportReady)
+  {
+   State.bVisible = false; Widget->SetRenderOpacity(0.f); continue;
+  }
   FVector2D Screen = FVector2D::ZeroVector, Anchor = FVector2D::ZeroVector;
   const bool bProjected = Scale > 0 && ProjectWorldLocationToScreen(Component->GetComponentLocation(), Screen);
   if (bProjected)
